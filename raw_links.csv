@@ -1,5 +1,5 @@
 company,text,url
-https://www.borouge.com/en/investor-relations/Pages/announcements.aspx,ADX: BOROUGE,https://www.borouge.com/en/Pages/home.aspx
+https://www.borouge.com/en/investor-relations/Pages/announcements.aspx,home.aspx,https://www.borouge.com/en/Pages/home.aspx
 https://www.borouge.com/en/investor-relations/Pages/announcements.aspx,Home,https://www.borouge.com/en
 https://www.borouge.com/en/investor-relations/Pages/announcements.aspx,Investor Relations,https://www.borouge.com/en/investor-relations
 https://www.borouge.com/en/investor-relations/Pages/announcements.aspx,#EnablingEverydayLife,https://www.borouge.com/en/investor-relations/Pages/announcements.aspx
@@ -57,7 +57,7 @@ https://www.borouge.com/en/investor-relations/Pages/announcements.aspx,Agricultu
 https://www.borouge.com/en/investor-relations/Pages/announcements.aspx,Healthcare,https://www.borouge.com/en/industry-solution/Pages/CreativePolymerSolution/health-care.aspx
 https://www.borouge.com/en/investor-relations/Pages/announcements.aspx,Advanced Packaging,https://www.borouge.com/en/industry-solution/Pages/CreativePolymerSolution/advance-packaging.aspx
 https://www.borouge.com/en/investor-relations/Pages/announcements.aspx,INNOVATION,https://www.borouge.com/en/innovation
-https://www.borouge.com/en/investor-relations/Pages/announcements.aspx,Social Responsibility,https://www.borouge.com/en/sustainability/pages/home.aspx
+https://www.borouge.com/en/investor-relations/Pages/announcements.aspx,home.aspx,https://www.borouge.com/en/sustainability/pages/home.aspx
 https://www.borouge.com/en/investor-relations/Pages/announcements.aspx,SUSTAINABILITY,https://www.borouge.com/en/investor-relations/Pages/announcements.aspx#navINNOVATION
 https://www.borouge.com/en/investor-relations/Pages/announcements.aspx,Circular Economy,https://www.borouge.com/en/sustainability/Pages/circular-economy.aspx
 https://www.borouge.com/en/investor-relations/Pages/announcements.aspx,Social Responsibility,https://www.borouge.com/en/sustainability/Pages/social-responsibility.aspx
@@ -65,17 +65,17 @@ https://www.borouge.com/en/investor-relations/Pages/announcements.aspx,Sustainab
 https://www.borouge.com/en/investor-relations/Pages/announcements.aspx,Responsible care,https://www.borouge.com/en/sustainability/Pages/responsible-care.aspx
 https://www.borouge.com/en/investor-relations/Pages/announcements.aspx,Responsible Sourcing,https://www.borouge.com/en/sustainability/Pages/responsibility-sourcing.aspx
 https://www.borouge.com/en/investor-relations/Pages/announcements.aspx,REACH,https://www.borouge.com/en/sustainability/Pages/reach.aspx
-https://www.borouge.com/en/investor-relations/Pages/announcements.aspx,Literature finder,javascript:void(0)
+https://www.borouge.com/en/investor-relations/Pages/announcements.aspx,javascript:void(0),javascript:void(0)
 https://www.borouge.com/en/investor-relations/Pages/announcements.aspx,E-SERVICES,https://www.borouge.com/en/investor-relations/Pages/announcements.aspx#navEService
 https://www.borouge.com/en/investor-relations/Pages/announcements.aspx,Datasheets,https://www.borouge.com/en/e-service/Pages/data-sheet.aspx
 https://www.borouge.com/en/investor-relations/Pages/announcements.aspx,Literature finder,https://www.borouge.com/en/e-service/Pages/literature-finder.aspx
 https://www.borouge.com/en/investor-relations/Pages/announcements.aspx,E-Procurement,https://www.borouge.com/en/e-service/Pages/e-procurements.aspx
-https://www.borouge.com/en/investor-relations/Pages/announcements.aspx,Borouge Fact Sheet,https://www.borouge.com/en/media/Pages/home.aspx
+https://www.borouge.com/en/investor-relations/Pages/announcements.aspx,home.aspx,https://www.borouge.com/en/media/Pages/home.aspx
 https://www.borouge.com/en/investor-relations/Pages/announcements.aspx,MEDIA CENTRE,https://www.borouge.com/en/investor-relations/Pages/announcements.aspx#navMEDIA
 https://www.borouge.com/en/investor-relations/Pages/announcements.aspx,Media News,https://www.borouge.com/en/media/Pages/news.aspx
 https://www.borouge.com/en/investor-relations/Pages/announcements.aspx,Stories,https://www.borouge.com/en/media/Pages/Stories.aspx
 https://www.borouge.com/en/investor-relations/Pages/announcements.aspx,Borouge Fact Sheet,https://www.borouge.com/en/media/Documents/Company%20FactSheet/Borouge%20Fact%20Sheet.pdf
-https://www.borouge.com/en/investor-relations/Pages/announcements.aspx,Corporate Governance,https://www.borouge.com/en/investor-relations/Pages/home.aspx
+https://www.borouge.com/en/investor-relations/Pages/announcements.aspx,home.aspx,https://www.borouge.com/en/investor-relations/Pages/home.aspx
 https://www.borouge.com/en/investor-relations/Pages/announcements.aspx,IR,https://www.borouge.com/en/investor-relations/Pages/announcements.aspx#navIR
 https://www.borouge.com/en/investor-relations/Pages/announcements.aspx,Invest in Borouge,https://www.borouge.com/en/investor-relations/pages/become-a-shareholder.aspx
 https://www.borouge.com/en/investor-relations/Pages/announcements.aspx,Investment Case,https://www.borouge.com/en/investor-relations/Pages/our-investment-case.aspx
@@ -114,7 +114,7 @@ https://www.borouge.com/en/investor-relations/Pages/announcements.aspx,BOROUGE-S
 https://www.borouge.com/en/investor-relations/Pages/announcements.aspx,Q4_2024_Results.aspx,https://www.borouge.com/en/media/Pages/News/Q4_2024_Results.aspx
 https://www.borouge.com/en/investor-relations/Pages/announcements.aspx,"javascript:WebForm_DoPostBackWithOptions(new WebForm_PostBackOptions(""ctl00$ctl35$g_45beda76_2072_4eb3_baf8_d6f7cc2ddbd4$ctl00$LinkButtonNext"", """", true, """", """", false, true))","javascript:WebForm_DoPostBackWithOptions(new WebForm_PostBackOptions(""ctl00$ctl35$g_45beda76_2072_4eb3_baf8_d6f7cc2ddbd4$ctl00$LinkButtonNext"", """", true, """", """", false, true))"
 https://www.borouge.com/en/investor-relations/Pages/announcements.aspx,IR@borouge.com,mailto:ir@borouge.com
-https://www.borouge.com/en/investor-relations/Pages/announcements.aspx,IR@borouge.com,mailto:InvestorRelations@borouge.com
+https://www.borouge.com/en/investor-relations/Pages/announcements.aspx,mailto:InvestorRelations@borouge.com,mailto:InvestorRelations@borouge.com
 https://www.borouge.com/en/investor-relations/Pages/announcements.aspx,home.aspx,https://www.borouge.com/en/pages/home.aspx
 https://www.borouge.com/en/investor-relations/Pages/announcements.aspx,Industry Solutions,https://www.borouge.com/en/industry-solution/Pages/home.aspx
 https://www.borouge.com/en/investor-relations/Pages/announcements.aspx,Innovation,https://www.borouge.com/en/innovation/pages/home.aspx
@@ -165,63 +165,63 @@ https://space42.ai/en/investor-relations/,2022,javascript:void(0)
 https://space42.ai/en/investor-relations/,2021,javascript:void(0)
 https://space42.ai/en/investor-relations/,2020,javascript:void(0)
 https://space42.ai/en/investor-relations/,2019,javascript:void(0)
-https://space42.ai/en/investor-relations/,"26 February, 2026",https://space42.ai:443/-/media/space42/downloads/ir/financial-reports/space42-plc--separate-and-consolidated-financial-statements-signed-dec25-english.ashx
-https://space42.ai/en/investor-relations/,"26 February, 2026",https://space42.ai:443/-/media/space42/downloads/ir/financial-information/reports-presentations/space42-fy-2025-results-presentation.ashx?la=en&hash=F773824EB31105434D0D0A4A963E22753CCF707B
-https://space42.ai/en/investor-relations/,"26 February, 2026",https://www.space42.ai/en/press-release/2026/fy-2025-press-release/
-https://space42.ai/en/investor-relations/,"26 February, 2026",https://youtu.be/7RZh3ovD3k4
-https://space42.ai/en/investor-relations/,FY 2025 Annual Report,https://space42.ai:443/-/media/space42/downloads/ir/annual-reports/space42-annual-report-2025-english.ashx
-https://space42.ai/en/investor-relations/,Corporate Governance Report,https://space42.ai:443/-/media/space42/downloads/ir/governance-reports/space42-governance-report-2025-english.ashx
-https://space42.ai/en/investor-relations/,Space42 Investor Day,https://space42.ai:443/-/media/space42/investor-day--november-25th-2025.ashx
-https://space42.ai/en/investor-relations/,Space42 Investor Day,https://space42.ai:443/-/media/space42/investor-day--november-25th-2025.ashx?la=en&hash=1EB3121D981B958811B062FC9DFE8F889666E1F2
-https://space42.ai/en/investor-relations/,Company Presentation | Nov 2025,https://space42.ai:443/-/media/space42/space42-investors-presentation---november-2025.ashx?la=en&hash=CE1CA0F76365EE7DA7086C44445EA5B0778CE9D6
-https://space42.ai/en/investor-relations/,"06 November, 2025",https://space42.ai:443/-/media/space42-group-consolidated-financial-statements-q3-2025-engocr.ashx
-https://space42.ai/en/investor-relations/,"06 November, 2025",https://space42.ai:443/-/media/space42-9m-2025-results-presentation--ocr.ashx?la=en&hash=19047EF9C112BA5BBF66CA63D16374A7F77B4A58
-https://space42.ai/en/investor-relations/,"06 November, 2025",https://www.space42.ai/en/press-release/2025/space42-reports-9-months-earnings-and-lays-foundation-for-sustainable-growth/
-https://space42.ai/en/investor-relations/,"06 November, 2025",https://youtu.be/pmckaBTZ814
-https://space42.ai/en/investor-relations/,H1 2025 Earnings,https://space42.ai:443/-/media/space42-plc-consolidated-financial-statements---h1-2025.ashx
-https://space42.ai/en/investor-relations/,H1 2025 Earnings,https://space42.ai:443/-/media/space42/downloads/ir/space42-h1-2025-results-presentation--060825ocr.ashx?la=en&hash=67D6115ACBF2D9A9A4C04E6B29C57441AA97378C
-https://space42.ai/en/investor-relations/,H1 2025 Earnings,https://space42.ai:443/-/media/space42/downloads/ir/press-release/250804---space42-h1-2025-earnings-release---final_en-ocr-(2).ashx?la=en&hash=BB8BC3E7F3A1A964C2758E1AC600C0DD464D065E
-https://space42.ai/en/investor-relations/,H1 2025 Earnings,https://youtu.be/riglpLSzGMQ?si=1pqW21Sdu65O4svg
-https://space42.ai/en/investor-relations/,Q1 2025 Earnings,https://space42.ai:443/-/media/space42-plc-consolidated-financial-statements-q125-english.ashx
-https://space42.ai/en/investor-relations/,Q1 2025 Earnings,https://space42.ai:443/-/media/space42/downloads/ir/financial-information/reports-presentations/space42-q1-2025-results-presentation.ashx?la=en&hash=7011C480D9FD22A25454D0C57EF9B7A093205E89
-https://space42.ai/en/investor-relations/,Q1 2025 Earnings,https://space42.ai:443/-/media/space42/downloads/ir/press-release/space42-q1-2025-earnings-press-release.ashx?la=en&hash=32A81DB1B8E95DB858BAD12B6876AA1AEE52EA13
-https://space42.ai/en/investor-relations/,Q1 2025 Earnings,https://youtu.be/k34UkaOveE8
-https://space42.ai/en/investor-relations/,"31 December, 2024",https://space42.ai:443/-/media/space42/downloads/ir/agm-2025/space42---2024-consolidated-financial-statements---eng-(2).ashx
-https://space42.ai/en/investor-relations/,"31 December, 2024",https://space42.ai:443/-/media/space42/downloads/ir/financial-information/reports-presentations/space42-fy-2024-results-presentation--27022025.ashx?la=en&hash=63B9CFAEB368D49B0C0616F29741D3D4391483CB
-https://space42.ai/en/investor-relations/,"31 December, 2024",https://space42.ai:443/-/media/space42/downloads/ir/press-release/250219---space42-fy-2024-results-prl---final-eng.ashx?la=en&hash=9CBC18EC7FF26A8E7DB60937D6C347A17C3522AF
-https://space42.ai/en/investor-relations/,FY 2024 Annual Report,https://space42.ai:443/-/media/space42/downloads/ir/annual-reports/ar/space42-ar2024-eng.ashx
-https://space42.ai/en/investor-relations/,Corporate Governance Report,https://space42.ai:443/-/media/space42/downloads/ir/governance-reports/space42-governance-report-2024-final-eng.ashx
-https://space42.ai/en/investor-relations/,Sustainability Report,https://space42.ai:443/-/media/space42/downloads/sustainabilty/space42-sustainability-report-2024---english-compressed.ashx
-https://space42.ai/en/investor-relations/,Q3 2024 Investor Day,https://space42.ai:443/-/media/space42/downloads/ir/financial-information/reports-presentations/space42-investors-day-presentation-271124.ashx
-https://space42.ai/en/investor-relations/,"07 November, 2024",https://space42.ai:443/-/media/space42/downloads/ir/financial-information/reports-presentations/20241107_space42-9m-2024-results-presentation.ashx
-https://space42.ai/en/investor-relations/,Q2 2024 Bayanat Earnings,https://space42.ai:443/-/media/space42/downloads/ir/annual-reports/q22024bayanat-ai-plc-june24-signed-copy.ashx
-https://space42.ai/en/investor-relations/,Q2 2024 Yahsat Earnings,https://space42.ai:443/-/media/space42/downloads/ir/annual-reports/yahsat-q2-2024-financial-statements-en.ashx
-https://space42.ai/en/investor-relations/,Bayanat-Yahsat Merger,https://space42.ai:443/-/media/space42/downloads/ir/financial-information/key-figures/merger-presentation.ashx
-https://space42.ai/en/investor-relations/,Q1 2024 Bayanat Earnings,https://space42.ai:443/-/media/space42/downloads/ir/financial-information/reports-presentations/bayanat-2024-q1.ashx
-https://space42.ai/en/investor-relations/,Q1 2024 Bayanat Earnings,https://space42.ai:443/-/media/space42/downloads/ir/press-release/bayanat-q1-2024-financial-press-release.ashx?la=en&hash=212C5BBDDEC1B0A1BABCDAA1A45BAAC19E09B5B8
-https://space42.ai/en/investor-relations/,Q1 2024 Yahsat Earnings,https://space42.ai:443/-/media/space42/downloads/ir/annual-reports/yahsat-q1-2024-financial-statements-en.ashx
-https://space42.ai/en/investor-relations/,FY 2023 Bayanat Earnings,https://space42.ai:443/-/media/space42/downloads/ir/annual-reports/bayanat-2023-fy.ashx
-https://space42.ai/en/investor-relations/,FY 2023 Bayanat Earnings,https://space42.ai:443/-/media/space42/downloads/ir/press-release/bayanat-fy-2023-financial-press-release.ashx?la=en&hash=8A78D5200BABF8579189280C74D0BCBF21C74E11
-https://space42.ai/en/investor-relations/,FY 2023 Yahsat Earnings,https://space42.ai:443/-/media/space42/downloads/ir/annual-reports/en/yahsat/fsq42023yahsat--financial-statements-eng.ashx
-https://space42.ai/en/investor-relations/,Q3 2023 Bayanat Earnings,https://space42.ai:443/-/media/space42/downloads/ir/financial-information/reports-presentations/bayanat-2023-q3.ashx
-https://space42.ai/en/investor-relations/,Q3 2023 Yahsat Earnings,https://space42.ai:443/-/media/space42/downloads/ir/annual-reports/en/yahsat/fs-q3-2023-yahsat--financial-statements-en.ashx
-https://space42.ai/en/investor-relations/,Q2 2023 Bayanat Earnings,https://space42.ai:443/-/media/space42/downloads/ir/financial-information/reports-presentations/bayanat-2023-q2.ashx
-https://space42.ai/en/investor-relations/,Q2 2023 Yahsat Earnings,https://space42.ai:443/-/media/space42/downloads/ir/annual-reports/en/yahsat/fs-q2--2023--yahsat-financial-statements-en.ashx
-https://space42.ai/en/investor-relations/,Q1 2023 Bayanat Earnings,https://space42.ai:443/-/media/space42/downloads/ir/financial-information/reports-presentations/bayanat-2023-q1.ashx
-https://space42.ai/en/investor-relations/,Q1 2023 Yahsat Earnings,https://space42.ai:443/-/media/space42/downloads/ir/annual-reports/en/yahsat/fs-q1-2023-yahsat-q1-2023-financial-statements-en.ashx
-https://space42.ai/en/investor-relations/,FY 2022 Bayanat Earnings,https://space42.ai:443/-/media/space42/downloads/ir/annual-reports/bayanat-2022-fy.ashx
-https://space42.ai/en/investor-relations/,FY 2022 Yahsat Earnings,https://space42.ai:443/-/media/space42/downloads/ir/annual-reports/en/yahsat/fs-q4-2022-yahsat--financial-statements-en.ashx
-https://space42.ai/en/investor-relations/,Q3 2022 Bayanat Earnings,https://space42.ai:443/-/media/space42/downloads/ir/financial-information/reports-presentations/bayanat-2022-q3.ashx
-https://space42.ai/en/investor-relations/,Q3 2022 Yahsat Earnings,https://space42.ai:443/-/media/space42/downloads/ir/annual-reports/en/yahsat/fs--q3-2022--yahsat-financial-statements-en.ashx
-https://space42.ai/en/investor-relations/,Q2 2022 Bayanat Earnings,https://space42.ai:443/-/media/space42/downloads/ir/financial-information/reports-presentations/bayanat-2022-q2.ashx
-https://space42.ai/en/investor-relations/,Q2 2022 Yahsat Earnings,https://space42.ai:443/-/media/space42/downloads/ir/annual-reports/en/yahsat/fs-q2-2022-yahsat-signed-group-interim-financial-statements-english.ashx
-https://space42.ai/en/investor-relations/,Q1 2022 Bayanat Earnings,https://space42.ai:443/-/media/space42/downloads/ir/financial-information/reports-presentations/bayanat-2022-q1.ashx
-https://space42.ai/en/investor-relations/,Q1 2022 Yahsat Earnings,https://space42.ai:443/-/media/yahsat-1q-2022-results-presentation.ashx
-https://space42.ai/en/investor-relations/,FY 2021 Bayanat Earnings,https://space42.ai:443/-/media/space42/downloads/ir/annual-reports/bayanat-2021-fy.ashx
-https://space42.ai/en/investor-relations/,FY 2021 Yahsat Earnings,https://space42.ai:443/-/media/space42/downloads/ir/annual-reports/en/yahsat/fs-q4-2021--yahsat-group-audited-financial-statements-english.ashx
-https://space42.ai/en/investor-relations/,Q3 2021 Yahsat Earnings,https://space42.ai:443/-/media/yahsat/investor-relations/company-announcements/yahsat-q3-earnings-announcement---english---final-approved---06112021b.ashx
-https://space42.ai/en/investor-relations/,FY 2020 Bayanat Earnings,https://space42.ai:443/-/media/space42/downloads/ir/annual-reports/bayanat-2020-fy.ashx
-https://space42.ai/en/investor-relations/,FY 2019 Bayanat Earnings,https://space42.ai:443/-/media/space42/downloads/ir/annual-reports/bayanat-2019-fy.ashx
+https://space42.ai/en/investor-relations/,space42-plc--separate-and-consolidated-financial-statements-signed-dec25-english.ashx,https://space42.ai:443/-/media/space42/downloads/ir/financial-reports/space42-plc--separate-and-consolidated-financial-statements-signed-dec25-english.ashx
+https://space42.ai/en/investor-relations/,space42-fy-2025-results-presentation.ashx?la=en&hash=F773824EB31105434D0D0A4A963E22753CCF707B,https://space42.ai:443/-/media/space42/downloads/ir/financial-information/reports-presentations/space42-fy-2025-results-presentation.ashx?la=en&hash=F773824EB31105434D0D0A4A963E22753CCF707B
+https://space42.ai/en/investor-relations/,,https://www.space42.ai/en/press-release/2026/fy-2025-press-release/
+https://space42.ai/en/investor-relations/,7RZh3ovD3k4,https://youtu.be/7RZh3ovD3k4
+https://space42.ai/en/investor-relations/,space42-annual-report-2025-english.ashx,https://space42.ai:443/-/media/space42/downloads/ir/annual-reports/space42-annual-report-2025-english.ashx
+https://space42.ai/en/investor-relations/,space42-governance-report-2025-english.ashx,https://space42.ai:443/-/media/space42/downloads/ir/governance-reports/space42-governance-report-2025-english.ashx
+https://space42.ai/en/investor-relations/,investor-day--november-25th-2025.ashx,https://space42.ai:443/-/media/space42/investor-day--november-25th-2025.ashx
+https://space42.ai/en/investor-relations/,investor-day--november-25th-2025.ashx?la=en&hash=1EB3121D981B958811B062FC9DFE8F889666E1F2,https://space42.ai:443/-/media/space42/investor-day--november-25th-2025.ashx?la=en&hash=1EB3121D981B958811B062FC9DFE8F889666E1F2
+https://space42.ai/en/investor-relations/,space42-investors-presentation---november-2025.ashx?la=en&hash=CE1CA0F76365EE7DA7086C44445EA5B0778CE9D6,https://space42.ai:443/-/media/space42/space42-investors-presentation---november-2025.ashx?la=en&hash=CE1CA0F76365EE7DA7086C44445EA5B0778CE9D6
+https://space42.ai/en/investor-relations/,space42-group-consolidated-financial-statements-q3-2025-engocr.ashx,https://space42.ai:443/-/media/space42-group-consolidated-financial-statements-q3-2025-engocr.ashx
+https://space42.ai/en/investor-relations/,space42-9m-2025-results-presentation--ocr.ashx?la=en&hash=19047EF9C112BA5BBF66CA63D16374A7F77B4A58,https://space42.ai:443/-/media/space42-9m-2025-results-presentation--ocr.ashx?la=en&hash=19047EF9C112BA5BBF66CA63D16374A7F77B4A58
+https://space42.ai/en/investor-relations/,,https://www.space42.ai/en/press-release/2025/space42-reports-9-months-earnings-and-lays-foundation-for-sustainable-growth/
+https://space42.ai/en/investor-relations/,pmckaBTZ814,https://youtu.be/pmckaBTZ814
+https://space42.ai/en/investor-relations/,space42-plc-consolidated-financial-statements---h1-2025.ashx,https://space42.ai:443/-/media/space42-plc-consolidated-financial-statements---h1-2025.ashx
+https://space42.ai/en/investor-relations/,space42-h1-2025-results-presentation--060825ocr.ashx?la=en&hash=67D6115ACBF2D9A9A4C04E6B29C57441AA97378C,https://space42.ai:443/-/media/space42/downloads/ir/space42-h1-2025-results-presentation--060825ocr.ashx?la=en&hash=67D6115ACBF2D9A9A4C04E6B29C57441AA97378C
+https://space42.ai/en/investor-relations/,250804---space42-h1-2025-earnings-release---final_en-ocr-(2).ashx?la=en&hash=BB8BC3E7F3A1A964C2758E1AC600C0DD464D065E,https://space42.ai:443/-/media/space42/downloads/ir/press-release/250804---space42-h1-2025-earnings-release---final_en-ocr-(2).ashx?la=en&hash=BB8BC3E7F3A1A964C2758E1AC600C0DD464D065E
+https://space42.ai/en/investor-relations/,riglpLSzGMQ?si=1pqW21Sdu65O4svg,https://youtu.be/riglpLSzGMQ?si=1pqW21Sdu65O4svg
+https://space42.ai/en/investor-relations/,space42-plc-consolidated-financial-statements-q125-english.ashx,https://space42.ai:443/-/media/space42-plc-consolidated-financial-statements-q125-english.ashx
+https://space42.ai/en/investor-relations/,space42-q1-2025-results-presentation.ashx?la=en&hash=7011C480D9FD22A25454D0C57EF9B7A093205E89,https://space42.ai:443/-/media/space42/downloads/ir/financial-information/reports-presentations/space42-q1-2025-results-presentation.ashx?la=en&hash=7011C480D9FD22A25454D0C57EF9B7A093205E89
+https://space42.ai/en/investor-relations/,space42-q1-2025-earnings-press-release.ashx?la=en&hash=32A81DB1B8E95DB858BAD12B6876AA1AEE52EA13,https://space42.ai:443/-/media/space42/downloads/ir/press-release/space42-q1-2025-earnings-press-release.ashx?la=en&hash=32A81DB1B8E95DB858BAD12B6876AA1AEE52EA13
+https://space42.ai/en/investor-relations/,k34UkaOveE8,https://youtu.be/k34UkaOveE8
+https://space42.ai/en/investor-relations/,space42---2024-consolidated-financial-statements---eng-(2).ashx,https://space42.ai:443/-/media/space42/downloads/ir/agm-2025/space42---2024-consolidated-financial-statements---eng-(2).ashx
+https://space42.ai/en/investor-relations/,space42-fy-2024-results-presentation--27022025.ashx?la=en&hash=63B9CFAEB368D49B0C0616F29741D3D4391483CB,https://space42.ai:443/-/media/space42/downloads/ir/financial-information/reports-presentations/space42-fy-2024-results-presentation--27022025.ashx?la=en&hash=63B9CFAEB368D49B0C0616F29741D3D4391483CB
+https://space42.ai/en/investor-relations/,250219---space42-fy-2024-results-prl---final-eng.ashx?la=en&hash=9CBC18EC7FF26A8E7DB60937D6C347A17C3522AF,https://space42.ai:443/-/media/space42/downloads/ir/press-release/250219---space42-fy-2024-results-prl---final-eng.ashx?la=en&hash=9CBC18EC7FF26A8E7DB60937D6C347A17C3522AF
+https://space42.ai/en/investor-relations/,space42-ar2024-eng.ashx,https://space42.ai:443/-/media/space42/downloads/ir/annual-reports/ar/space42-ar2024-eng.ashx
+https://space42.ai/en/investor-relations/,space42-governance-report-2024-final-eng.ashx,https://space42.ai:443/-/media/space42/downloads/ir/governance-reports/space42-governance-report-2024-final-eng.ashx
+https://space42.ai/en/investor-relations/,space42-sustainability-report-2024---english-compressed.ashx,https://space42.ai:443/-/media/space42/downloads/sustainabilty/space42-sustainability-report-2024---english-compressed.ashx
+https://space42.ai/en/investor-relations/,space42-investors-day-presentation-271124.ashx,https://space42.ai:443/-/media/space42/downloads/ir/financial-information/reports-presentations/space42-investors-day-presentation-271124.ashx
+https://space42.ai/en/investor-relations/,20241107_space42-9m-2024-results-presentation.ashx,https://space42.ai:443/-/media/space42/downloads/ir/financial-information/reports-presentations/20241107_space42-9m-2024-results-presentation.ashx
+https://space42.ai/en/investor-relations/,q22024bayanat-ai-plc-june24-signed-copy.ashx,https://space42.ai:443/-/media/space42/downloads/ir/annual-reports/q22024bayanat-ai-plc-june24-signed-copy.ashx
+https://space42.ai/en/investor-relations/,yahsat-q2-2024-financial-statements-en.ashx,https://space42.ai:443/-/media/space42/downloads/ir/annual-reports/yahsat-q2-2024-financial-statements-en.ashx
+https://space42.ai/en/investor-relations/,merger-presentation.ashx,https://space42.ai:443/-/media/space42/downloads/ir/financial-information/key-figures/merger-presentation.ashx
+https://space42.ai/en/investor-relations/,bayanat-2024-q1.ashx,https://space42.ai:443/-/media/space42/downloads/ir/financial-information/reports-presentations/bayanat-2024-q1.ashx
+https://space42.ai/en/investor-relations/,bayanat-q1-2024-financial-press-release.ashx?la=en&hash=212C5BBDDEC1B0A1BABCDAA1A45BAAC19E09B5B8,https://space42.ai:443/-/media/space42/downloads/ir/press-release/bayanat-q1-2024-financial-press-release.ashx?la=en&hash=212C5BBDDEC1B0A1BABCDAA1A45BAAC19E09B5B8
+https://space42.ai/en/investor-relations/,yahsat-q1-2024-financial-statements-en.ashx,https://space42.ai:443/-/media/space42/downloads/ir/annual-reports/yahsat-q1-2024-financial-statements-en.ashx
+https://space42.ai/en/investor-relations/,bayanat-2023-fy.ashx,https://space42.ai:443/-/media/space42/downloads/ir/annual-reports/bayanat-2023-fy.ashx
+https://space42.ai/en/investor-relations/,bayanat-fy-2023-financial-press-release.ashx?la=en&hash=8A78D5200BABF8579189280C74D0BCBF21C74E11,https://space42.ai:443/-/media/space42/downloads/ir/press-release/bayanat-fy-2023-financial-press-release.ashx?la=en&hash=8A78D5200BABF8579189280C74D0BCBF21C74E11
+https://space42.ai/en/investor-relations/,fsq42023yahsat--financial-statements-eng.ashx,https://space42.ai:443/-/media/space42/downloads/ir/annual-reports/en/yahsat/fsq42023yahsat--financial-statements-eng.ashx
+https://space42.ai/en/investor-relations/,bayanat-2023-q3.ashx,https://space42.ai:443/-/media/space42/downloads/ir/financial-information/reports-presentations/bayanat-2023-q3.ashx
+https://space42.ai/en/investor-relations/,fs-q3-2023-yahsat--financial-statements-en.ashx,https://space42.ai:443/-/media/space42/downloads/ir/annual-reports/en/yahsat/fs-q3-2023-yahsat--financial-statements-en.ashx
+https://space42.ai/en/investor-relations/,bayanat-2023-q2.ashx,https://space42.ai:443/-/media/space42/downloads/ir/financial-information/reports-presentations/bayanat-2023-q2.ashx
+https://space42.ai/en/investor-relations/,fs-q2--2023--yahsat-financial-statements-en.ashx,https://space42.ai:443/-/media/space42/downloads/ir/annual-reports/en/yahsat/fs-q2--2023--yahsat-financial-statements-en.ashx
+https://space42.ai/en/investor-relations/,bayanat-2023-q1.ashx,https://space42.ai:443/-/media/space42/downloads/ir/financial-information/reports-presentations/bayanat-2023-q1.ashx
+https://space42.ai/en/investor-relations/,fs-q1-2023-yahsat-q1-2023-financial-statements-en.ashx,https://space42.ai:443/-/media/space42/downloads/ir/annual-reports/en/yahsat/fs-q1-2023-yahsat-q1-2023-financial-statements-en.ashx
+https://space42.ai/en/investor-relations/,bayanat-2022-fy.ashx,https://space42.ai:443/-/media/space42/downloads/ir/annual-reports/bayanat-2022-fy.ashx
+https://space42.ai/en/investor-relations/,fs-q4-2022-yahsat--financial-statements-en.ashx,https://space42.ai:443/-/media/space42/downloads/ir/annual-reports/en/yahsat/fs-q4-2022-yahsat--financial-statements-en.ashx
+https://space42.ai/en/investor-relations/,bayanat-2022-q3.ashx,https://space42.ai:443/-/media/space42/downloads/ir/financial-information/reports-presentations/bayanat-2022-q3.ashx
+https://space42.ai/en/investor-relations/,fs--q3-2022--yahsat-financial-statements-en.ashx,https://space42.ai:443/-/media/space42/downloads/ir/annual-reports/en/yahsat/fs--q3-2022--yahsat-financial-statements-en.ashx
+https://space42.ai/en/investor-relations/,bayanat-2022-q2.ashx,https://space42.ai:443/-/media/space42/downloads/ir/financial-information/reports-presentations/bayanat-2022-q2.ashx
+https://space42.ai/en/investor-relations/,fs-q2-2022-yahsat-signed-group-interim-financial-statements-english.ashx,https://space42.ai:443/-/media/space42/downloads/ir/annual-reports/en/yahsat/fs-q2-2022-yahsat-signed-group-interim-financial-statements-english.ashx
+https://space42.ai/en/investor-relations/,bayanat-2022-q1.ashx,https://space42.ai:443/-/media/space42/downloads/ir/financial-information/reports-presentations/bayanat-2022-q1.ashx
+https://space42.ai/en/investor-relations/,yahsat-1q-2022-results-presentation.ashx,https://space42.ai:443/-/media/yahsat-1q-2022-results-presentation.ashx
+https://space42.ai/en/investor-relations/,bayanat-2021-fy.ashx,https://space42.ai:443/-/media/space42/downloads/ir/annual-reports/bayanat-2021-fy.ashx
+https://space42.ai/en/investor-relations/,fs-q4-2021--yahsat-group-audited-financial-statements-english.ashx,https://space42.ai:443/-/media/space42/downloads/ir/annual-reports/en/yahsat/fs-q4-2021--yahsat-group-audited-financial-statements-english.ashx
+https://space42.ai/en/investor-relations/,yahsat-q3-earnings-announcement---english---final-approved---06112021b.ashx,https://space42.ai:443/-/media/yahsat/investor-relations/company-announcements/yahsat-q3-earnings-announcement---english---final-approved---06112021b.ashx
+https://space42.ai/en/investor-relations/,bayanat-2020-fy.ashx,https://space42.ai:443/-/media/space42/downloads/ir/annual-reports/bayanat-2020-fy.ashx
+https://space42.ai/en/investor-relations/,bayanat-2019-fy.ashx,https://space42.ai:443/-/media/space42/downloads/ir/annual-reports/bayanat-2019-fy.ashx
 https://space42.ai/en/investor-relations/,[email protected],https://space42.ai/cdn-cgi/l/email-protection
 https://space42.ai/en/investor-relations/,Space42 Annual Report 2025,https://space42.ai:443/-/media/space42/downloads/ir/annual-reports/space42-annual-report-2025-english.ashx
 https://space42.ai/en/investor-relations/,Space42 Annual Report 2024,https://space42.ai:443/-/media/space42/downloads/ir/annual-reports/space42-ar2024-eng.ashx
@@ -264,7 +264,7 @@ https://space42.ai/en/investor-relations/,View BioIsmail Ali Mohammad Sulaiman A
 https://space42.ai/en/investor-relations/,View BioBashar AlrosanMember,https://space42.ai:443/en/about-us/board-of-directors/bashar-alrosan
 https://space42.ai/en/investor-relations/,+971 2 641 0000,tel:+971 2 641 0000
 https://space42.ai/en/investor-relations/,+971 2 641 5566,fax:+971 2 641 5566
-https://space42.ai/en/investor-relations/,[email protected],https://space42.ai/cdn-cgi/l/email-protection#40293200333021232574726e2129
+https://space42.ai/en/investor-relations/,[email protected],https://space42.ai/cdn-cgi/l/email-protection#0b62794b787b6a686e3f39256a62
 https://space42.ai/en/investor-relations/,en,https://space42.ai:443/en
 https://space42.ai/en/investor-relations/,About Us,https://space42.ai:443/en/about-us
 https://space42.ai/en/investor-relations/,Solutions,https://space42.ai:443/en/solutions
@@ -282,8 +282,8 @@ https://space42.ai/en/investor-relations/,,https://www.instagram.com/space42ai/
 https://space42.ai/en/investor-relations/,space42ai,https://x.com/space42ai
 https://space42.ai/en/investor-relations/,Legal Disclaimer,https://space42.ai:443/en/privacy-policy
 https://space42.ai/en/investor-relations/,Terms & Conditions,https://space42.ai:443/en/terms-of-use
-https://space42.ai/en/investor-relations/,Your browser does not support the audio element.,javascript:void(0)
-https://www.americanarestaurants.com/investors/company-announcements/,"HomeInvestorsالعربيةContact UsOverviewIPOIPO InformationFAQsFact SheetFinancial InformationShare InformationAnalyst CoverageAnnouncementsCorporate GovernanceCalendarSubscribeIPO InformationFAQsCompany AnnouncementsHead OfficeAmericana, 17 floor, Tower A,Al Rayyan Complex, Al Nahda, SharjahTel:+971-65092222Quick LinksAbout UsBrandsNewsCommunityPeopleFollow us on Social MediaCopyright © 2023. All right reservedConfidential Ethics ReportingPrivacy Policy",https://www.americanarestaurants.com/investors/company-announcements/
+https://space42.ai/en/investor-relations/,javascript:void(0),javascript:void(0)
+https://www.americanarestaurants.com/investors/company-announcements/,#,https://www.americanarestaurants.com/investors/company-announcements/
 https://www.americanarestaurants.com/investors/company-announcements/,العربيةContact Us,https://www.americanarestaurants.com
 https://www.americanarestaurants.com/investors/company-announcements/,Home,https://www.americanarestaurants.com
 https://www.americanarestaurants.com/investors/company-announcements/,Investors,https://www.americanarestaurants.com/investors/
@@ -416,131 +416,131 @@ https://albuhaira.com/financial-reports,Branches,https://albuhaira.com/branches
 https://albuhaira.com/financial-reports,Enquiry,https://albuhaira.com/enquiry
 https://albuhaira.com/financial-reports,Contact Medical Team,https://albuhaira.com/contact-medical-team
 https://albuhaira.com/financial-reports,Home,https://albuhaira.com
-https://albuhaira.com/financial-reports,Annual General Meeting 25/04/2026 - Minutes,https://albuhaira.com/assets/reports/financial-reports/0311_001.pdf
-https://albuhaira.com/financial-reports,Invitation to Attend Annual General Meeting on 25/04/2026 at 11:00,https://albuhaira.com/assets/reports/financial-reports/4805928.pdf
-https://albuhaira.com/financial-reports,"Financial Results for the Period Ended December 31, 2025",https://albuhaira.com/assets/reports/financial-reports/ABNIC-FS-YE-31-DEC-2025-ENGLISH.pdf
-https://albuhaira.com/financial-reports,"Management Report for the Period Ended December 31, 2025",https://albuhaira.com/assets/reports/financial-reports/4798371.pdf
-https://albuhaira.com/financial-reports,"Integrated Report December 31, 2025",https://albuhaira.com/assets/reports/financial-reports/english-integrated-report-abnic.pdf
-https://albuhaira.com/financial-reports,By Circulation of Board Meeting to be held on 31/03/2026 at 12:00,https://albuhaira.com/assets/reports/financial-reports/4795256.pdf
-https://albuhaira.com/financial-reports,Sustainability Report,https://albuhaira.com/assets/reports/financial-reports/V8_ABNIC_Al Buhaira SR_2025_compressed.pdf
-https://albuhaira.com/financial-reports,"Corporate Governance Report for the year ended December 31, 2025",https://albuhaira.com/assets/reports/financial-reports/4792966.pdf
-https://albuhaira.com/financial-reports,Board Meeting Results held on 26/03/2026 at 12:30,https://albuhaira.com/assets/reports/financial-reports/4790365.pdf
-https://albuhaira.com/financial-reports,Announcement of Board Meeting to be held on 26/03/2026 at 12:00,https://albuhaira.com/assets/reports/financial-reports/4782569.pdf
-https://albuhaira.com/financial-reports,"Preliminary Financial Results for the Period Ended December 31, 2025",https://albuhaira.com/assets/reports/financial-reports/4699943.pdf
-https://albuhaira.com/financial-reports,Board Meeting Results held on 12/02/2026 at 10:30,https://albuhaira.com/assets/reports/financial-reports/4697937.pdf
-https://albuhaira.com/financial-reports,Announcement of Board Meeting to be held on 12/02/2026 at 10:30,https://albuhaira.com/assets/reports/financial-reports/4692357.pdf
-https://albuhaira.com/financial-reports,Board Meeting Results held on 30/01/2026 at 10:00,https://albuhaira.com/assets/reports/financial-reports/4674599.pdf
-https://albuhaira.com/financial-reports,Central Bank of the UAE approvals,https://albuhaira.com/assets/reports/financial-reports/4677701.pdf
-https://albuhaira.com/financial-reports,Form for Disclosing changes in the company's administrative Structure,https://albuhaira.com/assets/reports/financial-reports/4678082.pdf
-https://albuhaira.com/financial-reports,By Circulation of Board Meeting to be held on 30/01/2026 at 10:00,https://albuhaira.com/assets/reports/financial-reports/4670731.pdf
-https://albuhaira.com/financial-reports,Board Meeting Results held on 24/12/2025 at 10:30,https://albuhaira.com/assets/reports/financial-reports/4637069.pdf
-https://albuhaira.com/financial-reports,Announcement of Board Meeting to be held on 24/12/2025 at 10:30,https://albuhaira.com/assets/reports/financial-reports/4636729.pdf
-https://albuhaira.com/financial-reports,"Financial Results for the Period Ended September 30, 2025",https://albuhaira.com/assets/reports/financial-reports/4597462.pdf
-https://albuhaira.com/financial-reports,Board Meeting Results held on 12/11/2025 at 10:30,https://albuhaira.com/assets/reports/financial-reports/4598033.pdf
-https://albuhaira.com/financial-reports,"Board of Directors Report for the Period Ended September 30, 2025",https://albuhaira.com/assets/reports/financial-reports/4597750.pdf
-https://albuhaira.com/financial-reports,Announcement of Board Meeting to be held on 12/11/2025 at 10:30,https://albuhaira.com/assets/reports/financial-reports/4589846.pdf
-https://albuhaira.com/financial-reports,Board Meeting Results held on 29/10/2025 at 10:30,https://albuhaira.com/assets/reports/financial-reports/4577110.pdf
-https://albuhaira.com/financial-reports,Announcement of Board Meeting to be held on 29/10/2025 at 10:30,https://albuhaira.com/assets/reports/financial-reports/4568889.pdf
-https://albuhaira.com/financial-reports,Board Meeting Results held on 14/08/2025 at 10:30,https://albuhaira.com/assets/reports/financial-reports/4488815.pdf
-https://albuhaira.com/financial-reports,"Financial Results for the Period Ended June 30, 2025",https://albuhaira.com/assets/reports/financial-reports/4488814.pdf
-https://albuhaira.com/financial-reports,"Board of Directors' Report for the Period Ended June 30, 2025",https://albuhaira.com/assets/reports/financial-reports/4488149.pdf
-https://albuhaira.com/financial-reports,Announcement of Board Meeting to be held on 14/08/2025 at 10:30,https://albuhaira.com/assets/reports/financial-reports/4478178.pdf
-https://albuhaira.com/financial-reports,Board Meeting Results held on 25/07/2025 at 10:00,https://albuhaira.com/assets/reports/financial-reports/4462002.pdf
-https://albuhaira.com/financial-reports,Announcements,https://albuhaira.com/assets/reports/financial-reports/4458601.pdf
-https://albuhaira.com/financial-reports,General Disclosure,https://albuhaira.com/assets/reports/financial-reports/4459095.pdf
-https://albuhaira.com/financial-reports,By Circulation of Board Meeting to be held on 25/07/2025 at 10:00,https://albuhaira.com/assets/reports/financial-reports/4460160.pdf
-https://albuhaira.com/financial-reports,"Board of Directors' Report for the Period Ended March 31, 2025",https://albuhaira.com/assets/reports/financial-reports/4379669.pdf
-https://albuhaira.com/financial-reports,"Financial Results for the Period Ended March 31, 2025",https://albuhaira.com/assets/reports/financial-reports/4379093.pdf
-https://albuhaira.com/financial-reports,Board Meeting Results held on 12/05/2025 at 11:00,https://albuhaira.com/assets/reports/financial-reports/4374774.pdf
-https://albuhaira.com/financial-reports,Announcement of Board Meeting to be held on 12/05/2025 at 11:00,https://albuhaira.com/assets/reports/financial-reports/4364024.pdf
-https://albuhaira.com/financial-reports,AGM Minutes held on 23/04/2025 at 11:00,https://albuhaira.com/assets/reports/financial-reports/4359076.pdf
-https://albuhaira.com/financial-reports,AGM Results held on 23/04/2025 at 11:30,https://albuhaira.com/assets/reports/financial-reports/4349581.pdf
-https://albuhaira.com/financial-reports,Integrated Report,https://albuhaira.com/assets/reports/financial-reports/26-march-2025-integrated-english.pdf
-https://albuhaira.com/financial-reports,Board of Directors Report / Management Report,https://albuhaira.com/assets/reports/financial-reports/4307560.pdf
-https://albuhaira.com/financial-reports,Financial Report,https://albuhaira.com/assets/reports/financial-reports/4309705.pdf
-https://albuhaira.com/financial-reports,Integrated Report,https://albuhaira.com/assets/reports/financial-reports/4307076.pdf
-https://albuhaira.com/financial-reports,Corporate Governance Report,https://albuhaira.com/assets/reports/financial-reports/4306990.pdf
-https://albuhaira.com/financial-reports,Sustainability Report,https://albuhaira.com/assets/reports/financial-reports/4307363.pdf
-https://albuhaira.com/financial-reports,Preliminary Results,https://albuhaira.com/assets/reports/financial-reports/4256379.pdf
-https://albuhaira.com/financial-reports,Report of accumulated losses,https://albuhaira.com/assets/reports/financial-reports/3335344.pdf
-https://albuhaira.com/financial-reports,Board of Directors Report / Management Report,https://albuhaira.com/assets/reports/financial-reports/3315071.pdf
-https://albuhaira.com/financial-reports,Financial Report,https://albuhaira.com/assets/reports/financial-reports/3314793.pdf
-https://albuhaira.com/financial-reports,Financial Report,https://albuhaira.com/assets/reports/financial-reports/3233277.pdf
-https://albuhaira.com/financial-reports,Board of Directors Report / Management Report,https://albuhaira.com/assets/reports/financial-reports/ABNIC FS PE 30 JUNE 2024 ENGLISH.pdf
-https://albuhaira.com/financial-reports,Financial Reports,https://albuhaira.com/assets/reports/financial-reports/ABNIC FS PE 31 MARCH 2024 ENGLISH.pdf
-https://albuhaira.com/financial-reports,Corporate Governance Report,https://albuhaira.com/assets/reports/financial-reports/3080551_Corporate Governance Report 2023 - English.pdf
-https://albuhaira.com/financial-reports,Sustainability Report,https://albuhaira.com/assets/reports/financial-reports/3081272_Sustainability Report 2023 English.pdf
-https://albuhaira.com/financial-reports,Integrated Report,https://albuhaira.com/assets/reports/financial-reports/3081181_ABNIC Integrated Report 2023 - English.pdf
-https://albuhaira.com/financial-reports,Financial Report,https://albuhaira.com/assets/reports/financial-reports/3079103_ABNIC FS YE 31 DEC 2023 - English.pdf
-https://albuhaira.com/financial-reports,Board of Directors Report / Management Report,https://albuhaira.com/assets/reports/financial-reports/3079204_BOD Reports YE 31 DEC 2023 - ADX.pdf
-https://albuhaira.com/financial-reports,Integrated Report,https://albuhaira.com/assets/reports/financial-reports/3069668_integrated report english.pdf
-https://albuhaira.com/financial-reports,Preliminary Results,https://albuhaira.com/assets/reports/financial-reports/3057699_0821_001.pdf
-https://albuhaira.com/financial-reports,Management Report,https://albuhaira.com/assets/reports/financial-reports/2975305_BOD Reports Q3 2023 - ADX.pdf
-https://albuhaira.com/financial-reports,Financial Report,https://albuhaira.com/assets/reports/financial-reports/2975024_ABNIC FS PE 30 SEPT 2023 ENGLISH.pdf
-https://albuhaira.com/financial-reports,Financial Report,https://albuhaira.com/assets/reports/financial-reports/2910599_ABNIC FS PE 30 JUNE 2023 ENGLISH.pdf
-https://albuhaira.com/financial-reports,Board of Directors Report / Management Report,https://albuhaira.com/assets/reports/financial-reports/2911114_BOD Reports Q2 2023 - ADX.pdf
-https://albuhaira.com/financial-reports,Board of Directors Report / Management Report,https://albuhaira.com/assets/reports/financial-reports/2869849_BOD Reports Q1 2023 - ADX.pdf
-https://albuhaira.com/financial-reports,Financial Report,https://albuhaira.com/assets/reports/financial-reports/2869852_ABNIC FS PE 31 MARCH 2023 ENGLISH.pdf
-https://albuhaira.com/financial-reports,Corporate Governance Report,https://albuhaira.com/assets/reports/financial-reports/2833482_Corporate Governance ENG.pdf
-https://albuhaira.com/financial-reports,Sustainability Report,https://albuhaira.com/assets/reports/financial-reports/2822367_ABNIC Sust.Report English.pdf
-https://albuhaira.com/financial-reports,Board of Directors Report / Management Report,https://albuhaira.com/assets/reports/financial-reports/2799832_BOD Reports YE 31 Dec 2022 - ADX (E).pdf
-https://albuhaira.com/financial-reports,Financial Report,https://albuhaira.com/assets/reports/financial-reports/2799834_ABNIC FS YE 31 DEC  2022 - English.pdf
-https://albuhaira.com/financial-reports,Preliminary Results,https://albuhaira.com/assets/reports/financial-reports/2769215_Preliminary 2022.pdf
-https://albuhaira.com/financial-reports,Financial Report,https://albuhaira.com/assets/reports/financial-reports/2718177_ABNIC FS Q3 2022 - ENGLISH.pdf
-https://albuhaira.com/financial-reports,Board of Directors Report / Management Report,https://albuhaira.com/assets/reports/financial-reports/2717428_BOD Reports Q3 2022 - ADX.pdf
-https://albuhaira.com/financial-reports,Board of Directors Report / Management Report,https://albuhaira.com/assets/reports/financial-reports/2658736_BOD Reports Q2 2022 - ADX.pdf
-https://albuhaira.com/financial-reports,Financial Report,https://albuhaira.com/assets/reports/financial-reports/2658826_ABNIC FS Q2 2022 - ENGLISH.pdf
-https://albuhaira.com/financial-reports,Financial Report,https://albuhaira.com/assets/reports/financial-reports/2521358_ABNIC FS Q1 2022 - ENGLISH.pdf
-https://albuhaira.com/financial-reports,Corporate Governance Report,https://albuhaira.com/assets/reports/financial-reports/2503575_Corporate Governance Report 2021 Eng._compressed.pdf
-https://albuhaira.com/financial-reports,Board of Directors Report / Management Report,https://albuhaira.com/assets/reports/financial-reports/2493505_BOD Report  YE 31 DEC 2021 - ADX.pdf
-https://albuhaira.com/financial-reports,Financial Reports | Financial Report,https://albuhaira.com/assets/reports/financial-reports/2493588_ABNIC FS YE 31 DEC 2021 - ENGLISH signed~1.pdf
-https://albuhaira.com/financial-reports,Financial Reports | Preliminary Results,https://albuhaira.com/assets/reports/financial-reports/2479109_1036_001.pdf
-https://albuhaira.com/financial-reports,Financial Reports | Board of Directors Report / Management Report,https://albuhaira.com/assets/reports/financial-reports/2434797_BOD Report Q3 2021 - ADX.pdf
-https://albuhaira.com/financial-reports,Financial Reports | Financial Report,https://albuhaira.com/assets/reports/financial-reports/2434805_ABNIC FS Q3 2021 - English.pdf
-https://albuhaira.com/financial-reports,Financial Reports | Board of Directors Report / Management Report,https://albuhaira.com/assets/reports/financial-reports/2382638_1628591557804_BOD Report Q2 2021 - ADX.pdf
-https://albuhaira.com/financial-reports,Financial Reports | Financial Report,https://albuhaira.com/assets/reports/financial-reports/2382938_ABNIC FS Q2 2021 - English.pdf
-https://albuhaira.com/financial-reports,Financial Reports | Board of Directors Report / Management Report,https://albuhaira.com/assets/reports/financial-reports/2325202_BOD Report Q1 2021 - ADX.pdf
-https://albuhaira.com/financial-reports,Financial Reports | Financial Report,https://albuhaira.com/assets/reports/financial-reports/2326859_ABNIC FS Q1 2021 - English.pdf
-https://albuhaira.com/financial-reports,Financial Reports | Corporate Governance Report,https://albuhaira.com/assets/reports/financial-reports/2322120_Governance-Report-2020-Eng..pdf
-https://albuhaira.com/financial-reports,Financial Reports | Financial Report,https://albuhaira.com/assets/reports/financial-reports/2287202_ABNIC FS YE 31 DEC 2020 - ENGLISH signed (2).pdf
-https://albuhaira.com/financial-reports,Financial Reports | Management Report,https://albuhaira.com/assets/reports/financial-reports/2287262_BOD Report YE 31 DEC  2020 - ADX.pdf
-https://albuhaira.com/financial-reports,Financial Reports | Preliminary Results,https://albuhaira.com/assets/reports/financial-reports/2277254_1376_001.pdf
-https://albuhaira.com/financial-reports,Financial Reports | Board of Directors Report / Management Report,https://albuhaira.com/assets/reports/financial-reports/2235065_BOD Report Q3 2020 - ADX.pdf
-https://albuhaira.com/financial-reports,Financial Reports | Financial Report,https://albuhaira.com/assets/reports/financial-reports/2232400_ABNIC FS Q3 2020 - ENGLISH.pdf
-https://albuhaira.com/financial-reports,Financial Reports | Board of Directors Report / Management Report,https://albuhaira.com/assets/reports/financial-reports/2140878_BOD Report Q2 2020 - ADX.pdf
-https://albuhaira.com/financial-reports,Financial Reports | Preliminary Results,https://albuhaira.com/assets/reports/financial-reports/2141172_ABNIC FS Q2 2020 - ENGLISH.pdf
-https://albuhaira.com/financial-reports,Financial Reports | Financial Report,https://albuhaira.com/assets/reports/financial-reports/2140596_ABNIC FS Q2 2020 - ENGLISH.pdf
-https://albuhaira.com/financial-reports,Financial Reports | Board of Directors Report / Management Report,https://albuhaira.com/assets/reports/financial-reports/2116898_BOD Report Q1 2020 - ADX.pdf
-https://albuhaira.com/financial-reports,Financial Reports | Financial Report,https://albuhaira.com/assets/reports/financial-reports/2118892_ABNIC FS Q1 2020 - English.pdf
-https://albuhaira.com/financial-reports,Financial Reports | Corporate Governance Report,https://albuhaira.com/assets/reports/financial-reports/2104245_2938_001~2.pdf
-https://albuhaira.com/financial-reports,Financial Reports | Board of Directors Report / Management Report,https://albuhaira.com/assets/reports/financial-reports/2049151_BOD Report YE 31 DEC  2019 - ADX.pdf
-https://albuhaira.com/financial-reports,Financial Reports | Financial Report,https://albuhaira.com/assets/reports/financial-reports/2048437_ABNIC FS YE 31 DEC  2019 - English.pdf
-https://albuhaira.com/financial-reports,Financial Reports | Board of Directors Report / Management Report,https://albuhaira.com/assets/reports/financial-reports/2048426_ABNIC Board Meeting Results 26.02.2020 ADX.pdf
-https://albuhaira.com/financial-reports,Financial Reports | Preliminary Results,https://albuhaira.com/assets/reports/financial-reports/2039579_final result brief english.pdf
-https://albuhaira.com/financial-reports,Al Buhaira National Insurance Company : Opening the Nomination for Board of Directors (2025 - 2028),https://albuhaira.com/assets/reports/disclosure-reports/4313602.pdf
-https://albuhaira.com/financial-reports,Temporary suspension of trading on the shares of Al Buhaira National Insurance Company on 23 Apr 2025,https://albuhaira.com/assets/reports/disclosure-reports/4313886.pdf
-https://albuhaira.com/financial-reports,Al Buhaira National Insurance Company Invitation to Attend AGM held on 23/04/2025 at 11:00,https://albuhaira.com/assets/reports/disclosure-reports/4312259.pdf
-https://albuhaira.com/financial-reports,ABNIC Resumption Notice,https://albuhaira.com/assets/reports/disclosure-reports/4306986.pdf
-https://albuhaira.com/financial-reports,Al Buhaira National Insurance Company Sustainability Report,https://albuhaira.com/assets/reports/disclosure-reports/4307363.pdf
-https://albuhaira.com/financial-reports,"Al Buhaira National Insurance Company Corporate Governance Report for the year December 31,2024",https://albuhaira.com/assets/reports/disclosure-reports/4306990.pdf
-https://albuhaira.com/financial-reports,"Al Buhaira National Insurance Company Integrated Report December 31,2024",https://albuhaira.com/assets/reports/disclosure-reports/4307076.pdf
-https://albuhaira.com/financial-reports,"Al Buhaira National Insurance Company Financial Results for the Period Ended December 31,2024",https://albuhaira.com/assets/reports/disclosure-reports/4309705.pdf
-https://albuhaira.com/financial-reports,"Al Buhaira National Insurance Company Board of Directors' Report for the Period Ended December 31,2024",https://albuhaira.com/assets/reports/disclosure-reports/4307560.pdf
-https://albuhaira.com/financial-reports,Al Buhaira National Insurance Company Board Meeting Results held on 25/03/2025 at 10:00,https://albuhaira.com/assets/reports/disclosure-reports/4309293.pdf
-https://albuhaira.com/financial-reports,Al Buhaira National Insurance Company By Circulation of Board Meeting to be held on 24/03/2025 at 10:00,https://albuhaira.com/assets/reports/disclosure-reports/4305714.pdf
-https://albuhaira.com/financial-reports,Al Buhaira National Insurance Company Board Meeting Results held on 26/02/2025 at 11:00,https://albuhaira.com/assets/reports/disclosure-reports/4269424.pdf
-https://albuhaira.com/financial-reports,Temporary suspension of trading on the shares of Al Buhaira National Insurance Company on 26 Feb 2025,https://albuhaira.com/assets/reports/disclosure-reports/4264251.pdf
-https://albuhaira.com/financial-reports,Al Buhaira National Insurance Company Announcement of Board Meeting to be held on 26/02/2025 at 11:00,https://albuhaira.com/assets/reports/disclosure-reports/4264433.pdf
-https://albuhaira.com/financial-reports,ABNIC Resumption Notice,https://albuhaira.com/assets/reports/disclosure-reports/4255952.pdf
-https://albuhaira.com/financial-reports,"Al Buhaira National Insurance Company Preliminary Financial Results for the Period Ended December 31,2024",https://albuhaira.com/assets/reports/disclosure-reports/4256379.pdf
-https://albuhaira.com/financial-reports,Al Buhaira National Insurance Company Board Meeting Results held on 12/02/2025 at 11:00,https://albuhaira.com/assets/reports/disclosure-reports/4249878.pdf
-https://albuhaira.com/financial-reports,Temporary suspension of trading on the shares of Al Buhaira National Insurance Company on 12 Feb 2025,https://albuhaira.com/assets/reports/disclosure-reports/4238460.pdf
-https://albuhaira.com/financial-reports,Al Buhaira National Insurance Company Announcement of Board Meeting to be held on 12/02/2025 at 11:00,https://albuhaira.com/assets/reports/disclosure-reports/4241037.pdf
-https://albuhaira.com/financial-reports,Al Buhaira National Insurance Company Board Meeting Results held on 26/12/2024 at 11:30,https://albuhaira.com/assets/reports/disclosure-reports/4189809.pdf
-https://albuhaira.com/financial-reports,Al Buhaira National Insurance Company Announcement of Board Meeting to be held on 25/12/2024 at 11:30,https://albuhaira.com/assets/reports/disclosure-reports/4177168.pdf
-https://albuhaira.com/financial-reports,"Al Buhaira National Insurance Company Report of accumulated losses September 30,2024",https://albuhaira.com/assets/reports/disclosure-reports/3335344.pdf
-https://albuhaira.com/financial-reports,ABNIC Resumption Notice,https://albuhaira.com/assets/reports/disclosure-reports/3314228.pdf
-https://albuhaira.com/financial-reports,Al Buhaira National Insurance Company Board Meeting Results held on 13/11/2024 at 11:00,https://albuhaira.com/assets/reports/disclosure-reports/3315602.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/0311_001.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/4805928.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/ABNIC-FS-YE-31-DEC-2025-ENGLISH.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/4798371.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/english-integrated-report-abnic.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/4795256.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/V8_ABNIC_Al Buhaira SR_2025_compressed.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/4792966.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/4790365.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/4782569.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/4699943.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/4697937.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/4692357.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/4674599.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/4677701.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/4678082.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/4670731.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/4637069.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/4636729.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/4597462.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/4598033.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/4597750.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/4589846.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/4577110.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/4568889.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/4488815.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/4488814.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/4488149.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/4478178.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/4462002.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/4458601.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/4459095.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/4460160.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/4379669.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/4379093.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/4374774.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/4364024.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/4359076.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/4349581.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/26-march-2025-integrated-english.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/4307560.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/4309705.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/4307076.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/4306990.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/4307363.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/4256379.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/3335344.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/3315071.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/3314793.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/3233277.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/ABNIC FS PE 30 JUNE 2024 ENGLISH.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/ABNIC FS PE 31 MARCH 2024 ENGLISH.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/3080551_Corporate Governance Report 2023 - English.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/3081272_Sustainability Report 2023 English.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/3081181_ABNIC Integrated Report 2023 - English.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/3079103_ABNIC FS YE 31 DEC 2023 - English.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/3079204_BOD Reports YE 31 DEC 2023 - ADX.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/3069668_integrated report english.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/3057699_0821_001.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/2975305_BOD Reports Q3 2023 - ADX.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/2975024_ABNIC FS PE 30 SEPT 2023 ENGLISH.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/2910599_ABNIC FS PE 30 JUNE 2023 ENGLISH.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/2911114_BOD Reports Q2 2023 - ADX.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/2869849_BOD Reports Q1 2023 - ADX.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/2869852_ABNIC FS PE 31 MARCH 2023 ENGLISH.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/2833482_Corporate Governance ENG.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/2822367_ABNIC Sust.Report English.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/2799832_BOD Reports YE 31 Dec 2022 - ADX (E).pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/2799834_ABNIC FS YE 31 DEC  2022 - English.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/2769215_Preliminary 2022.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/2718177_ABNIC FS Q3 2022 - ENGLISH.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/2717428_BOD Reports Q3 2022 - ADX.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/2658736_BOD Reports Q2 2022 - ADX.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/2658826_ABNIC FS Q2 2022 - ENGLISH.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/2521358_ABNIC FS Q1 2022 - ENGLISH.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/2503575_Corporate Governance Report 2021 Eng._compressed.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/2493505_BOD Report  YE 31 DEC 2021 - ADX.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/2493588_ABNIC FS YE 31 DEC 2021 - ENGLISH signed~1.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/2479109_1036_001.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/2434797_BOD Report Q3 2021 - ADX.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/2434805_ABNIC FS Q3 2021 - English.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/2382638_1628591557804_BOD Report Q2 2021 - ADX.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/2382938_ABNIC FS Q2 2021 - English.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/2325202_BOD Report Q1 2021 - ADX.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/2326859_ABNIC FS Q1 2021 - English.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/2322120_Governance-Report-2020-Eng..pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/2287202_ABNIC FS YE 31 DEC 2020 - ENGLISH signed (2).pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/2287262_BOD Report YE 31 DEC  2020 - ADX.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/2277254_1376_001.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/2235065_BOD Report Q3 2020 - ADX.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/2232400_ABNIC FS Q3 2020 - ENGLISH.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/2140878_BOD Report Q2 2020 - ADX.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/2141172_ABNIC FS Q2 2020 - ENGLISH.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/2140596_ABNIC FS Q2 2020 - ENGLISH.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/2116898_BOD Report Q1 2020 - ADX.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/2118892_ABNIC FS Q1 2020 - English.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/2104245_2938_001~2.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/2049151_BOD Report YE 31 DEC  2019 - ADX.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/2048437_ABNIC FS YE 31 DEC  2019 - English.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/2048426_ABNIC Board Meeting Results 26.02.2020 ADX.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/financial-reports/2039579_final result brief english.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/disclosure-reports/4313602.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/disclosure-reports/4313886.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/disclosure-reports/4312259.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/disclosure-reports/4306986.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/disclosure-reports/4307363.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/disclosure-reports/4306990.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/disclosure-reports/4307076.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/disclosure-reports/4309705.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/disclosure-reports/4307560.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/disclosure-reports/4309293.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/disclosure-reports/4305714.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/disclosure-reports/4269424.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/disclosure-reports/4264251.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/disclosure-reports/4264433.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/disclosure-reports/4255952.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/disclosure-reports/4256379.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/disclosure-reports/4249878.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/disclosure-reports/4238460.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/disclosure-reports/4241037.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/disclosure-reports/4189809.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/disclosure-reports/4177168.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/disclosure-reports/3335344.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/disclosure-reports/3314228.pdf
+https://albuhaira.com/financial-reports,DISCLOSURES,https://albuhaira.com/assets/reports/disclosure-reports/3315602.pdf
 https://albuhaira.com/financial-reports,details?id=abnic.albuhairainsurance.net&hl=en,https://play.google.com/store/apps/details?id=abnic.albuhairainsurance.net&hl=en
 https://albuhaira.com/financial-reports,id1491122963,https://apps.apple.com/ae/app/abnic-health-vault/id1491122963
 https://albuhaira.com/financial-reports,Company Profile,https://albuhaira.com/assets/pdfs/abnic-profile-english-2025.pdf
@@ -797,7 +797,7 @@ https://qic-uaq.ae/category/meetings/,About us,https://qic-uaq.ae/about-us/
 https://qic-uaq.ae/category/meetings/,Major Shareholders,https://qic-uaq.ae/shareholders/
 https://qic-uaq.ae/category/meetings/,News,https://qic-uaq.ae/category/news/
 https://qic-uaq.ae/category/meetings/,Contact us,https://qic-uaq.ae/contact-us/
-https://qic-uaq.ae/category/meetings/,[email protected],https://qic-uaq.ae/cdn-cgi/l/email-protection#4e3f272d0e2b23273c2f3a2b3d60202b3a602f2b
+https://qic-uaq.ae/category/meetings/,[email protected],https://qic-uaq.ae/cdn-cgi/l/email-protection#1061797350757d7962716475633e7e75643e7175
 https://qic-uaq.ae/category/meetings/,Ibtekar Labs,http://www.ibtekarlabs.com
 https://www.julphar.net/en/investors/minutes-of-ordinary-and-extraordinary-general-meeting,العربية,http://www.julphar.net/ar/
 https://www.julphar.net/en/investors/minutes-of-ordinary-and-extraordinary-general-meeting,Supplier Registration,https://www.pool4tool.com/portal/julphar/register.php
@@ -985,7 +985,7 @@ https://www.rakproperties.ae/company-announcements/,InvestorPresentation,https:/
 https://www.rakproperties.ae/company-announcements/,MajorShareholders,https://www.rakproperties.ae/major-shareholders/
 https://www.rakproperties.ae/company-announcements/,DividendInformation,https://www.rakproperties.ae/shareholder-centre/
 https://www.rakproperties.ae/company-announcements/,UnclaimedDividends,https://www.rakproperties.ae/wp-content/uploads/2024/03/RAKPROP-Unclaimed-Dividends-2006-2014.pdf
-https://www.rakproperties.ae/company-announcements/,[email protected],https://www.rakproperties.ae/cdn-cgi/l/email-protection#adc4dfeddfccc6dddfc2ddc8dfd9c4c8de83ccc8
+https://www.rakproperties.ae/company-announcements/,[email protected],https://www.rakproperties.ae/cdn-cgi/l/email-protection#f9908bb98b9892898b96899c8b8d909c8ad7989c
 https://www.rakproperties.ae/company-announcements/,id1497650274,https://itunes.apple.com/app/id1497650274
 https://www.rakproperties.ae/company-announcements/,details?id=com.euroland.irapp.ae_rakprop,https://play.google.com/store/apps/details?id=com.euroland.irapp.ae_rakprop
 https://www.rakproperties.ae/company-announcements/,Facebook,https://www.facebook.com/RakProperties/
