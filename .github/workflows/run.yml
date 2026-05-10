@@ -22,15 +22,10 @@ jobs:
       - name: Run script
         run: python scrape.py
 
-      # ✅ NEW STEP — Commit output.csv
-      - name: Commit output file
-        run: |
-         git config --global user.name "github-actions"
-         git config --global user.email "actions@github.com"
+      - name: Commit and push changes
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: Update scraped documents
+          file_pattern: output.csv
 
-         git add output.csv || echo "Nothing to add"
-
-         git diff --cached --quiet || git commit -m "Update scraped documents"
-
-         git push origin main
    
