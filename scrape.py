@@ -9,25 +9,34 @@ raw_links = []
 IGNORE_WORDS = ["download", "view", "open", "read", "click"]
 
 def get_best_text(link, href):
-    """Smart function to extract meaningful title"""
 
     # ✅ 1. direct text
     text = link.get_text(strip=True)
     if text and text.lower() not in IGNORE_WORDS:
         return text
 
-    # ✅ 2. check parent row (table or list)
-    parent_row = link.find_parent(["tr", "li", "div"])
-    if parent_row:
+    # ✅ 2. find nearest block container
+    container = link.find_parent(["div", "li", "section"])
+
+    if container:
+        # ✅ PRIORITY: headings (most accurate titles)
+        headings = container.find_all(["h1", "h2", "h3", "h4", "strong"])
+
+        for h in headings:
+            t = h.get_text(strip=True)
+            if t and len(t) > 10:
+                return t
+
+        # ✅ fallback: scan all text elements
         candidates = []
 
-        for element in parent_row.find_all(["td", "th", "div", "span", "p", "a"]):
-            t = element.get_text(strip=True)
+        for el in container.find_all(["p", "span", "div"]):
+            t = el.get_text(strip=True)
 
             if (
                 t
                 and t.lower() not in IGNORE_WORDS
-                and len(t) > 10
+                and len(t) > 15
                 and not t.lower().endswith(".pdf")
             ):
                 candidates.append(t)
@@ -35,28 +44,21 @@ def get_best_text(link, href):
         if candidates:
             return max(candidates, key=len)
 
-    # ✅ 3. check previous sibling
+    # ✅ 3. previous sibling text
     prev = link.find_previous(string=True)
     if prev:
-        prev_text = prev.strip()
-        if len(prev_text) > 10:
-            return prev_text
+        t = prev.strip()
+        if len(t) > 15:
+            return t
 
-    # ✅ 4. check next sibling
+    # ✅ 4. next sibling text
     nxt = link.find_next(string=True)
     if nxt:
-        next_text = nxt.strip()
-        if len(next_text) > 10:
-            return next_text
+        t = nxt.strip()
+        if len(t) > 15:
+            return t
 
-    # ✅ 5. check parent container text
-    parent = link.parent
-    if parent:
-        parent_text = parent.get_text(strip=True)
-        if len(parent_text) > 10:
-            return parent_text
-
-    # ✅ LAST fallback (only if nothing found)
+    # ✅ FINAL fallback (only if nothing found)
     return href.split("/")[-1]
 
 
@@ -85,17 +87,16 @@ with open('documents.csv', newline='', encoding='utf-8') as file:
                     full_url = urljoin(url, href)
                     href_lower = full_url.lower()
 
-                    # ✅ GET BEST TITLE
                     text = get_best_text(link, href)
 
-                    # ✅ SAVE RAW
+                    # ✅ save raw
                     raw_links.append({
                         "company": url,
                         "text": text,
                         "url": full_url
                     })
 
-                    # ❌ REMOVE NON DOC LINKS
+                    # ❌ remove non-docs
                     if (
                         href_lower.endswith("/")
                         or href_lower.endswith(".aspx")
@@ -103,11 +104,9 @@ with open('documents.csv', newline='', encoding='utf-8') as file:
                     ):
                         continue
 
-                    # ✅ KEEP DOCUMENT LINKS
-                    if (
-                        ".pdf" in href_lower
-                        or ".ashx" in href_lower
-                    ):
+                    # ✅ keep docs
+                    if ".pdf" in href_lower or ".ashx" in href_lower:
+
                         if full_url in seen:
                             continue
                         seen.add(full_url)
@@ -123,25 +122,16 @@ with open('documents.csv', newline='', encoding='utf-8') as file:
         except Exception as e:
             print(f"Error: {e}")
 
-# ✅ SAVE OUTPUT
+# ✅ SAVE FILES
 with open('output.csv', 'w', newline='', encoding='utf-8') as out_file:
-    writer = csv.DictWriter(
-        out_file,
-        fieldnames=["company", "document_title", "document_url"]
-    )
+    writer = csv.DictWriter(out_file, fieldnames=["company", "document_title", "document_url"])
     writer.writeheader()
     writer.writerows(output_data)
 
-# ✅ SAVE RAW
 with open('raw_links.csv', 'w', newline='', encoding='utf-8') as raw_file:
-    writer = csv.DictWriter(
-        raw_file,
-        fieldnames=["company", "text", "url"]
-    )
+    writer = csv.DictWriter(raw_file, fieldnames=["company", "text", "url"])
     writer.writeheader()
     writer.writerows(raw_links)
 
-print("\n✅ Done — titles improved")
-
-
+print("\n✅ Titles fixed for complex layouts")
 
