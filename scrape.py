@@ -4,7 +4,9 @@ from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 
 output_data = []
+raw_links = []
 
+# Read your input URLs
 with open('documents.csv', newline='', encoding='utf-8') as file:
     reader = csv.DictReader(file)
 
@@ -30,20 +32,46 @@ with open('documents.csv', newline='', encoding='utf-8') as file:
                     if not href:
                         continue
 
-                    href_lower = href.lower()
+                    full_url = urljoin(url, href)
 
-                    if ".pdf" in href_lower or "report" in href_lower or "announcement" in href_lower:
-                        full_url = urljoin(url, href)
+                    # ✅ SAVE RAW LINKS (no filtering)
+                    raw_links.append({
+                        "company": url,
+                        "text": text,
+                        "url": full_url
+                    })
 
+                    href_lower = full_url.lower()
+
+                    # ❌ remove unwanted pages
+                    if href_lower.endswith("/"):
+                        print(f"REMOVED → {full_url}")
+                        continue
+
+                    if "announcements" in href_lower and ".pdf" not in href_lower:
+                        print(f"REMOVED → {full_url}")
+                        continue
+
+                    if "reports" in href_lower and ".pdf" not in href_lower:
+                        print(f"REMOVED → {full_url}")
+                        continue
+
+                    # ✅ keep useful document-like links
+                    if (
+                        ".pdf" in href_lower
+                        or ".ashx" in href_lower
+                        or "download" in href_lower
+                        or "financial" in href_lower
+                        or "statement" in href_lower
+                    ):
                         if full_url in seen:
                             continue
                         seen.add(full_url)
 
-                        print(f"{text} → {full_url}")
+                        print(f"KEPT → {text} → {full_url}")
 
-                        # ✅ Save data instead of just printing
                         output_data.append({
-                            "source_url": url,
+                            "company": url,
                             "document_title": text,
                             "document_url": full_url
                         })
@@ -54,16 +82,23 @@ with open('documents.csv', newline='', encoding='utf-8') as file:
         except Exception as e:
             print("Error:", e)
 
-        
-
-# ✅ Save to CSV
+# ✅ SAVE FILTERED OUTPUT
 with open('output.csv', 'w', newline='', encoding='utf-8') as out_file:
-    fieldnames = ["source_url", "document_title", "document_url"]
+    fieldnames = ["company", "document_title", "document_url"]
     writer = csv.DictWriter(out_file, fieldnames=fieldnames)
 
     writer.writeheader()
     writer.writerows(output_data)
 
-print("\n✅ Data saved to output.csv")
+# ✅ SAVE RAW DATA
+with open('raw_links.csv', 'w', newline='', encoding='utf-8') as raw_file:
+    fieldnames = ["company", "text", "url"]
+    writer = csv.DictWriter(raw_file, fieldnames=fieldnames)
+
+    writer.writeheader()
+    writer.writerows(raw_links)
+
+print("\n✅ Filtered data → output.csv")
+print("✅ All raw links → raw_links.csv")
 
 
