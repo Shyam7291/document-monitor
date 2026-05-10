@@ -54,7 +54,7 @@ with open('documents.csv', newline='', encoding='utf-8') as file:
         except Exception as e:
             print("Error:", e)
 
-        break
+        
 
 # ✅ Save to CSV
 with open('output.csv', 'w', newline='', encoding='utf-8') as out_file:
