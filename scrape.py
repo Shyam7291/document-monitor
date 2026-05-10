@@ -25,6 +25,14 @@ with open('documents.csv', newline='', encoding='utf-8') as file:
 
                 for link in links:
                     text = link.get_text(strip=True)
+
+if not text:
+    parent = link.parent
+    if parent:
+        text = parent.get_text(strip=True)
+
+    if not text:
+        text = href.split("/")[-1]
                     href = link.get('href')
 
                     if not href:
