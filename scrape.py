@@ -32,26 +32,50 @@ with open('documents.csv', newline='', encoding='utf-8') as file:
                     full_url = urljoin(url, href)
                     href_lower = full_url.lower()
 
-                    # ✅ FIXED TITLE EXTRACTION
+                    # ✅ STEP 1: basic text from <a>
                     text = link.get_text(strip=True)
 
+                    # ✅ STEP 2: table handling (like Albuhaira)
+                    if text.lower() in ["download", ""]:
+                        row_elem = link.find_parent("tr")
+
+                        if row_elem:
+                            cols = row_elem.find_all("td")
+                            candidates = []
+
+                            for col in cols:
+                                col_text = col.get_text(strip=True)
+
+                                # filter useless text
+                                if (
+                                    col_text
+                                    and col_text.lower() not in ["download"]
+                                    and len(col_text) > 10
+                                ):
+                                    candidates.append(col_text)
+
+                            if candidates:
+                                # pick longest meaningful text
+                                text = max(candidates, key=len)
+
+                    # ✅ STEP 3: parent fallback (Space42 style)
                     if not text:
                         parent = link.parent
                         if parent:
                             text = parent.get_text(strip=True)
 
+                    # ✅ STEP 4: final fallback (file name)
                     if not text:
-                        # fallback to filename
                         text = href.split("/")[-1]
 
-                    # ✅ Save RAW links
+                    # ✅ SAVE RAW LINKS
                     raw_links.append({
                         "company": url,
                         "text": text,
                         "url": full_url
                     })
 
-                    # ❌ Remove unwanted pages
+                    # ❌ REMOVE NON-DOCUMENT PAGES
                     if (
                         href_lower.endswith("/")
                         or href_lower.endswith(".aspx")
@@ -60,7 +84,7 @@ with open('documents.csv', newline='', encoding='utf-8') as file:
                         print(f"REMOVED → {full_url}")
                         continue
 
-                    # ✅ Keep document links
+                    # ✅ KEEP DOCUMENT LINKS
                     if (
                         ".pdf" in href_lower
                         or ".ashx" in href_lower
@@ -82,12 +106,12 @@ with open('documents.csv', newline='', encoding='utf-8') as file:
                         })
 
             else:
-                print("Failed to fetch page ❌")
+                print("Failed ❌")
 
         except Exception as e:
             print(f"Error: {e}")
 
-# ✅ SAVE FILTERED DATA
+# ✅ SAVE FILTERED OUTPUT
 with open('output.csv', 'w', newline='', encoding='utf-8') as out_file:
     writer = csv.DictWriter(
         out_file,
@@ -106,5 +130,6 @@ with open('raw_links.csv', 'w', newline='', encoding='utf-8') as raw_file:
     writer.writerows(raw_links)
 
 print("\n✅ Files saved successfully")
+
 
 
