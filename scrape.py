@@ -6,6 +6,9 @@ from urllib.parse import urljoin
 output_data = []
 raw_links = []
 
+# Words that are NOT actual titles
+IGNORE_WORDS = ["download", "view", "open", "read", "click"]
+
 with open('documents.csv', newline='', encoding='utf-8') as file:
     reader = csv.DictReader(file)
 
@@ -25,48 +28,49 @@ with open('documents.csv', newline='', encoding='utf-8') as file:
 
                 for link in links:
                     href = link.get('href')
-
                     if not href:
                         continue
 
                     full_url = urljoin(url, href)
                     href_lower = full_url.lower()
 
-                    # ✅ STEP 1: basic text from <a>
+                    # ✅ STEP 1 — get link text
                     text = link.get_text(strip=True)
+                    text_lower = text.lower()
 
-                    # ✅ STEP 2: table handling (like Albuhaira)
-                    if text.strip().lower() in ["download", "view", "open", "read", ""]:
-``
+                    # ✅ STEP 2 — handle generic words like "Download", "View"
+                    if text_lower in IGNORE_WORDS or not text:
                         row_elem = link.find_parent("tr")
 
                         if row_elem:
-                            cols = row_elem.find_all("td")
+                            # ✅ scan entire row (ALL columns)
                             candidates = []
 
-                            for col in cols:
-                                col_text = col.get_text(strip=True)
+                            for element in row_elem.find_all(["td", "th", "div", "span", "p"]):
+                                col_text = element.get_text(strip=True)
+                                col_text_lower = col_text.lower()
 
-                                # filter useless text
                                 if (
                                     col_text
-                                    and col_text.lower() not in ["download"]
+                                    and col_text_lower not in IGNORE_WORDS
                                     and len(col_text) > 10
                                 ):
                                     candidates.append(col_text)
 
                             if candidates:
-                                # pick longest meaningful text
+                                # ✅ choose best meaningful title
                                 text = max(candidates, key=len)
 
-                    # ✅ STEP 3: parent fallback (Space42 style)
-                    if not text:
+                    # ✅ STEP 3 — fallback: parent container (for layouts like Space42)
+                    if not text or text.lower() in IGNORE_WORDS:
                         parent = link.parent
                         if parent:
-                            text = parent.get_text(strip=True)
+                            parent_text = parent.get_text(strip=True)
+                            if len(parent_text) > 10:
+                                text = parent_text
 
-                    # ✅ STEP 4: final fallback (file name)
-                    if not text:
+                    # ✅ STEP 4 — final fallback (file name)
+                    if not text or text.lower() in IGNORE_WORDS:
                         text = href.split("/")[-1]
 
                     # ✅ SAVE RAW LINKS
@@ -76,7 +80,7 @@ with open('documents.csv', newline='', encoding='utf-8') as file:
                         "url": full_url
                     })
 
-                    # ❌ REMOVE NON-DOCUMENT PAGES
+                    # ❌ REMOVE NON-DOCUMENT LINKS
                     if (
                         href_lower.endswith("/")
                         or href_lower.endswith(".aspx")
