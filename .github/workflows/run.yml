@@ -31,8 +31,6 @@ jobs:
 
           git commit -m "Update output.csv" || echo "No changes"
 
-          git pull origin main --rebase
-
           git push origin main
 
    
