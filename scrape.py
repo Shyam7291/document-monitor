@@ -36,7 +36,8 @@ with open('documents.csv', newline='', encoding='utf-8') as file:
                     text = link.get_text(strip=True)
 
                     # ✅ STEP 2: table handling (like Albuhaira)
-                    if text.lower() in ["download", ""]:
+                    if text.strip().lower() in ["download", "view", "open", "read", ""]:
+``
                         row_elem = link.find_parent("tr")
 
                         if row_elem:
