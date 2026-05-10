@@ -2,7 +2,6 @@ import csv
 import requests
 from bs4 import BeautifulSoup
 
-# Read CSV
 with open('documents.csv', newline='', encoding='utf-8') as file:
     reader = csv.DictReader(file)
 
@@ -18,23 +17,20 @@ with open('documents.csv', newline='', encoding='utf-8') as file:
             if response.status_code == 200:
                 soup = BeautifulSoup(response.text, 'html.parser')
 
-                print("\nLinks found:\n")
-
-                # Find all links
                 links = soup.find_all('a')
 
-                for link in links:
-    text = link.get_text(strip=True)
-    href = link.get('href')
+                print("\nFiltered document links:\n")
 
-    if href:
-        # Filter only document-like links
-        if ".pdf" in href.lower() or "report" in href.lower() or "announcement" in href.lower():
-            print(f"{text} → {href}")
+                for link in links:
                     text = link.get_text(strip=True)
                     href = link.get('href')
 
-                    if href:
+                    if not href:
+                        continue
+
+                    href_lower = href.lower()
+
+                    if ".pdf" in href_lower or "report" in href_lower or "announcement" in href_lower:
                         print(f"{text} → {href}")
 
             else:
@@ -43,4 +39,5 @@ with open('documents.csv', newline='', encoding='utf-8') as file:
         except Exception as e:
             print("Error:", e)
 
-        break  # only first URL
+        break
+
