@@ -1,7 +1,7 @@
 name: Run Scraper
 
 on:
-  workflow_dispatch:  # lets you run manually
+  workflow_dispatch:
 
 jobs:
   run-script:
@@ -17,9 +17,10 @@ jobs:
           python-version: '3.10'
 
       - name: Install dependencies
-        run: pip install requests
+        run: pip install requests beautifulsoup4
 
       - name: Run script
         run: python scrape.py
+``
 
    
