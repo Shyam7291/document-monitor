@@ -23,7 +23,14 @@ with open('documents.csv', newline='', encoding='utf-8') as file:
                 # Find all links
                 links = soup.find_all('a')
 
-                for link in links[:20]:  # limit to first 20
+                for link in links:
+    text = link.get_text(strip=True)
+    href = link.get('href')
+
+    if href:
+        # Filter only document-like links
+        if ".pdf" in href.lower() or "report" in href.lower() or "announcement" in href.lower():
+            print(f"{text} → {href}")
                     text = link.get_text(strip=True)
                     href = link.get('href')
 
