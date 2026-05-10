@@ -24,15 +24,6 @@ with open('documents.csv', newline='', encoding='utf-8') as file:
                 seen = set()
 
                 for link in links:
-                    text = link.get_text(strip=True)
-
-if not text:
-    parent = link.parent
-    if parent:
-        text = parent.get_text(strip=True)
-
-    if not text:
-        text = href.split("/")[-1]
                     href = link.get('href')
 
                     if not href:
@@ -41,19 +32,35 @@ if not text:
                     full_url = urljoin(url, href)
                     href_lower = full_url.lower()
 
-                    # ✅ store raw
+                    # ✅ FIXED TITLE EXTRACTION
+                    text = link.get_text(strip=True)
+
+                    if not text:
+                        parent = link.parent
+                        if parent:
+                            text = parent.get_text(strip=True)
+
+                    if not text:
+                        # fallback to filename
+                        text = href.split("/")[-1]
+
+                    # ✅ Save RAW links
                     raw_links.append({
                         "company": url,
                         "text": text,
                         "url": full_url
                     })
 
-                    # ❌ remove pages
-                    if href_lower.endswith("/") or href_lower.endswith(".aspx") or href_lower.endswith(".html"):
+                    # ❌ Remove unwanted pages
+                    if (
+                        href_lower.endswith("/")
+                        or href_lower.endswith(".aspx")
+                        or href_lower.endswith(".html")
+                    ):
                         print(f"REMOVED → {full_url}")
                         continue
 
-                    # ✅ keep documents
+                    # ✅ Keep document links
                     if (
                         ".pdf" in href_lower
                         or ".ashx" in href_lower
@@ -75,20 +82,26 @@ if not text:
                         })
 
             else:
-                print("Failed ❌")
+                print("Failed to fetch page ❌")
 
         except Exception as e:
             print(f"Error: {e}")
 
-# ✅ save output.csv
+# ✅ SAVE FILTERED DATA
 with open('output.csv', 'w', newline='', encoding='utf-8') as out_file:
-    writer = csv.DictWriter(out_file, fieldnames=["company","document_title","document_url"])
+    writer = csv.DictWriter(
+        out_file,
+        fieldnames=["company", "document_title", "document_url"]
+    )
     writer.writeheader()
     writer.writerows(output_data)
 
-# ✅ save raw_links.csv
+# ✅ SAVE RAW LINKS
 with open('raw_links.csv', 'w', newline='', encoding='utf-8') as raw_file:
-    writer = csv.DictWriter(raw_file, fieldnames=["company","text","url"])
+    writer = csv.DictWriter(
+        raw_file,
+        fieldnames=["company", "text", "url"]
+    )
     writer.writeheader()
     writer.writerows(raw_links)
 
