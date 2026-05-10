@@ -52,9 +52,11 @@ with open('documents.csv', newline='', encoding='utf-8') as file:
                         print(f"REMOVED → {full_url}")
                         continue
 
-                    if "reports" in href_lower and ".pdf" not in href_lower:
-                        print(f"REMOVED → {full_url}")
-                        continue
+                    # ❌ remove only known navigation pages
+                    if href_lower.endswith(".aspx") or href_lower.endswith(".html"):
+                    print(f"REMOVED → {full_url}")
+                    continue
+
 
                     # ✅ keep useful document-like links
                     if (
