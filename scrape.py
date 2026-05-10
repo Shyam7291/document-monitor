@@ -6,8 +6,59 @@ from urllib.parse import urljoin
 output_data = []
 raw_links = []
 
-# Words that are NOT actual titles
 IGNORE_WORDS = ["download", "view", "open", "read", "click"]
+
+def get_best_text(link, href):
+    """Smart function to extract meaningful title"""
+
+    # ✅ 1. direct text
+    text = link.get_text(strip=True)
+    if text and text.lower() not in IGNORE_WORDS:
+        return text
+
+    # ✅ 2. check parent row (table or list)
+    parent_row = link.find_parent(["tr", "li", "div"])
+    if parent_row:
+        candidates = []
+
+        for element in parent_row.find_all(["td", "th", "div", "span", "p", "a"]):
+            t = element.get_text(strip=True)
+
+            if (
+                t
+                and t.lower() not in IGNORE_WORDS
+                and len(t) > 10
+                and not t.lower().endswith(".pdf")
+            ):
+                candidates.append(t)
+
+        if candidates:
+            return max(candidates, key=len)
+
+    # ✅ 3. check previous sibling
+    prev = link.find_previous(string=True)
+    if prev:
+        prev_text = prev.strip()
+        if len(prev_text) > 10:
+            return prev_text
+
+    # ✅ 4. check next sibling
+    nxt = link.find_next(string=True)
+    if nxt:
+        next_text = nxt.strip()
+        if len(next_text) > 10:
+            return next_text
+
+    # ✅ 5. check parent container text
+    parent = link.parent
+    if parent:
+        parent_text = parent.get_text(strip=True)
+        if len(parent_text) > 10:
+            return parent_text
+
+    # ✅ LAST fallback (only if nothing found)
+    return href.split("/")[-1]
+
 
 with open('documents.csv', newline='', encoding='utf-8') as file:
     reader = csv.DictReader(file)
@@ -34,75 +85,34 @@ with open('documents.csv', newline='', encoding='utf-8') as file:
                     full_url = urljoin(url, href)
                     href_lower = full_url.lower()
 
-                    # ✅ STEP 1 — get link text
-                    text = link.get_text(strip=True)
-                    text_lower = text.lower()
+                    # ✅ GET BEST TITLE
+                    text = get_best_text(link, href)
 
-                    # ✅ STEP 2 — handle generic words like "Download", "View"
-                    if text_lower in IGNORE_WORDS or not text:
-                        row_elem = link.find_parent("tr")
-
-                        if row_elem:
-                            # ✅ scan entire row (ALL columns)
-                            candidates = []
-
-                            for element in row_elem.find_all(["td", "th", "div", "span", "p"]):
-                                col_text = element.get_text(strip=True)
-                                col_text_lower = col_text.lower()
-
-                                if (
-                                    col_text
-                                    and col_text_lower not in IGNORE_WORDS
-                                    and len(col_text) > 10
-                                ):
-                                    candidates.append(col_text)
-
-                            if candidates:
-                                # ✅ choose best meaningful title
-                                text = max(candidates, key=len)
-
-                    # ✅ STEP 3 — fallback: parent container (for layouts like Space42)
-                    if not text or text.lower() in IGNORE_WORDS:
-                        parent = link.parent
-                        if parent:
-                            parent_text = parent.get_text(strip=True)
-                            if len(parent_text) > 10:
-                                text = parent_text
-
-                    # ✅ STEP 4 — final fallback (file name)
-                    if not text or text.lower() in IGNORE_WORDS:
-                        text = href.split("/")[-1]
-
-                    # ✅ SAVE RAW LINKS
+                    # ✅ SAVE RAW
                     raw_links.append({
                         "company": url,
                         "text": text,
                         "url": full_url
                     })
 
-                    # ❌ REMOVE NON-DOCUMENT LINKS
+                    # ❌ REMOVE NON DOC LINKS
                     if (
                         href_lower.endswith("/")
                         or href_lower.endswith(".aspx")
                         or href_lower.endswith(".html")
                     ):
-                        print(f"REMOVED → {full_url}")
                         continue
 
                     # ✅ KEEP DOCUMENT LINKS
                     if (
                         ".pdf" in href_lower
                         or ".ashx" in href_lower
-                        or "download" in href_lower
-                        or "financial" in href_lower
-                        or "statement" in href_lower
-                        or "results" in href_lower
                     ):
                         if full_url in seen:
                             continue
                         seen.add(full_url)
 
-                        print(f"KEPT → {text} → {full_url}")
+                        print(f"KEPT → {text}")
 
                         output_data.append({
                             "company": url,
@@ -110,13 +120,10 @@ with open('documents.csv', newline='', encoding='utf-8') as file:
                             "document_url": full_url
                         })
 
-            else:
-                print("Failed ❌")
-
         except Exception as e:
             print(f"Error: {e}")
 
-# ✅ SAVE FILTERED OUTPUT
+# ✅ SAVE OUTPUT
 with open('output.csv', 'w', newline='', encoding='utf-8') as out_file:
     writer = csv.DictWriter(
         out_file,
@@ -125,7 +132,7 @@ with open('output.csv', 'w', newline='', encoding='utf-8') as out_file:
     writer.writeheader()
     writer.writerows(output_data)
 
-# ✅ SAVE RAW LINKS
+# ✅ SAVE RAW
 with open('raw_links.csv', 'w', newline='', encoding='utf-8') as raw_file:
     writer = csv.DictWriter(
         raw_file,
@@ -134,7 +141,7 @@ with open('raw_links.csv', 'w', newline='', encoding='utf-8') as raw_file:
     writer.writeheader()
     writer.writerows(raw_links)
 
-print("\n✅ Files saved successfully")
+print("\n✅ Done — titles improved")
 
 
 
