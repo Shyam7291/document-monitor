@@ -11,25 +11,23 @@ raw_links = []
 
 IGNORE_WORDS = ["download", "view", "open", "read", "click"]
 
+# ✅ CLEAN TITLE FROM URL (KEY FIX)
+def clean_url_title(href):
+    filename = href.split("/")[-1]
+
+    filename = filename.split("?")[0]
+    filename = filename.replace(".pdf", "").replace(".ashx", "")
+
+    filename = filename.replace("-", " ").replace("_", " ")
+
+    return filename.strip()
+
+
+# ✅ SMART TITLE EXTRACTION
 def get_best_text(link, href):
 
     text_raw = link.get_text(strip=True)
     text = text_raw.lower()
-
-    # ✅ STEP 0 — SPACE42 STRUCTURE (text left, icon right)
-    container = link.find_parent(["div", "li"])
-    if container:
-        for child in container.find_all(["div", "span", "p"], recursive=False):
-            t = child.get_text(strip=True)
-
-            if (
-                t
-                and t.lower() not in IGNORE_WORDS
-                and len(t) > 10
-                and not t.endswith(".pdf")
-                and not re.search(r"\d{1,2}\s+\w+,\s+\d{4}", t)
-            ):
-                return t
 
     # ✅ STEP 1 — TABLE (Albuhaira)
     row = link.find_parent("tr")
@@ -40,20 +38,21 @@ def get_best_text(link, href):
             if title:
                 return title
 
-    # ✅ STEP 2 — fallback search
-    if text in IGNORE_WORDS or not text:
-        parent = link.find_parent(["div", "li", "section"])
+    # ✅ STEP 2 — STRUCTURED BLOCK (Space42 layout)
+    parent = link.find_parent(["div", "li"])
+    if parent:
+        for t in parent.stripped_strings:
+            t = t.strip()
 
-        if parent:
-            for t in parent.stripped_strings:
-                if (
-                    len(t) > 15
-                    and not t.endswith(".pdf")
-                    and not re.search(r"\d{1,2}\s+\w+,\s+\d{4}", t)
-                ):
-                    return t
+            if (
+                len(t) > 15
+                and t.lower() not in IGNORE_WORDS
+                and not t.endswith(".pdf")
+                and not re.search(r"\d{1,2}\s+\w+,\s+\d{4}", t)  # avoid dates
+            ):
+                return t
 
-    # ✅ STEP 3 — normal text
+    # ✅ STEP 3 — NORMAL LINK TEXT
     if (
         text_raw
         and text not in IGNORE_WORDS
@@ -62,8 +61,8 @@ def get_best_text(link, href):
     ):
         return text_raw
 
-    # ✅ FINAL fallback
-    return href.split("/")[-1]
+    # ✅ STEP 4 — FINAL FALLBACK (URL BASED ✅ IMPORTANT)
+    return clean_url_title(href)
 
 
 # ✅ MAIN SCRAPER
@@ -72,6 +71,7 @@ with open("documents.csv", newline="", encoding="utf-8") as file:
 
     for row in reader:
         url = row["source_url"]
+
         print(f"\nChecking: {url}")
 
         try:
@@ -95,13 +95,14 @@ with open("documents.csv", newline="", encoding="utf-8") as file:
 
                     text = get_best_text(link, href)
 
+                    # ✅ SAVE RAW
                     raw_links.append({
                         "company": url,
                         "text": text,
                         "url": full_url
                     })
 
-                    # ❌ ignore navigation links
+                    # ❌ IGNORE NON-DOC LINKS
                     if (
                         href_lower.endswith("/")
                         or href_lower.endswith(".aspx")
@@ -109,8 +110,9 @@ with open("documents.csv", newline="", encoding="utf-8") as file:
                     ):
                         continue
 
-                    # ✅ keep only docs
+                    # ✅ KEEP DOCUMENT LINKS
                     if ".pdf" in href_lower or ".ashx" in href_lower:
+
                         if full_url in seen:
                             continue
                         seen.add(full_url)
@@ -144,6 +146,7 @@ new_records = []
 for r in output_data:
     rec = (r["company"], r["document_title"], r["document_url"])
 
+    # ✅ FIRST RUN
     if not os.path.exists("diff.csv") or os.stat("diff.csv").st_size == 0:
         new_records.append({
             "date": current_date,
@@ -152,6 +155,7 @@ for r in output_data:
             "document_url": r["document_url"]
         })
 
+    # ✅ NORMAL RUN
     elif rec not in old_data:
         new_records.append({
             "date": current_date,
@@ -161,23 +165,29 @@ for r in output_data:
         })
 
 
-# ✅ SAVE OUTPUT
+# ✅ SAVE output.csv
 with open("output.csv", "w", newline="", encoding="utf-8") as out_file:
-    writer = csv.DictWriter(out_file, fieldnames=["company", "document_title", "document_url"])
+    writer = csv.DictWriter(
+        out_file,
+        fieldnames=["company","document_title","document_url"]
+    )
     writer.writeheader()
     writer.writerows(output_data)
 
-# ✅ SAVE RAW
+# ✅ SAVE raw_links.csv
 with open("raw_links.csv", "w", newline="", encoding="utf-8") as raw_file:
-    writer = csv.DictWriter(raw_file, fieldnames=["company", "text", "url"])
+    writer = csv.DictWriter(
+        raw_file,
+        fieldnames=["company","text","url"]
+    )
     writer.writeheader()
     writer.writerows(raw_links)
 
-# ✅ SAVE DIFF
+# ✅ SAVE diff.csv
 file_exists = os.path.exists("diff.csv")
 
 with open("diff.csv", "a", newline="", encoding="utf-8") as diff_file:
-    fieldnames = ["date", "company", "document_title", "document_url"]
+    fieldnames = ["date","company","document_title","document_url"]
     writer = csv.DictWriter(diff_file, fieldnames=fieldnames)
 
     if not file_exists:
@@ -185,4 +195,6 @@ with open("diff.csv", "a", newline="", encoding="utf-8") as diff_file:
 
     writer.writerows(new_records)
 
-print("\n✅ DONE — Scraper working")
+print("\n✅ SCRAPER COMPLETE")
+print("✅ Titles cleaned (URL fallback applied)")
+print("✅ Diff tracking working")
