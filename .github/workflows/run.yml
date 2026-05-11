@@ -24,15 +24,15 @@ jobs:
       - name: Run script
         run: python scrape.py
 
-      - name: Commit and push output.csv
+      - name: Commit and push files
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
 
-          git add output.csv raw_links.csv
-
-          git commit -m "Update output.csv" || echo "No changes"
           git add output.csv raw_links.csv diff.csv
-          git push origin main
+
+          git commit -m "Update scraped data" || echo "No changes"
+
+          git push
 
    
