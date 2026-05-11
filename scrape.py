@@ -1,6 +1,7 @@
 import csv
 import requests
 import os
+import re
 from datetime import datetime
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
@@ -10,15 +11,16 @@ raw_links = []
 
 IGNORE_WORDS = ["download", "view", "open", "read", "click"]
 
-# ✅ FINAL FIXED TITLE FUNCTION
+# ✅ FINAL SMART TITLE FUNCTION (incremental logic)
 def get_best_text(link, href):
 
-    text = link.get_text(strip=True).lower()
+    text_raw = link.get_text(strip=True)
+    text = text_raw.lower()
 
-    # ✅ If link text is useless → try row first (Albuhaira fix)
+    # ✅ STEP 1 — handle Download/View cases
     if text in IGNORE_WORDS or not text:
 
-        # ✅ STEP 1 — TABLE ROW (MOST IMPORTANT)
+        # ✅ CASE 1 — table (Albuhaira ✅)
         row = link.find_parent("tr")
         if row:
             cols = row.find_all("td")
@@ -29,33 +31,42 @@ def get_best_text(link, href):
                 if title and len(title) > 5:
                     return title
 
-        # ✅ STEP 2 — container fallback (avoid picking "DISCLOSURES")
+        # ✅ CASE 2 — container extraction (Space42 fallback)
         container = link.find_parent(["div", "li", "section"])
+
         if container:
             candidates = []
 
-            for el in container.find_all(["p", "span"]):
+            for el in container.find_all(["h1","h2","h3","h4","p","span","a"]):
                 t = el.get_text(strip=True)
 
                 if (
                     t
-                    and len(t) > 15
+                    and t.lower() not in IGNORE_WORDS
                     and t.lower() not in ["disclosures"]
+                    and len(t) > 15
+                    # ✅ NEW RULE — remove dates like "15 May, 2025"
+                    and not re.search(r"\b\d{1,2}\s+\w+,\s+\d{4}\b", t)
                 ):
                     candidates.append(t)
 
             if candidates:
                 return max(candidates, key=len)
 
-    # ✅ STEP 3 — normal link text
-    if text and len(text) > 5 and text not in IGNORE_WORDS:
-        return link.get_text(strip=True)
+    # ✅ STEP 2 — normal link text
+    if (
+        text_raw
+        and text not in IGNORE_WORDS
+        and len(text_raw) > 5
+        and not re.search(r"\b\d{1,2}\s+\w+,\s+\d{4}\b", text_raw)  # avoid date-only text
+    ):
+        return text_raw
 
-    # ✅ FINAL fallback
+    # ✅ STEP 3 — fallback filename
     return href.split("/")[-1]
 
 
-# ✅ SCRAPING
+# ✅ SCRAPING MAIN
 with open('documents.csv', newline='', encoding='utf-8') as file:
     reader = csv.DictReader(file)
 
@@ -81,17 +92,16 @@ with open('documents.csv', newline='', encoding='utf-8') as file:
                     full_url = urljoin(url, href)
                     href_lower = full_url.lower()
 
-                    # ✅ TITLE FIX APPLIED HERE
                     text = get_best_text(link, href)
 
-                    # ✅ SAVE RAW
+                    # ✅ save raw
                     raw_links.append({
                         "company": url,
                         "text": text,
                         "url": full_url
                     })
 
-                    # ❌ IGNORE NON-DOCUMENT LINKS
+                    # ❌ ignore navigation links
                     if (
                         href_lower.endswith("/")
                         or href_lower.endswith(".aspx")
@@ -99,7 +109,7 @@ with open('documents.csv', newline='', encoding='utf-8') as file:
                     ):
                         continue
 
-                    # ✅ KEEP DOCUMENT LINKS ONLY
+                    # ✅ keep only documents
                     if ".pdf" in href_lower or ".ashx" in href_lower:
 
                         if full_url in seen:
@@ -135,6 +145,7 @@ new_records = []
 for r in output_data:
     rec = (r["company"], r["document_title"], r["document_url"])
 
+    # ✅ first run condition
     if not os.path.exists("diff.csv") or os.stat("diff.csv").st_size == 0:
         new_records.append({
             "date": current_date,
@@ -143,6 +154,7 @@ for r in output_data:
             "document_url": r["document_url"]
         })
 
+    # ✅ normal diff logic
     elif rec not in old_data:
         new_records.append({
             "date": current_date,
@@ -177,5 +189,5 @@ with open("diff.csv", "a", newline="", encoding="utf-8") as diff_file:
     writer.writerows(new_records)
 
 print("\n✅ SCRAPER COMPLETE")
-print("✅ Titles fixed (table + fallback)")
-print("✅ Diff tracking active")
+print("✅ Titles fixed (incremental logic applied)")
+print("✅ Diff tracking working")
