@@ -10,61 +10,52 @@ raw_links = []
 
 IGNORE_WORDS = ["download", "view", "open", "read", "click"]
 
-# ✅ SMART TITLE EXTRACTION FUNCTION
+# ✅ FINAL FIXED TITLE FUNCTION
 def get_best_text(link, href):
-    
-    text = link.get_text(strip=True)
 
-    # ✅ Ignore useless texts
-    if text and text.lower() not in IGNORE_WORDS and len(text) > 10:
-        return text
+    text = link.get_text(strip=True).lower()
 
-    # ✅ Look in nearest container (div, li, section)
-    container = link.find_parent(["div", "li", "section"])
+    # ✅ If link text is useless → try row first (Albuhaira fix)
+    if text in IGNORE_WORDS or not text:
 
-    if container:
-        # ✅ Try headings first (most accurate)
-        for tag in ["h1","h2","h3","h4","strong"]:
-            h = container.find(tag)
-            if h:
-                t = h.get_text(strip=True)
-                if t and len(t) > 10:
-                    return t
+        # ✅ STEP 1 — TABLE ROW (MOST IMPORTANT)
+        row = link.find_parent("tr")
+        if row:
+            cols = row.find_all("td")
 
-        # ✅ Otherwise scan all text
-        candidates = []
-        for el in container.find_all(["p","span","div","a"]):
-            t = el.get_text(strip=True)
+            if len(cols) >= 2:
+                title = cols[1].get_text(strip=True)
 
-            if (
-                t
-                and t.lower() not in IGNORE_WORDS
-                and len(t) > 15
-                and not t.lower().endswith(".pdf")
-            ):
-                candidates.append(t)
+                if title and len(title) > 5:
+                    return title
 
-        if candidates:
-            return max(candidates, key=len)
+        # ✅ STEP 2 — container fallback (avoid picking "DISCLOSURES")
+        container = link.find_parent(["div", "li", "section"])
+        if container:
+            candidates = []
 
-    # ✅ Sibling fallback
-    prev = link.find_previous(string=True)
-    if prev:
-        t = prev.strip()
-        if len(t) > 15:
-            return t
+            for el in container.find_all(["p", "span"]):
+                t = el.get_text(strip=True)
 
-    nxt = link.find_next(string=True)
-    if nxt:
-        t = nxt.strip()
-        if len(t) > 15:
-            return t
+                if (
+                    t
+                    and len(t) > 15
+                    and t.lower() not in ["disclosures"]
+                ):
+                    candidates.append(t)
 
-    # ✅ FINAL fallback (avoid but needed)
+            if candidates:
+                return max(candidates, key=len)
+
+    # ✅ STEP 3 — normal link text
+    if text and len(text) > 5 and text not in IGNORE_WORDS:
+        return link.get_text(strip=True)
+
+    # ✅ FINAL fallback
     return href.split("/")[-1]
 
 
-# ✅ MAIN LOOP
+# ✅ SCRAPING
 with open('documents.csv', newline='', encoding='utf-8') as file:
     reader = csv.DictReader(file)
 
@@ -90,17 +81,17 @@ with open('documents.csv', newline='', encoding='utf-8') as file:
                     full_url = urljoin(url, href)
                     href_lower = full_url.lower()
 
-                    # ✅ TITLE EXTRACTION
+                    # ✅ TITLE FIX APPLIED HERE
                     text = get_best_text(link, href)
 
-                    # ✅ STORE RAW
+                    # ✅ SAVE RAW
                     raw_links.append({
                         "company": url,
                         "text": text,
                         "url": full_url
                     })
 
-                    # ❌ REMOVE NON DOCUMENT LINKS
+                    # ❌ IGNORE NON-DOCUMENT LINKS
                     if (
                         href_lower.endswith("/")
                         or href_lower.endswith(".aspx")
@@ -108,7 +99,7 @@ with open('documents.csv', newline='', encoding='utf-8') as file:
                     ):
                         continue
 
-                    # ✅ KEEP DOCUMENT LINKS
+                    # ✅ KEEP DOCUMENT LINKS ONLY
                     if ".pdf" in href_lower or ".ashx" in href_lower:
 
                         if full_url in seen:
@@ -133,19 +124,26 @@ current_date = datetime.now().strftime("%Y-%m-%d")
 
 old_data = set()
 
-# Load previous output
 if os.path.exists("output.csv"):
     with open("output.csv", newline="", encoding="utf-8") as old_file:
         reader = csv.DictReader(old_file)
         for r in reader:
             old_data.add((r["company"], r["document_title"], r["document_url"]))
 
-# Find NEW records
 new_records = []
 
 for r in output_data:
     rec = (r["company"], r["document_title"], r["document_url"])
-    if rec not in old_data:
+
+    if not os.path.exists("diff.csv") or os.stat("diff.csv").st_size == 0:
+        new_records.append({
+            "date": current_date,
+            "company": r["company"],
+            "document_title": r["document_title"],
+            "document_url": r["document_url"]
+        })
+
+    elif rec not in old_data:
         new_records.append({
             "date": current_date,
             "company": r["company"],
@@ -154,7 +152,7 @@ for r in output_data:
         })
 
 
-# ✅ SAVE output.csv (latest snapshot)
+# ✅ SAVE output.csv
 with open("output.csv", "w", newline="", encoding="utf-8") as out_file:
     writer = csv.DictWriter(out_file, fieldnames=["company","document_title","document_url"])
     writer.writeheader()
@@ -179,5 +177,5 @@ with open("diff.csv", "a", newline="", encoding="utf-8") as diff_file:
     writer.writerows(new_records)
 
 print("\n✅ SCRAPER COMPLETE")
-print("✅ output.csv updated")
-print("✅ diff.csv updated (new changes only)")
+print("✅ Titles fixed (table + fallback)")
+print("✅ Diff tracking active")
