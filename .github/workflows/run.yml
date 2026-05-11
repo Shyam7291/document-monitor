@@ -32,7 +32,7 @@ jobs:
           git add output.csv raw_links.csv
 
           git commit -m "Update output.csv" || echo "No changes"
-
+          git add output.csv raw_links.csv diff.csv
           git push origin main
 
    
