@@ -11,20 +11,16 @@ raw_links = []
 
 IGNORE_WORDS = ["download", "view", "open", "read", "click"]
 
-# ✅ FINAL STRUCTURE-BASED TITLE EXTRACTION
 def get_best_text(link, href):
 
     text_raw = link.get_text(strip=True)
     text = text_raw.lower()
 
-    # ✅ STEP 0 — SPACE42 / similar layout (text LEFT + icon RIGHT)
+    # ✅ STEP 0 — SPACE42 STRUCTURE (text left, icon right)
     container = link.find_parent(["div", "li"])
     if container:
-        blocks = container.find_all(recursive=False)
-
-        candidates = []
-        for block in blocks:
-            t = block.get_text(strip=True)
+        for child in container.find_all(["div", "span", "p"], recursive=False):
+            t = child.get_text(strip=True)
 
             if (
                 t
@@ -33,29 +29,23 @@ def get_best_text(link, href):
                 and not t.endswith(".pdf")
                 and not re.search(r"\d{1,2}\s+\w+,\s+\d{4}", t)
             ):
-                candidates.append(t)
+                return t
 
-        if candidates:
-            return candidates[0]   # ✅ closest text (correct column)
-
-    # ✅ STEP 1 — TABLE STRUCTURE (Albuhaira ✅)
+    # ✅ STEP 1 — TABLE (Albuhaira)
     row = link.find_parent("tr")
     if row:
         cols = row.find_all("td")
         if len(cols) >= 2:
             title = cols[1].get_text(strip=True)
-            if title and len(title) > 5:
+            if title:
                 return title
 
-    # ✅ STEP 2 — generic "Download / View"
+    # ✅ STEP 2 — fallback search
     if text in IGNORE_WORDS or not text:
         parent = link.find_parent(["div", "li", "section"])
 
         if parent:
-            texts = parent.find_all(string=True)
-
-            for t in texts:
-                t = t.strip()
+            for t in parent.stripped_strings:
                 if (
                     len(t) > 15
                     and not t.endswith(".pdf")
@@ -63,7 +53,7 @@ def get_best_text(link, href):
                 ):
                     return t
 
-    # ✅ STEP 3 — normal case
+    # ✅ STEP 3 — normal text
     if (
         text_raw
         and text not in IGNORE_WORDS
@@ -76,12 +66,12 @@ def get_best_text(link, href):
     return href.split("/")[-1]
 
 
-# ✅ SCRAPER MAIN
-with open('documents.csv', newline='', encoding='utf-8') as file:
+# ✅ MAIN SCRAPER
+with open("documents.csv", newline="", encoding="utf-8") as file:
     reader = csv.DictReader(file)
 
     for row in reader:
-        url = row['source_url']
+        url = row["source_url"]
         print(f"\nChecking: {url}")
 
         try:
@@ -89,13 +79,14 @@ with open('documents.csv', newline='', encoding='utf-8') as file:
             print("Status:", response.status_code)
 
             if response.status_code == 200:
-                soup = BeautifulSoup(response.text, 'html.parser')
-                links = soup.find_all('a')
+                soup = BeautifulSoup(response.text, "html.parser")
+                links = soup.find_all("a")
 
                 seen = set()
 
                 for link in links:
-                    href = link.get('href')
+                    href = link.get("href")
+
                     if not href:
                         continue
 
@@ -110,7 +101,7 @@ with open('documents.csv', newline='', encoding='utf-8') as file:
                         "url": full_url
                     })
 
-                    # ✅ skip navigation
+                    # ❌ ignore navigation links
                     if (
                         href_lower.endswith("/")
                         or href_lower.endswith(".aspx")
@@ -118,9 +109,8 @@ with open('documents.csv', newline='', encoding='utf-8') as file:
                     ):
                         continue
 
-                    # ✅ keep docs only
+                    # ✅ keep only docs
                     if ".pdf" in href_lower or ".ashx" in href_lower:
-
                         if full_url in seen:
                             continue
                         seen.add(full_url)
@@ -134,7 +124,7 @@ with open('documents.csv', newline='', encoding='utf-8') as file:
                         })
 
         except Exception as e:
-            print(f"Error: {e}")
+            print("Error:", e)
 
 
 # ✅ ===== DIFF SYSTEM =====
@@ -173,13 +163,13 @@ for r in output_data:
 
 # ✅ SAVE OUTPUT
 with open("output.csv", "w", newline="", encoding="utf-8") as out_file:
-    writer = csv.DictWriter(out_file, fieldnames=["company","document_title","document_url"])
+    writer = csv.DictWriter(out_file, fieldnames=["company", "document_title", "document_url"])
     writer.writeheader()
     writer.writerows(output_data)
 
 # ✅ SAVE RAW
 with open("raw_links.csv", "w", newline="", encoding="utf-8") as raw_file:
-    writer = csv.DictWriter(raw_file, fieldnames=["company","text","url"])
+    writer = csv.DictWriter(raw_file, fieldnames=["company", "text", "url"])
     writer.writeheader()
     writer.writerows(raw_links)
 
@@ -187,7 +177,7 @@ with open("raw_links.csv", "w", newline="", encoding="utf-8") as raw_file:
 file_exists = os.path.exists("diff.csv")
 
 with open("diff.csv", "a", newline="", encoding="utf-8") as diff_file:
-    fieldnames = ["date","company","document_title","document_url"]
+    fieldnames = ["date", "company", "document_title", "document_url"]
     writer = csv.DictWriter(diff_file, fieldnames=fieldnames)
 
     if not file_exists:
@@ -195,7 +185,4 @@ with open("diff.csv", "a", newline="", encoding="utf-8") as diff_file:
 
     writer.writerows(new_records)
 
-print("\n✅ SCRAPER COMPLETE")
-print("✅ Structure-based logic applied")
-print("✅ Diff working")
-``
+print("\n✅ DONE — Scraper working")
