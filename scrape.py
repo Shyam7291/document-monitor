@@ -31,7 +31,8 @@ BAD_SECTION_TITLES = {
     "announcements",
     "investor relations",
     "financial reports",
-    "company announcements"
+    "company announcements",
+    "corporate governance"
 }
 
 
@@ -68,6 +69,18 @@ def is_number_file(text):
     return bool(re.match(r"^[0-9\-]+$", text))
 
 
+def is_uuid_like(text):
+    """
+    Detect UUID-like static file names:
+    b24f08e2-755f-495f-a972-3ed11903e135
+    """
+    text = normalize_text(text).lower()
+
+    uuid_pattern = r"^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$"
+
+    return bool(re.match(uuid_pattern, text))
+
+
 def is_bad_title(text):
     text = normalize_text(text)
     lower = text.lower()
@@ -90,6 +103,9 @@ def is_bad_title(text):
     if is_number_file(text):
         return True
 
+    if is_uuid_like(text):
+        return True
+
     if lower in ["download pdf", "view pdf", "open pdf"]:
         return True
 
@@ -101,11 +117,8 @@ def is_bad_title(text):
 
 def clean_title_from_url(url):
     """
-    Extract meaningful title from document URL.
-    Example:
-    space42-fy-2025-results-presentation.ashx
-    becomes:
-    space42 fy 2025 results presentation
+    Extract title from document URL only if URL contains meaningful words.
+    UUID/static-file IDs are rejected.
     """
 
     parsed = urlparse(url)
@@ -141,7 +154,6 @@ def clean_title_from_url(url):
 def collect_text_candidates_from_container(container):
     """
     Collect meaningful text from the same HTML row/block.
-    Used when URL title is weak.
     """
 
     candidates = []
@@ -150,7 +162,7 @@ def collect_text_candidates_from_container(container):
         return candidates
 
     for element in container.find_all(
-        ["td", "th", "p", "span", "div", "h1", "h2", "h3", "h4", "strong"],
+        ["td", "th", "p", "span", "div", "h1", "h2", "h3", "h4", "strong", "a"],
         recursive=True
     ):
         text = normalize_text(element.get_text(" ", strip=True))
@@ -182,7 +194,7 @@ def get_title_from_html_context(link):
     If URL title is weak, scan same row/block and choose longest meaningful text.
     """
 
-    # Table row first — useful for Albuhaira type pages
+    # Table row first
     row = link.find_parent("tr")
     if row:
         row_candidates = collect_text_candidates_from_container(row)
@@ -190,7 +202,7 @@ def get_title_from_html_context(link):
         if row_candidates:
             return max(row_candidates, key=len)
 
-    # List item — common in document lists
+    # List item
     li = link.find_parent("li")
     if li:
         li_candidates = collect_text_candidates_from_container(li)
@@ -198,7 +210,7 @@ def get_title_from_html_context(link):
         if li_candidates:
             return max(li_candidates, key=len)
 
-    # Nearby div/section/article — limited levels to avoid broad headings
+    # Nearby div/section/article
     current = link.parent
     levels_checked = 0
 
@@ -232,10 +244,7 @@ def normalize_url_key(url):
     """
     Used for duplicate detection and diff comparison.
 
-    It removes query strings like:
-    ?la=en&hash=xxxx
-
-    So these are treated as same:
+    Removes query string so these are treated as same:
     file.ashx
     file.ashx?la=en&hash=123
     """
@@ -248,7 +257,7 @@ def normalize_url_key(url):
 def get_best_text(link, full_url, source_url):
     """
     Title priority:
-    1. URL title
+    1. URL title if meaningful
     2. Same HTML row/block title
     3. Link text
     4. Final cleaned filename fallback
@@ -257,8 +266,7 @@ def get_best_text(link, full_url, source_url):
     # Priority 1 — title from URL
     url_title = clean_title_from_url(full_url)
 
-    # Specific strong rule for Space42:
-    # Space42 URLs usually contain useful document names.
+    # Space42 URLs usually contain useful document names
     if "space42.ai" in source_url.lower() and url_title:
         return url_title
 
@@ -293,6 +301,13 @@ def get_best_text(link, full_url, source_url):
 
 
 def is_document_link(url):
+    """
+    Keep actual document-like URLs.
+
+    Added:
+    /static-files/ support for companies like FICO.
+    """
+
     lower = url.lower()
 
     if ".pdf" in lower:
@@ -301,11 +316,21 @@ def is_document_link(url):
     if ".ashx" in lower:
         return True
 
+    if "/static-files/" in lower:
+        return True
+
     return False
 
 
 def is_navigation_link(url):
+    """
+    Remove page/navigation links.
+    """
+
     lower = url.lower()
+
+    if "#" in lower and not is_document_link(lower):
+        return True
 
     if lower.endswith("/"):
         return True
@@ -383,8 +408,7 @@ with open("documents.csv", newline="", encoding="utf-8") as file:
 
 
 # DIFF SYSTEM
-# IMPORTANT:
-# diff.csv now compares ONLY document_url, not document_title + document_url.
+# diff.csv compares ONLY document_url, not title + URL.
 
 current_date = datetime.now().strftime("%Y-%m-%d")
 
@@ -402,7 +426,6 @@ if os.path.exists("output.csv"):
 
 
 # Load existing diff.csv URLs also
-# This prevents duplicate diff rows when title logic changes.
 if os.path.exists("diff.csv"):
     with open("diff.csv", newline="", encoding="utf-8") as diff_read_file:
         reader = csv.DictReader(diff_read_file)
@@ -461,8 +484,9 @@ with open("diff.csv", "a", newline="", encoding="utf-8") as diff_file:
 
 
 print("\n✅ SCRAPER COMPLETE")
-print("✅ Title logic unchanged")
-print("✅ Diff now compares only document_url")
+print("✅ Added support for /static-files/ document links")
+print("✅ Title logic handles UUID/static file URLs")
+print("✅ Diff compares only document_url")
 print("✅ output.csv updated")
 print("✅ raw_links.csv updated")
 print("✅ diff.csv updated")
