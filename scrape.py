@@ -3,7 +3,6 @@ import requests
 import os
 import re
 import html
-import subprocess
 from types import SimpleNamespace
 from datetime import datetime
 from bs4 import BeautifulSoup
@@ -14,9 +13,7 @@ raw_links = []
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                  "(KHTML, like Gecko) Chrome/124.0 Safari/537.36",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-    "Accept-Language": "en-US,en;q=0.9"
+                  "(KHTML, like Gecko) Chrome/124.0 Safari/537.36"
 }
 
 IGNORE_WORDS = {
@@ -45,55 +42,60 @@ BAD_SECTION_TITLES = {
 }
 
 
+def fetch_acwa_with_playwright(source_url):
+    """
+    ACWA-specific browser rendering.
+    Used because ACWA pages load document sections dynamically.
+    """
+
+    print("Using ACWA Playwright browser fallback...")
+
+    try:
+        from playwright.sync_api import sync_playwright
+
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+
+            page = browser.new_page(
+                user_agent=HEADERS["User-Agent"],
+                viewport={"width": 1920, "height": 1080}
+            )
+
+            page.goto(source_url, wait_until="networkidle", timeout=60000)
+
+            # Extra wait for dynamic content/cards/dropdowns
+            page.wait_for_timeout(5000)
+
+            html_content = page.content()
+
+            browser.close()
+
+            return SimpleNamespace(
+                status_code=200,
+                text=html_content
+            )
+
+    except Exception as e:
+        print(f"ACWA Playwright fallback failed: {e}")
+        return None
+
+
 def fetch_page(source_url):
     """
-    Normal fetch for all sites.
-    If ACWA has SSL certificate issue, use curl fallback only for ACWA.
+    Keep old/simple fetch for all normal sites.
+    Use Playwright only for ACWA pages.
     """
+
+    if "acwapower.com" in source_url.lower():
+        return fetch_acwa_with_playwright(source_url)
 
     try:
         response = requests.get(
             source_url,
-            timeout=20,
+            timeout=15,
             headers=HEADERS
         )
         return response
-
-    except requests.exceptions.SSLError:
-        print(f"SSL issue detected for: {source_url}")
-
-        if "acwapower.com" in source_url.lower():
-            print("Using ACWA fallback with curl...")
-
-            try:
-                result = subprocess.run(
-                    [
-                        "curl",
-                        "-L",
-                        "-k",
-                        "-A",
-                        HEADERS["User-Agent"],
-                        source_url
-                    ],
-                    capture_output=True,
-                    text=True,
-                    timeout=40
-                )
-
-                if result.returncode == 0 and result.stdout:
-                    return SimpleNamespace(
-                        status_code=200,
-                        text=result.stdout
-                    )
-
-                print("ACWA curl fallback failed")
-                return None
-
-            except Exception as curl_error:
-                print(f"ACWA curl fallback error: {curl_error}")
-                return None
-
-        return None
 
     except Exception as e:
         print(f"Request error for {source_url}: {e}")
@@ -134,14 +136,6 @@ def is_number_file(text):
 
 
 def is_uuid_like(text):
-    """
-    Detect UUID-like static file names.
-
-    Example:
-    b24f08e2-755f-495f-a972-3ed11903e135
-    b24f08e2 755f 495f a972 3ed11903e135
-    """
-
     text = normalize_text(text).lower()
     text = text.replace(" ", "-")
 
@@ -185,11 +179,6 @@ def is_bad_title(text):
 
 
 def clean_title_from_url(url):
-    """
-    Extract meaningful title from URL only if URL contains real words.
-    UUID/static-file IDs are rejected.
-    """
-
     parsed = urlparse(url)
     path = parsed.path
 
@@ -224,10 +213,6 @@ def clean_title_from_url(url):
 
 
 def collect_text_candidates_from_container(container):
-    """
-    Collect meaningful text from same HTML row/block.
-    """
-
     candidates = []
 
     if not container:
@@ -262,10 +247,6 @@ def collect_text_candidates_from_container(container):
 
 
 def get_title_from_html_context(link):
-    """
-    If URL title is weak, scan same row/block and choose longest meaningful text.
-    """
-
     row = link.find_parent("tr")
     if row:
         row_candidates = collect_text_candidates_from_container(row)
@@ -297,10 +278,6 @@ def get_title_from_html_context(link):
 
 
 def get_link_text_title(link):
-    """
-    Use visible link text if meaningful.
-    """
-
     text = normalize_text(link.get_text(" ", strip=True))
 
     if is_bad_title(text):
@@ -310,11 +287,6 @@ def get_link_text_title(link):
 
 
 def normalize_url_key(url):
-    """
-    Used for duplicate detection and diff comparison.
-    Removes query string.
-    """
-
     parsed = urlparse(url)
 
     return f"{parsed.scheme}://{parsed.netloc}{parsed.path}".lower()
@@ -327,7 +299,7 @@ def is_static_file_link(url):
 def get_best_text(link, full_url, source_url):
     """
     Title priority:
-    1. For /static-files/ links, use HTML title first because URL is usually UUID.
+    1. For /static-files/ links, use HTML title first.
     2. For other links, use URL title first.
     3. Then HTML context.
     4. Then link text.
@@ -383,10 +355,6 @@ def get_best_text(link, full_url, source_url):
 
 
 def is_document_link(url):
-    """
-    Keep actual document-like URLs.
-    """
-
     lower = url.lower()
 
     if ".pdf" in lower:
@@ -402,10 +370,6 @@ def is_document_link(url):
 
 
 def is_navigation_link(url):
-    """
-    Remove page/navigation links.
-    """
-
     lower = url.lower()
 
     if "#" in lower and not is_document_link(lower):
@@ -421,6 +385,36 @@ def is_navigation_link(url):
         return True
 
     return False
+
+
+def extract_link_items(soup):
+    """
+    Extract normal href links plus document URLs hidden in data attributes.
+    This helps with dynamic/download icon style pages.
+    """
+
+    items = []
+
+    for tag in soup.find_all(True):
+        possible_attrs = [
+            "href",
+            "data-href",
+            "data-url",
+            "data-link",
+            "data-file",
+            "data-download",
+            "data-src"
+        ]
+
+        for attr in possible_attrs:
+            value = tag.get(attr)
+
+            if not value:
+                continue
+
+            items.append((tag, value))
+
+    return items
 
 
 # MAIN SCRAPER
@@ -446,13 +440,11 @@ with open("documents.csv", newline="", encoding="utf-8") as file:
                 continue
 
             soup = BeautifulSoup(response.text, "html.parser")
-            links = soup.find_all("a")
+            link_items = extract_link_items(soup)
 
             seen = set()
 
-            for link in links:
-                href = link.get("href")
-
+            for link, href in link_items:
                 if not href:
                     continue
 
@@ -562,8 +554,9 @@ with open("diff.csv", "a", newline="", encoding="utf-8") as diff_file:
 
 
 print("\n✅ SCRAPER COMPLETE")
-print("✅ ACWA curl fallback added")
-print("✅ Existing title logic kept")
+print("✅ ACWA handled with Playwright only")
+print("✅ Normal sites use old requests method")
+print("✅ Hidden data-* document links included")
 print("✅ Diff compares only document_url")
 print("✅ output.csv updated")
 print("✅ raw_links.csv updated")
