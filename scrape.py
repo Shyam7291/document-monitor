@@ -3,12 +3,21 @@ import requests
 import os
 import re
 import html
+import subprocess
+from types import SimpleNamespace
 from datetime import datetime
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse, unquote
 
 output_data = []
 raw_links = []
+
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                  "(KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9"
+}
 
 IGNORE_WORDS = {
     "download",
@@ -34,6 +43,61 @@ BAD_SECTION_TITLES = {
     "company announcements",
     "corporate governance"
 }
+
+
+def fetch_page(source_url):
+    """
+    Normal fetch for all sites.
+    If ACWA has SSL certificate issue, use curl fallback only for ACWA.
+    """
+
+    try:
+        response = requests.get(
+            source_url,
+            timeout=20,
+            headers=HEADERS
+        )
+        return response
+
+    except requests.exceptions.SSLError:
+        print(f"SSL issue detected for: {source_url}")
+
+        if "acwapower.com" in source_url.lower():
+            print("Using ACWA fallback with curl...")
+
+            try:
+                result = subprocess.run(
+                    [
+                        "curl",
+                        "-L",
+                        "-k",
+                        "-A",
+                        HEADERS["User-Agent"],
+                        source_url
+                    ],
+                    capture_output=True,
+                    text=True,
+                    timeout=40
+                )
+
+                if result.returncode == 0 and result.stdout:
+                    return SimpleNamespace(
+                        status_code=200,
+                        text=result.stdout
+                    )
+
+                print("ACWA curl fallback failed")
+                return None
+
+            except Exception as curl_error:
+                print(f"ACWA curl fallback error: {curl_error}")
+                return None
+
+        return None
+
+    except Exception as e:
+        print(f"Request error for {source_url}: {e}")
+        return None
 
 
 def normalize_text(text):
@@ -73,7 +137,7 @@ def is_uuid_like(text):
     """
     Detect UUID-like static file names.
 
-    Works for:
+    Example:
     b24f08e2-755f-495f-a972-3ed11903e135
     b24f08e2 755f 495f a972 3ed11903e135
     """
@@ -140,7 +204,6 @@ def clean_title_from_url(url):
     filename_raw = html.unescape(filename_raw)
     filename_raw = filename_raw.split("?")[0]
 
-    # Important: check UUID BEFORE replacing hyphens
     filename_without_ext = filename_raw
     filename_without_ext = filename_without_ext.replace(".pdf", "")
     filename_without_ext = filename_without_ext.replace(".ashx", "")
@@ -162,7 +225,7 @@ def clean_title_from_url(url):
 
 def collect_text_candidates_from_container(container):
     """
-    Collect meaningful text from the same HTML row/block.
+    Collect meaningful text from same HTML row/block.
     """
 
     candidates = []
@@ -203,7 +266,6 @@ def get_title_from_html_context(link):
     If URL title is weak, scan same row/block and choose longest meaningful text.
     """
 
-    # 1. Table row first
     row = link.find_parent("tr")
     if row:
         row_candidates = collect_text_candidates_from_container(row)
@@ -211,7 +273,6 @@ def get_title_from_html_context(link):
         if row_candidates:
             return max(row_candidates, key=len)
 
-    # 2. List item
     li = link.find_parent("li")
     if li:
         li_candidates = collect_text_candidates_from_container(li)
@@ -219,7 +280,6 @@ def get_title_from_html_context(link):
         if li_candidates:
             return max(li_candidates, key=len)
 
-    # 3. Parent block
     current = link.parent
     levels_checked = 0
 
@@ -274,8 +334,6 @@ def get_best_text(link, full_url, source_url):
     5. Then fallback.
     """
 
-    # Special rule for FICO / static-files:
-    # URL is UUID, so do NOT use URL first.
     if is_static_file_link(full_url):
         html_title = get_title_from_html_context(link)
 
@@ -292,29 +350,24 @@ def get_best_text(link, full_url, source_url):
         if url_title:
             return url_title
 
-    # Normal rule: URL title first
     url_title = clean_title_from_url(full_url)
 
-    # Space42 URLs usually contain useful document names
     if "space42.ai" in source_url.lower() and url_title:
         return url_title
 
     if url_title:
         return url_title
 
-    # HTML context second
     html_title = get_title_from_html_context(link)
 
     if html_title:
         return html_title
 
-    # Link text third
     link_text = get_link_text_title(link)
 
     if link_text:
         return link_text
 
-    # Final fallback
     parsed = urlparse(full_url)
     filename = parsed.path.split("/")[-1]
     filename = unquote(filename)
@@ -380,7 +433,12 @@ with open("documents.csv", newline="", encoding="utf-8") as file:
         print(f"\nChecking: {source_url}")
 
         try:
-            response = requests.get(source_url, timeout=15)
+            response = fetch_page(source_url)
+
+            if response is None:
+                print("Failed to fetch page")
+                continue
+
             print("Status:", response.status_code)
 
             if response.status_code != 200:
@@ -441,7 +499,6 @@ current_date = datetime.now().strftime("%Y-%m-%d")
 old_output_urls = set()
 existing_diff_urls = set()
 
-# Load previous output.csv URLs only
 if os.path.exists("output.csv"):
     with open("output.csv", newline="", encoding="utf-8") as old_file:
         reader = csv.DictReader(old_file)
@@ -451,7 +508,6 @@ if os.path.exists("output.csv"):
                 old_output_urls.add(normalize_url_key(r["document_url"]))
 
 
-# Load existing diff.csv URLs also
 if os.path.exists("diff.csv"):
     with open("diff.csv", newline="", encoding="utf-8") as diff_read_file:
         reader = csv.DictReader(diff_read_file)
@@ -466,7 +522,6 @@ new_records = []
 for r in output_data:
     current_url_key = normalize_url_key(r["document_url"])
 
-    # Add to diff only if document URL is new
     if current_url_key not in old_output_urls and current_url_key not in existing_diff_urls:
         new_records.append({
             "date": current_date,
@@ -476,7 +531,6 @@ for r in output_data:
         })
 
 
-# SAVE output.csv
 with open("output.csv", "w", newline="", encoding="utf-8") as out_file:
     writer = csv.DictWriter(
         out_file,
@@ -486,7 +540,6 @@ with open("output.csv", "w", newline="", encoding="utf-8") as out_file:
     writer.writerows(output_data)
 
 
-# SAVE raw_links.csv
 with open("raw_links.csv", "w", newline="", encoding="utf-8") as raw_file:
     writer = csv.DictWriter(
         raw_file,
@@ -496,7 +549,6 @@ with open("raw_links.csv", "w", newline="", encoding="utf-8") as raw_file:
     writer.writerows(raw_links)
 
 
-# APPEND diff.csv
 file_exists = os.path.exists("diff.csv")
 
 with open("diff.csv", "a", newline="", encoding="utf-8") as diff_file:
@@ -510,8 +562,8 @@ with open("diff.csv", "a", newline="", encoding="utf-8") as diff_file:
 
 
 print("\n✅ SCRAPER COMPLETE")
-print("✅ Added static-files title fallback from HTML context")
-print("✅ UUID titles rejected")
+print("✅ ACWA curl fallback added")
+print("✅ Existing title logic kept")
 print("✅ Diff compares only document_url")
 print("✅ output.csv updated")
 print("✅ raw_links.csv updated")
