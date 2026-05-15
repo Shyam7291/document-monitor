@@ -3,23 +3,12 @@ import requests
 import os
 import re
 import html
-import urllib3
 from datetime import datetime
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse, unquote
 
-# Suppress warning only for SSL fallback cases
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
 output_data = []
 raw_links = []
-
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                  "(KHTML, like Gecko) Chrome/124.0 Safari/537.36",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-    "Accept-Language": "en-US,en;q=0.9"
-}
 
 IGNORE_WORDS = {
     "download",
@@ -45,43 +34,6 @@ BAD_SECTION_TITLES = {
     "company announcements",
     "corporate governance"
 }
-
-
-def fetch_page(url):
-    """
-    Fetch page safely.
-    First tries normal SSL verification.
-    If SSL certificate fails, retries with verify=False.
-    """
-
-    try:
-        response = requests.get(
-            url,
-            timeout=20,
-            headers=HEADERS
-        )
-        return response
-
-    except requests.exceptions.SSLError as ssl_error:
-        print(f"SSL error for {url}")
-        print("Retrying with SSL verification disabled...")
-
-        try:
-            response = requests.get(
-                url,
-                timeout=20,
-                headers=HEADERS,
-                verify=False
-            )
-            return response
-
-        except Exception as retry_error:
-            print(f"Retry failed: {retry_error}")
-            return None
-
-    except Exception as e:
-        print(f"Request error: {e}")
-        return None
 
 
 def normalize_text(text):
@@ -118,6 +70,14 @@ def is_number_file(text):
 
 
 def is_uuid_like(text):
+    """
+    Detect UUID-like static file names.
+
+    Works for:
+    b24f08e2-755f-495f-a972-3ed11903e135
+    b24f08e2 755f 495f a972 3ed11903e135
+    """
+
     text = normalize_text(text).lower()
     text = text.replace(" ", "-")
 
@@ -161,6 +121,11 @@ def is_bad_title(text):
 
 
 def clean_title_from_url(url):
+    """
+    Extract meaningful title from URL only if URL contains real words.
+    UUID/static-file IDs are rejected.
+    """
+
     parsed = urlparse(url)
     path = parsed.path
 
@@ -175,6 +140,7 @@ def clean_title_from_url(url):
     filename_raw = html.unescape(filename_raw)
     filename_raw = filename_raw.split("?")[0]
 
+    # Important: check UUID BEFORE replacing hyphens
     filename_without_ext = filename_raw
     filename_without_ext = filename_without_ext.replace(".pdf", "")
     filename_without_ext = filename_without_ext.replace(".ashx", "")
@@ -195,6 +161,10 @@ def clean_title_from_url(url):
 
 
 def collect_text_candidates_from_container(container):
+    """
+    Collect meaningful text from the same HTML row/block.
+    """
+
     candidates = []
 
     if not container:
@@ -229,6 +199,11 @@ def collect_text_candidates_from_container(container):
 
 
 def get_title_from_html_context(link):
+    """
+    If URL title is weak, scan same row/block and choose longest meaningful text.
+    """
+
+    # 1. Table row first
     row = link.find_parent("tr")
     if row:
         row_candidates = collect_text_candidates_from_container(row)
@@ -236,6 +211,7 @@ def get_title_from_html_context(link):
         if row_candidates:
             return max(row_candidates, key=len)
 
+    # 2. List item
     li = link.find_parent("li")
     if li:
         li_candidates = collect_text_candidates_from_container(li)
@@ -243,6 +219,7 @@ def get_title_from_html_context(link):
         if li_candidates:
             return max(li_candidates, key=len)
 
+    # 3. Parent block
     current = link.parent
     levels_checked = 0
 
@@ -260,6 +237,10 @@ def get_title_from_html_context(link):
 
 
 def get_link_text_title(link):
+    """
+    Use visible link text if meaningful.
+    """
+
     text = normalize_text(link.get_text(" ", strip=True))
 
     if is_bad_title(text):
@@ -269,6 +250,11 @@ def get_link_text_title(link):
 
 
 def normalize_url_key(url):
+    """
+    Used for duplicate detection and diff comparison.
+    Removes query string.
+    """
+
     parsed = urlparse(url)
 
     return f"{parsed.scheme}://{parsed.netloc}{parsed.path}".lower()
@@ -288,6 +274,8 @@ def get_best_text(link, full_url, source_url):
     5. Then fallback.
     """
 
+    # Special rule for FICO / static-files:
+    # URL is UUID, so do NOT use URL first.
     if is_static_file_link(full_url):
         html_title = get_title_from_html_context(link)
 
@@ -304,24 +292,29 @@ def get_best_text(link, full_url, source_url):
         if url_title:
             return url_title
 
+    # Normal rule: URL title first
     url_title = clean_title_from_url(full_url)
 
+    # Space42 URLs usually contain useful document names
     if "space42.ai" in source_url.lower() and url_title:
         return url_title
 
     if url_title:
         return url_title
 
+    # HTML context second
     html_title = get_title_from_html_context(link)
 
     if html_title:
         return html_title
 
+    # Link text third
     link_text = get_link_text_title(link)
 
     if link_text:
         return link_text
 
+    # Final fallback
     parsed = urlparse(full_url)
     filename = parsed.path.split("/")[-1]
     filename = unquote(filename)
@@ -337,6 +330,10 @@ def get_best_text(link, full_url, source_url):
 
 
 def is_document_link(url):
+    """
+    Keep actual document-like URLs.
+    """
+
     lower = url.lower()
 
     if ".pdf" in lower:
@@ -352,6 +349,10 @@ def is_document_link(url):
 
 
 def is_navigation_link(url):
+    """
+    Remove page/navigation links.
+    """
+
     lower = url.lower()
 
     if "#" in lower and not is_document_link(lower):
@@ -379,12 +380,7 @@ with open("documents.csv", newline="", encoding="utf-8") as file:
         print(f"\nChecking: {source_url}")
 
         try:
-            response = fetch_page(source_url)
-
-            if response is None:
-                print("Failed to fetch page")
-                continue
-
+            response = requests.get(source_url, timeout=15)
             print("Status:", response.status_code)
 
             if response.status_code != 200:
@@ -445,6 +441,7 @@ current_date = datetime.now().strftime("%Y-%m-%d")
 old_output_urls = set()
 existing_diff_urls = set()
 
+# Load previous output.csv URLs only
 if os.path.exists("output.csv"):
     with open("output.csv", newline="", encoding="utf-8") as old_file:
         reader = csv.DictReader(old_file)
@@ -454,6 +451,7 @@ if os.path.exists("output.csv"):
                 old_output_urls.add(normalize_url_key(r["document_url"]))
 
 
+# Load existing diff.csv URLs also
 if os.path.exists("diff.csv"):
     with open("diff.csv", newline="", encoding="utf-8") as diff_read_file:
         reader = csv.DictReader(diff_read_file)
@@ -468,6 +466,7 @@ new_records = []
 for r in output_data:
     current_url_key = normalize_url_key(r["document_url"])
 
+    # Add to diff only if document URL is new
     if current_url_key not in old_output_urls and current_url_key not in existing_diff_urls:
         new_records.append({
             "date": current_date,
@@ -477,6 +476,7 @@ for r in output_data:
         })
 
 
+# SAVE output.csv
 with open("output.csv", "w", newline="", encoding="utf-8") as out_file:
     writer = csv.DictWriter(
         out_file,
@@ -486,6 +486,7 @@ with open("output.csv", "w", newline="", encoding="utf-8") as out_file:
     writer.writerows(output_data)
 
 
+# SAVE raw_links.csv
 with open("raw_links.csv", "w", newline="", encoding="utf-8") as raw_file:
     writer = csv.DictWriter(
         raw_file,
@@ -495,6 +496,7 @@ with open("raw_links.csv", "w", newline="", encoding="utf-8") as raw_file:
     writer.writerows(raw_links)
 
 
+# APPEND diff.csv
 file_exists = os.path.exists("diff.csv")
 
 with open("diff.csv", "a", newline="", encoding="utf-8") as diff_file:
@@ -508,8 +510,8 @@ with open("diff.csv", "a", newline="", encoding="utf-8") as diff_file:
 
 
 print("\n✅ SCRAPER COMPLETE")
-print("✅ SSL fallback added")
-print("✅ ACWA-style SSL issue handled")
+print("✅ Added static-files title fallback from HTML context")
+print("✅ UUID titles rejected")
 print("✅ Diff compares only document_url")
 print("✅ output.csv updated")
 print("✅ raw_links.csv updated")
