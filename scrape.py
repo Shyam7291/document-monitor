@@ -71,10 +71,15 @@ def is_number_file(text):
 
 def is_uuid_like(text):
     """
-    Detect UUID-like static file names:
+    Detect UUID-like static file names.
+
+    Works for:
     b24f08e2-755f-495f-a972-3ed11903e135
+    b24f08e2 755f 495f a972 3ed11903e135
     """
+
     text = normalize_text(text).lower()
+    text = text.replace(" ", "-")
 
     uuid_pattern = r"^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$"
 
@@ -117,7 +122,7 @@ def is_bad_title(text):
 
 def clean_title_from_url(url):
     """
-    Extract title from document URL only if URL contains meaningful words.
+    Extract meaningful title from URL only if URL contains real words.
     UUID/static-file IDs are rejected.
     """
 
@@ -129,20 +134,24 @@ def clean_title_from_url(url):
     if not parts:
         return ""
 
-    filename = parts[-1]
+    filename_raw = parts[-1]
 
-    filename = unquote(filename)
-    filename = html.unescape(filename)
+    filename_raw = unquote(filename_raw)
+    filename_raw = html.unescape(filename_raw)
+    filename_raw = filename_raw.split("?")[0]
 
-    filename = filename.split("?")[0]
-    filename = filename.replace(".pdf", "")
-    filename = filename.replace(".ashx", "")
-    filename = filename.replace(".aspx", "")
-    filename = filename.replace(".html", "")
+    # Important: check UUID BEFORE replacing hyphens
+    filename_without_ext = filename_raw
+    filename_without_ext = filename_without_ext.replace(".pdf", "")
+    filename_without_ext = filename_without_ext.replace(".ashx", "")
+    filename_without_ext = filename_without_ext.replace(".aspx", "")
+    filename_without_ext = filename_without_ext.replace(".html", "")
 
-    filename = filename.replace("-", " ")
+    if is_uuid_like(filename_without_ext):
+        return ""
+
+    filename = filename_without_ext.replace("-", " ")
     filename = filename.replace("_", " ")
-
     filename = normalize_text(filename)
 
     if is_bad_title(filename):
@@ -194,7 +203,7 @@ def get_title_from_html_context(link):
     If URL title is weak, scan same row/block and choose longest meaningful text.
     """
 
-    # Table row first
+    # 1. Table row first
     row = link.find_parent("tr")
     if row:
         row_candidates = collect_text_candidates_from_container(row)
@@ -202,7 +211,7 @@ def get_title_from_html_context(link):
         if row_candidates:
             return max(row_candidates, key=len)
 
-    # List item
+    # 2. List item
     li = link.find_parent("li")
     if li:
         li_candidates = collect_text_candidates_from_container(li)
@@ -210,12 +219,12 @@ def get_title_from_html_context(link):
         if li_candidates:
             return max(li_candidates, key=len)
 
-    # Nearby div/section/article
+    # 3. Parent block
     current = link.parent
     levels_checked = 0
 
-    while current and levels_checked < 4:
-        if current.name in ["div", "section", "article"]:
+    while current and levels_checked < 5:
+        if current.name in ["div", "section", "article", "p"]:
             block_candidates = collect_text_candidates_from_container(current)
 
             if block_candidates:
@@ -243,10 +252,7 @@ def get_link_text_title(link):
 def normalize_url_key(url):
     """
     Used for duplicate detection and diff comparison.
-
-    Removes query string so these are treated as same:
-    file.ashx
-    file.ashx?la=en&hash=123
+    Removes query string.
     """
 
     parsed = urlparse(url)
@@ -254,16 +260,39 @@ def normalize_url_key(url):
     return f"{parsed.scheme}://{parsed.netloc}{parsed.path}".lower()
 
 
+def is_static_file_link(url):
+    return "/static-files/" in url.lower()
+
+
 def get_best_text(link, full_url, source_url):
     """
     Title priority:
-    1. URL title if meaningful
-    2. Same HTML row/block title
-    3. Link text
-    4. Final cleaned filename fallback
+    1. For /static-files/ links, use HTML title first because URL is usually UUID.
+    2. For other links, use URL title first.
+    3. Then HTML context.
+    4. Then link text.
+    5. Then fallback.
     """
 
-    # Priority 1 — title from URL
+    # Special rule for FICO / static-files:
+    # URL is UUID, so do NOT use URL first.
+    if is_static_file_link(full_url):
+        html_title = get_title_from_html_context(link)
+
+        if html_title:
+            return html_title
+
+        link_text = get_link_text_title(link)
+
+        if link_text:
+            return link_text
+
+        url_title = clean_title_from_url(full_url)
+
+        if url_title:
+            return url_title
+
+    # Normal rule: URL title first
     url_title = clean_title_from_url(full_url)
 
     # Space42 URLs usually contain useful document names
@@ -273,13 +302,13 @@ def get_best_text(link, full_url, source_url):
     if url_title:
         return url_title
 
-    # Priority 2 — HTML context
+    # HTML context second
     html_title = get_title_from_html_context(link)
 
     if html_title:
         return html_title
 
-    # Priority 3 — link text
+    # Link text third
     link_text = get_link_text_title(link)
 
     if link_text:
@@ -303,9 +332,6 @@ def get_best_text(link, full_url, source_url):
 def is_document_link(url):
     """
     Keep actual document-like URLs.
-
-    Added:
-    /static-files/ support for companies like FICO.
     """
 
     lower = url.lower()
@@ -484,8 +510,8 @@ with open("diff.csv", "a", newline="", encoding="utf-8") as diff_file:
 
 
 print("\n✅ SCRAPER COMPLETE")
-print("✅ Added support for /static-files/ document links")
-print("✅ Title logic handles UUID/static file URLs")
+print("✅ Added static-files title fallback from HTML context")
+print("✅ UUID titles rejected")
 print("✅ Diff compares only document_url")
 print("✅ output.csv updated")
 print("✅ raw_links.csv updated")
