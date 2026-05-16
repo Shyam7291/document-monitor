@@ -11,7 +11,7 @@ output_data = []
 raw_links = []
 issue_rows = []
 
-current_date = datetime.now().strftime("%Y-%m-%d")
+current_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 IGNORE_WORDS = {
     "download",
@@ -371,6 +371,43 @@ def is_document_link(url):
     return False
 
 
+def is_click_document_candidate(url):
+    """
+    Used only for browser click fallback.
+
+    Some View / Download buttons open document URLs that may not end with .pdf.
+    This is intentionally broader than is_document_link, but only used after clicking.
+    """
+
+    lower = url.lower()
+
+    if is_document_link(lower):
+        return True
+
+    if "/download" in lower:
+        return True
+
+    if "/downloads/" in lower:
+        return True
+
+    if "/media/" in lower:
+        return True
+
+    if "/upload" in lower:
+        return True
+
+    if "/uploads/" in lower:
+        return True
+
+    if "/storage/" in lower:
+        return True
+
+    if "/files/" in lower:
+        return True
+
+    return False
+
+
 def is_navigation_link(url):
     """
     Remove page/navigation links.
@@ -391,6 +428,225 @@ def is_navigation_link(url):
         return True
 
     return False
+
+
+def extract_title_from_playwright_element(element):
+    """
+    Extract title near clicked View / Download button using browser DOM.
+    """
+
+    try:
+        title = element.evaluate(
+            """
+            el => {
+                const bad = new Set(["view", "download", "open", "read", "click", "pdf"]);
+                function clean(t) {
+                    return (t || "").replace(/\\s+/g, " ").trim();
+                }
+
+                function isBad(t) {
+                    if (!t) return true;
+                    const l = t.toLowerCase();
+                    if (bad.has(l)) return true;
+                    if (t.length < 6) return true;
+                    if (/^\\d{1,2}\\s+\\w+,\\s+\\d{4}$/.test(t)) return true;
+                    if (!/[A-Za-z]/.test(t)) return true;
+                    return false;
+                }
+
+                const containers = [
+                    el.closest("tr"),
+                    el.closest("li"),
+                    el.closest("article"),
+                    el.closest("section"),
+                    el.closest("div")
+                ].filter(Boolean);
+
+                for (const c of containers) {
+                    const texts = Array.from(c.querySelectorAll("td, th, h1, h2, h3, h4, p, span, div, strong, a"))
+                        .map(x => clean(x.innerText))
+                        .filter(x => !isBad(x));
+
+                    if (texts.length > 0) {
+                        texts.sort((a, b) => b.length - a.length);
+                        return texts[0];
+                    }
+                }
+
+                const own = clean(el.innerText);
+                if (!isBad(own)) return own;
+
+                return "";
+            }
+            """
+        )
+
+        title = normalize_text(title)
+
+        if title and not is_bad_title(title):
+            return title
+
+    except Exception:
+        pass
+
+    return ""
+
+
+def browser_click_fallback(source_url, existing_keys):
+    """
+    Runs only when normal scraper captures 0 documents for a URL.
+
+    Opens the page in Chromium, clicks View / Download / PDF-like buttons/links,
+    captures document URLs from:
+    - popup/new tab
+    - page navigation
+    - download event
+    - href after rendered page
+    """
+
+    fallback_docs = []
+
+    try:
+        from playwright.sync_api import sync_playwright
+    except Exception as e:
+        print(f"Playwright not available: {e}")
+        return fallback_docs
+
+    print("Running browser click fallback for zero-doc page...")
+
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+
+            page = browser.new_page(
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+            )
+
+            page.goto(source_url, wait_until="networkidle", timeout=60000)
+            page.wait_for_timeout(3000)
+
+            # First: collect already-rendered href/data links
+            html_content = page.content()
+            soup = BeautifulSoup(html_content, "html.parser")
+
+            for tag in soup.find_all(True):
+                for attr in ["href", "data-href", "data-url", "data-link", "data-file", "data-download", "data-src"]:
+                    value = tag.get(attr)
+
+                    if not value:
+                        continue
+
+                    full_url = urljoin(source_url, value)
+                    key = normalize_url_key(full_url)
+
+                    if key in existing_keys:
+                        continue
+
+                    if is_click_document_candidate(full_url):
+                        title = clean_title_from_url(full_url)
+
+                        if not title:
+                            title = normalize_text(tag.get_text(" ", strip=True))
+
+                        if is_bad_title(title):
+                            title = "Unknown Title"
+
+                        existing_keys.add(key)
+
+                        fallback_docs.append({
+                            "company": source_url,
+                            "document_title": title,
+                            "document_url": full_url
+                        })
+
+            # Second: click View / Download buttons/links
+            clickable = page.locator(
+                "a, button, [role='button'], .btn, .button"
+            ).filter(
+                has_text=re.compile(r"(view|download|pdf|open)", re.IGNORECASE)
+            )
+
+            count = min(clickable.count(), 30)
+
+            for i in range(count):
+                try:
+                    element = clickable.nth(i)
+                    title = extract_title_from_playwright_element(element)
+
+                    before_url = page.url
+                    captured_url = ""
+
+                    # Try popup/new tab
+                    try:
+                        with page.expect_popup(timeout=3000) as popup_info:
+                            element.click(timeout=5000)
+                        popup = popup_info.value
+                        popup.wait_for_load_state("domcontentloaded", timeout=15000)
+                        captured_url = popup.url
+                        popup.close()
+                    except Exception:
+                        pass
+
+                    # Try download event
+                    if not captured_url:
+                        try:
+                            with page.expect_download(timeout=3000) as download_info:
+                                element.click(timeout=5000)
+                            download = download_info.value
+                            captured_url = download.url
+                        except Exception:
+                            pass
+
+                    # Try same-tab navigation
+                    if not captured_url:
+                        try:
+                            element.click(timeout=5000)
+                            page.wait_for_timeout(1500)
+
+                            if page.url != before_url:
+                                captured_url = page.url
+                                page.goto(source_url, wait_until="networkidle", timeout=60000)
+                                page.wait_for_timeout(1000)
+                        except Exception:
+                            pass
+
+                    if not captured_url:
+                        continue
+
+                    full_url = urljoin(source_url, captured_url)
+                    key = normalize_url_key(full_url)
+
+                    if key in existing_keys:
+                        continue
+
+                    if not is_click_document_candidate(full_url):
+                        continue
+
+                    if not title:
+                        title = clean_title_from_url(full_url)
+
+                    if not title or is_bad_title(title):
+                        title = "Unknown Title"
+
+                    existing_keys.add(key)
+
+                    print(f"FALLBACK KEPT → {title}")
+
+                    fallback_docs.append({
+                        "company": source_url,
+                        "document_title": title,
+                        "document_url": full_url
+                    })
+
+                except Exception:
+                    continue
+
+            browser.close()
+
+    except Exception as e:
+        print(f"Browser fallback error: {e}")
+
+    return fallback_docs
 
 
 # MAIN SCRAPER
@@ -464,6 +720,21 @@ with open("documents.csv", newline="", encoding="utf-8") as file:
                     })
 
             docs_captured_for_url = len(output_data) - start_doc_count
+
+            # Browser fallback only when normal scraper found 0 docs
+            if docs_captured_for_url == 0:
+                fallback_docs = browser_click_fallback(source_url, seen)
+
+                for doc in fallback_docs:
+                    output_data.append(doc)
+
+                    raw_links.append({
+                        "company": doc["company"],
+                        "text": doc["document_title"],
+                        "url": doc["document_url"]
+                    })
+
+                docs_captured_for_url = len(output_data) - start_doc_count
 
             if docs_captured_for_url == 0:
                 add_issue(
@@ -577,7 +848,58 @@ with open("capture_issues.csv", "w", newline="", encoding="utf-8") as issue_file
     writer.writerows(issue_rows)
 
 
+# APPEND run_summary.csv
+previous_run_number = 0
+
+if os.path.exists("run_summary.csv"):
+    try:
+        with open("run_summary.csv", newline="", encoding="utf-8") as summary_read:
+            reader = csv.DictReader(summary_read)
+
+            for r in reader:
+                try:
+                    previous_run_number = max(previous_run_number, int(r.get("run_number", 0)))
+                except Exception:
+                    pass
+    except Exception:
+        previous_run_number = 0
+
+current_run_number = previous_run_number + 1
+
+summary_file_exists = os.path.exists("run_summary.csv")
+
+with open("run_summary.csv", "a", newline="", encoding="utf-8") as summary_file:
+    fieldnames = [
+        "run_number",
+        "date",
+        "total_documents_captured",
+        "new_diff_records",
+        "issue_count",
+        "success_zero_docs_count",
+        "fetch_failed_status_count",
+        "fetch_error_count"
+    ]
+
+    writer = csv.DictWriter(summary_file, fieldnames=fieldnames)
+
+    if not summary_file_exists:
+        writer.writeheader()
+
+    writer.writerow({
+        "run_number": current_run_number,
+        "date": current_date,
+        "total_documents_captured": len(output_data),
+        "new_diff_records": len(new_records),
+        "issue_count": len(issue_rows),
+        "success_zero_docs_count": sum(1 for x in issue_rows if x["issue_type"] == "SUCCESS_ZERO_DOCS"),
+        "fetch_failed_status_count": sum(1 for x in issue_rows if x["issue_type"] == "FETCH_FAILED_STATUS"),
+        "fetch_error_count": sum(1 for x in issue_rows if x["issue_type"] == "FETCH_ERROR")
+    })
+
+
 print("\n✅ SCRAPER COMPLETE")
+print("✅ Existing logic preserved")
+print("✅ Browser fallback runs only for zero-doc URLs")
 print("✅ Added static-files title fallback from HTML context")
 print("✅ UUID titles rejected")
 print("✅ Diff compares only document_url")
@@ -585,3 +907,6 @@ print("✅ output.csv updated")
 print("✅ raw_links.csv updated")
 print("✅ diff.csv updated")
 print("✅ capture_issues.csv updated")
+print("✅ run_summary.csv updated")
+print(f"✅ Run {current_run_number}: {len(output_data)} documents captured")
+``
