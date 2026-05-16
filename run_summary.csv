@@ -1,0 +1,2 @@
+run_number,date,total_documents_captured,new_diff_records,issue_count,success_zero_docs_count,fetch_failed_status_count,fetch_error_count
+1,2026-05-16 08:07:51,458,38,5,1,0,4
