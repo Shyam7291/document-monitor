@@ -85,15 +85,6 @@ IMAGE_OR_ASSET_EXTENSIONS = (
 
 
 def add_issue(source_url, issue_type, status_code="", documents_captured=0, error_message=""):
-    """
-    Add URL-level issue to capture_issues CSV.
-
-    issue_type examples:
-    - SUCCESS_ZERO_DOCS
-    - FETCH_FAILED_STATUS
-    - FETCH_ERROR
-    """
-
     issue_rows.append({
         "date": current_date,
         "run_mode": RUN_MODE,
@@ -140,14 +131,6 @@ def is_number_file(text):
 
 
 def is_uuid_like(text):
-    """
-    Detect UUID-like static file names.
-
-    Works for:
-    b24f08e2-755f-495f-a972-3ed11903e135
-    b24f08e2 755f 495f a972 3ed11903e135
-    """
-
     text = normalize_text(text).lower()
     text = text.replace(" ", "-")
 
@@ -191,22 +174,11 @@ def is_bad_title(text):
 
 
 def is_image_or_asset_url(url):
-    """
-    Reject image/icon/static asset URLs.
-    This prevents PDF icon images like .png/.svg from being captured as documents.
-    """
-
     lower = url.lower().split("?")[0]
-
     return lower.endswith(IMAGE_OR_ASSET_EXTENSIONS)
 
 
 def clean_title_from_url(url):
-    """
-    Extract meaningful title from URL only if URL contains real words.
-    UUID/static-file IDs are rejected.
-    """
-
     parsed = urlparse(url)
     path = parsed.path
 
@@ -216,7 +188,6 @@ def clean_title_from_url(url):
         return ""
 
     filename_raw = parts[-1]
-
     filename_raw = unquote(filename_raw)
     filename_raw = html.unescape(filename_raw)
     filename_raw = filename_raw.split("?")[0]
@@ -241,10 +212,6 @@ def clean_title_from_url(url):
 
 
 def collect_text_candidates_from_container(container):
-    """
-    Collect meaningful text from the same HTML row/block.
-    """
-
     candidates = []
 
     if not container:
@@ -279,10 +246,6 @@ def collect_text_candidates_from_container(container):
 
 
 def get_title_from_html_context(link):
-    """
-    If URL title is weak, scan same row/block and choose longest meaningful text.
-    """
-
     row = link.find_parent("tr")
     if row:
         row_candidates = collect_text_candidates_from_container(row)
@@ -314,10 +277,6 @@ def get_title_from_html_context(link):
 
 
 def get_link_text_title(link):
-    """
-    Use visible link text if meaningful.
-    """
-
     text = normalize_text(link.get_text(" ", strip=True))
 
     if is_bad_title(text):
@@ -327,13 +286,7 @@ def get_link_text_title(link):
 
 
 def normalize_url_key(url):
-    """
-    Used for duplicate detection and diff comparison.
-    Removes query string.
-    """
-
     parsed = urlparse(url)
-
     return f"{parsed.scheme}://{parsed.netloc}{parsed.path}".lower()
 
 
@@ -342,15 +295,6 @@ def is_static_file_link(url):
 
 
 def get_best_text(link, full_url, source_url):
-    """
-    Title priority:
-    1. For /static-files/ links, use HTML title first because URL is usually UUID.
-    2. For other links, use URL title first.
-    3. Then HTML context.
-    4. Then link text.
-    5. Then fallback.
-    """
-
     if is_static_file_link(full_url):
         html_title = get_title_from_html_context(link)
 
@@ -400,11 +344,6 @@ def get_best_text(link, full_url, source_url):
 
 
 def is_document_link(url):
-    """
-    Keep actual document-like URLs.
-    Reject icons/images/assets like PNG/SVG/JPG.
-    """
-
     lower = url.lower()
 
     if is_image_or_asset_url(lower):
@@ -423,13 +362,6 @@ def is_document_link(url):
 
 
 def is_click_document_candidate(url):
-    """
-    Used only for browser click fallback.
-
-    Reject image/icon assets first.
-    Then allow document-like URLs.
-    """
-
     lower = url.lower()
 
     if is_image_or_asset_url(lower):
@@ -463,10 +395,6 @@ def is_click_document_candidate(url):
 
 
 def is_navigation_link(url):
-    """
-    Remove page/navigation links.
-    """
-
     lower = url.lower()
 
     if is_image_or_asset_url(lower):
@@ -488,23 +416,10 @@ def is_navigation_link(url):
 
 
 def should_use_browser_fallback(source_url):
-    """
-    Browser fallback runs only if enabled.
-
-    Important:
-    It is still called only for failed URLs or zero-doc URLs.
-    If normal scraper captures even 1 document, fallback will not run.
-    """
-
     return ENABLE_BROWSER_FALLBACK
 
 
 def get_iframe_soups(source_url, soup):
-    """
-    Some websites load document lists inside iframes.
-    This function fetches iframe pages and returns BeautifulSoup objects.
-    """
-
     iframe_soups = []
 
     iframe_tags = soup.find_all("iframe")
@@ -538,11 +453,6 @@ def get_iframe_soups(source_url, soup):
 
 
 def extract_links_from_soup(soup, base_url, source_url, seen, label="KEPT"):
-    """
-    Extract document links from a BeautifulSoup object.
-    Used for both main page HTML and iframe HTML.
-    """
-
     docs_found = []
 
     links = soup.find_all("a")
@@ -590,10 +500,6 @@ def extract_links_from_soup(soup, base_url, source_url, seen, label="KEPT"):
 
 
 def extract_title_from_playwright_element(element):
-    """
-    Extract title near clicked View / Download button using browser DOM.
-    """
-
     try:
         title = element.evaluate(
             """
@@ -652,17 +558,6 @@ def extract_title_from_playwright_element(element):
 
 
 def browser_click_fallback(source_url, existing_keys):
-    """
-    Runs only when normal scraper captures 0 documents for a URL.
-
-    Opens the page in Chromium, clicks View / Download / PDF-like buttons/links,
-    captures document URLs from:
-    - popup/new tab
-    - page navigation
-    - download event
-    - href after rendered page
-    """
-
     fallback_docs = []
 
     try:
@@ -671,129 +566,203 @@ def browser_click_fallback(source_url, existing_keys):
         print(f"Playwright not available: {e}")
         return fallback_docs
 
-    print("Running browser click fallback for selected zero-doc page...")
+    print("Running browser click fallback for failed/zero-doc page...")
+
+    def add_doc_from_url(found_url, title_hint=""):
+        full_url = urljoin(source_url, found_url)
+        key = normalize_url_key(full_url)
+
+        if key in existing_keys:
+            return
+
+        if not is_click_document_candidate(full_url):
+            return
+
+        title = title_hint
+
+        if not title or is_bad_title(title):
+            title = clean_title_from_url(full_url)
+
+        if not title or is_bad_title(title):
+            title = "Unknown Title"
+
+        existing_keys.add(key)
+
+        print(f"FALLBACK KEPT → {title}")
+
+        fallback_docs.append({
+            "company": source_url,
+            "document_title": title,
+            "document_url": full_url
+        })
+
+    def scan_soup_for_links(scan_soup, base_url):
+        for tag in scan_soup.find_all(True):
+            for attr in [
+                "href",
+                "src",
+                "data-href",
+                "data-url",
+                "data-link",
+                "data-file",
+                "data-download",
+                "data-src",
+                "onclick"
+            ]:
+                value = tag.get(attr)
+
+                if not value:
+                    continue
+
+                possible_values = [value]
+
+                if attr == "onclick":
+                    possible_values = re.findall(
+                        r"""[^'"]+\.(?:pdf|ashx|aspx[^'"]*)""",
+                        value,
+                        flags=re.IGNORECASE
+                    )
+
+                    possible_values += re.findall(
+                        r"""[^'"]*(?:/media/|/download|/downloads/|/files/|/uploads/|/storage/)[^'"]*""",
+                        value,
+                        flags=re.IGNORECASE
+                    )
+
+                for possible_value in possible_values:
+                    full_url = urljoin(base_url, possible_value)
+
+                    if not is_click_document_candidate(full_url):
+                        continue
+
+                    title = normalize_text(tag.get_text(" ", strip=True))
+
+                    if is_bad_title(title):
+                        title = clean_title_from_url(full_url)
+
+                    add_doc_from_url(full_url, title)
 
     try:
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True)
 
-            page = browser.new_page(
-                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+            context = browser.new_context(
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                           "(KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+                viewport={"width": 1920, "height": 1080},
+                ignore_https_errors=True
             )
 
-            page.goto(source_url, wait_until="networkidle", timeout=60000)
-            page.wait_for_timeout(3000)
+            page = context.new_page()
 
-            html_content = page.content()
-            soup = BeautifulSoup(html_content, "html.parser")
+            try:
+                page.goto(source_url, wait_until="domcontentloaded", timeout=60000)
+            except Exception as e:
+                print(f"Browser goto domcontentloaded error: {e}")
 
-            for tag in soup.find_all(True):
-                for attr in ["href", "data-href", "data-url", "data-link", "data-file", "data-download", "data-src"]:
-                    value = tag.get(attr)
-
-                    if not value:
-                        continue
-
-                    full_url = urljoin(source_url, value)
-                    key = normalize_url_key(full_url)
-
-                    if key in existing_keys:
-                        continue
-
-                    if is_click_document_candidate(full_url):
-                        title = clean_title_from_url(full_url)
-
-                        if not title:
-                            title = normalize_text(tag.get_text(" ", strip=True))
-
-                        if is_bad_title(title):
-                            title = "Unknown Title"
-
-                        existing_keys.add(key)
-
-                        fallback_docs.append({
-                            "company": source_url,
-                            "document_title": title,
-                            "document_url": full_url
-                        })
-
-            clickable = page.locator(
-                "a, button, [role='button'], .btn, .button"
-            ).filter(
-                has_text=re.compile(r"(view|download|pdf|open)", re.IGNORECASE)
-            )
-
-            count = min(clickable.count(), 10)
-
-            for i in range(count):
                 try:
-                    element = clickable.nth(i)
-                    title = extract_title_from_playwright_element(element)
+                    page.goto(source_url, wait_until="load", timeout=60000)
+                except Exception as e2:
+                    print(f"Browser goto load error: {e2}")
+                    browser.close()
+                    return fallback_docs
 
-                    before_url = page.url
-                    captured_url = ""
+            page.wait_for_timeout(5000)
 
+            try:
+                html_content = page.content()
+                main_soup = BeautifulSoup(html_content, "html.parser")
+                scan_soup_for_links(main_soup, source_url)
+            except Exception as e:
+                print(f"Main page scan error: {e}")
+
+            try:
+                frames = page.frames
+                print(f"Frames found: {len(frames)}")
+
+                for frame in frames:
                     try:
-                        with page.expect_popup(timeout=2500) as popup_info:
-                            element.click(timeout=4000)
-                        popup = popup_info.value
-                        popup.wait_for_load_state("domcontentloaded", timeout=10000)
-                        captured_url = popup.url
-                        popup.close()
-                    except Exception:
-                        pass
+                        frame_url = frame.url or source_url
 
-                    if not captured_url:
+                        if frame_url == "about:blank":
+                            continue
+
+                        print(f"Scanning frame: {frame_url}")
+
+                        frame_html = frame.content()
+                        frame_soup = BeautifulSoup(frame_html, "html.parser")
+
+                        scan_soup_for_links(frame_soup, frame_url)
+
+                    except Exception as frame_error:
+                        print(f"Frame scan error: {frame_error}")
+
+            except Exception as e:
+                print(f"Frame collection error: {e}")
+
+            try:
+                clickable = page.locator(
+                    "a, button, [role='button'], .btn, .button"
+                ).filter(
+                    has_text=re.compile(r"(view|download|pdf|open)", re.IGNORECASE)
+                )
+
+                count = min(clickable.count(), 10)
+
+                print(f"Clickable fallback controls found: {count}")
+
+                for i in range(count):
+                    try:
+                        element = clickable.nth(i)
+                        title = extract_title_from_playwright_element(element)
+
+                        before_url = page.url
+                        captured_url = ""
+
                         try:
-                            with page.expect_download(timeout=2500) as download_info:
+                            with page.expect_popup(timeout=2500) as popup_info:
                                 element.click(timeout=4000)
-                            download = download_info.value
-                            captured_url = download.url
+
+                            popup = popup_info.value
+                            popup.wait_for_load_state("domcontentloaded", timeout=10000)
+                            captured_url = popup.url
+                            popup.close()
+
                         except Exception:
                             pass
 
-                    if not captured_url:
-                        try:
-                            element.click(timeout=4000)
-                            page.wait_for_timeout(1000)
+                        if not captured_url:
+                            try:
+                                with page.expect_download(timeout=2500) as download_info:
+                                    element.click(timeout=4000)
 
-                            if page.url != before_url:
-                                captured_url = page.url
-                                page.goto(source_url, wait_until="networkidle", timeout=60000)
-                                page.wait_for_timeout(1000)
-                        except Exception:
-                            pass
+                                download = download_info.value
+                                captured_url = download.url
 
-                    if not captured_url:
+                            except Exception:
+                                pass
+
+                        if not captured_url:
+                            try:
+                                element.click(timeout=4000)
+                                page.wait_for_timeout(1200)
+
+                                if page.url != before_url:
+                                    captured_url = page.url
+                                    page.goto(source_url, wait_until="domcontentloaded", timeout=60000)
+                                    page.wait_for_timeout(1000)
+
+                            except Exception:
+                                pass
+
+                        if captured_url:
+                            add_doc_from_url(captured_url, title)
+
+                    except Exception:
                         continue
 
-                    full_url = urljoin(source_url, captured_url)
-                    key = normalize_url_key(full_url)
-
-                    if key in existing_keys:
-                        continue
-
-                    if not is_click_document_candidate(full_url):
-                        continue
-
-                    if not title:
-                        title = clean_title_from_url(full_url)
-
-                    if not title or is_bad_title(title):
-                        title = "Unknown Title"
-
-                    existing_keys.add(key)
-
-                    print(f"FALLBACK KEPT → {title}")
-
-                    fallback_docs.append({
-                        "company": source_url,
-                        "document_title": title,
-                        "document_url": full_url
-                    })
-
-                except Exception:
-                    continue
+            except Exception as e:
+                print(f"Clickable scan error: {e}")
 
             browser.close()
 
@@ -946,7 +915,6 @@ with open(TARGET_URL_FILE, newline="", encoding="utf-8") as file:
 
 
 # DIFF SYSTEM
-# diff.csv compares ONLY document_url, not title + URL.
 
 old_output_urls = set()
 existing_diff_urls = set()
@@ -984,7 +952,6 @@ if RUN_MODE == "full":
             })
 
 
-# SAVE output file
 with open(OUTPUT_FILE, "w", newline="", encoding="utf-8") as out_file:
     writer = csv.DictWriter(
         out_file,
@@ -994,7 +961,6 @@ with open(OUTPUT_FILE, "w", newline="", encoding="utf-8") as out_file:
     writer.writerows(output_data)
 
 
-# SAVE raw links file
 with open(RAW_FILE, "w", newline="", encoding="utf-8") as raw_file:
     writer = csv.DictWriter(
         raw_file,
@@ -1004,7 +970,6 @@ with open(RAW_FILE, "w", newline="", encoding="utf-8") as raw_file:
     writer.writerows(raw_links)
 
 
-# APPEND diff.csv only for full production run
 if RUN_MODE == "full":
     file_exists = os.path.exists(DIFF_FILE)
 
@@ -1018,7 +983,6 @@ if RUN_MODE == "full":
         writer.writerows(new_records)
 
 
-# SAVE capture issues file
 with open(ISSUES_FILE, "w", newline="", encoding="utf-8") as issue_file:
     writer = csv.DictWriter(
         issue_file,
@@ -1037,7 +1001,6 @@ with open(ISSUES_FILE, "w", newline="", encoding="utf-8") as issue_file:
     writer.writerows(issue_rows)
 
 
-# APPEND run_summary.csv
 previous_run_number = 0
 
 if os.path.exists(RUN_SUMMARY_FILE):
@@ -1104,6 +1067,7 @@ print("\n✅ SCRAPER COMPLETE")
 print("✅ Existing logic preserved")
 print("✅ Image/icon files excluded from document capture")
 print("✅ Iframe scraping enabled")
+print("✅ Browser fallback scans frames/iframes")
 print(f"✅ Run mode: {RUN_MODE}")
 print(f"✅ URL file: {TARGET_URL_FILE}")
 print(f"✅ Output file: {OUTPUT_FILE}")
