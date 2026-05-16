@@ -2,3 +2,4 @@ run_number,date,total_documents_captured,new_diff_records,issue_count,success_ze
 1,2026-05-16 08:07:51,458,38,5,1,0,4
 2,2026-05-16 10:53:10,test,test_urls.csv,8,137,0,3,0,3,0,False,chandra-asri.com,output_test.csv,raw_links_test.csv,capture_issues_test.csv
 3,2026-05-16 11:52:25,test,test_urls.csv,8,189,0,0,0,0,0,True,output_test.csv,raw_links_test.csv,capture_issues_test.csv
+4,2026-05-16 16:36:17,test,test_urls.csv,4,11,0,1,1,0,0,True,output_test.csv,raw_links_test.csv,capture_issues_test.csv
