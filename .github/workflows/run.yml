@@ -37,7 +37,7 @@ jobs:
           git config user.email "github-actions@github.com"
 
           git add output.csv raw_links.csv diff.csv
-
+          git add output.csv raw_links.csv diff.csv capture_issues.csv
           git commit -m "Update scraped data" || echo "No changes to commit"
 
           git push
