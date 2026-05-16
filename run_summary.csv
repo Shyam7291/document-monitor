@@ -4,3 +4,4 @@ run_number,date,total_documents_captured,new_diff_records,issue_count,success_ze
 3,2026-05-16 11:52:25,test,test_urls.csv,8,189,0,0,0,0,0,True,output_test.csv,raw_links_test.csv,capture_issues_test.csv
 4,2026-05-16 16:36:17,test,test_urls.csv,4,11,0,1,1,0,0,True,output_test.csv,raw_links_test.csv,capture_issues_test.csv
 5,2026-05-16 17:11:52,test,test_urls.csv,4,7,0,2,1,0,1,True,output_test.csv,raw_links_test.csv,capture_issues_test.csv
+6,2026-05-16 17:44:47,test,test_urls.csv,4,65,0,1,0,0,1,True,output_test.csv,raw_links_test.csv,capture_issues_test.csv
