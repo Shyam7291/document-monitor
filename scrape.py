@@ -719,17 +719,38 @@ with open(TARGET_URL_FILE, newline="", encoding="utf-8") as file:
             print("Status:", response.status_code)
 
             if response.status_code != 200:
-                print("Failed to fetch page")
+    print("Failed to fetch page")
 
-                add_issue(
-                    source_url=source_url,
-                    issue_type="FETCH_FAILED_STATUS",
-                    status_code=response.status_code,
-                    documents_captured=0,
-                    error_message="Non-200 status code"
-                )
+    docs_captured_for_url = 0
 
-                continue
+    # Browser fallback for failed status pages like 403 / 404 / 500
+    if should_use_browser_fallback(source_url):
+        print("Non-200 status detected. Trying browser fallback...")
+
+        seen = set()
+        fallback_docs = browser_click_fallback(source_url, seen)
+
+        for doc in fallback_docs:
+            output_data.append(doc)
+
+            raw_links.append({
+                "company": doc["company"],
+                "text": doc["document_title"],
+                "url": doc["document_url"]
+            })
+
+        docs_captured_for_url = len(fallback_docs)
+
+    if docs_captured_for_url == 0:
+        add_issue(
+            source_url=source_url,
+            issue_type="FETCH_FAILED_STATUS",
+            status_code=response.status_code,
+            documents_captured=0,
+            error_message="Non-200 status code and browser fallback captured 0 documents"
+        )
+
+    continue
 
             soup = BeautifulSoup(response.text, "html.parser")
             links = soup.find_all("a")
