@@ -801,7 +801,19 @@ with open(TARGET_URL_FILE, newline="", encoding="utf-8") as file:
             # 2. fallback is enabled from GitHub Actions input
             # 3. source URL domain matches fallback_domains
             if docs_captured_for_url == 0 and should_use_browser_fallback(source_url):
-                fallback_docs = browser_click_fallback(source_url, seen)
+    fallback_docs = browser_click_fallback(source_url, seen)
+
+    for doc in fallback_docs:
+        output_data.append(doc)
+
+        raw_links.append({
+            "company": doc["company"],
+            "text": doc["document_title"],
+            "url": doc["document_url"]
+        })
+
+    docs_captured_for_url = len(output_data) - start_doc_count
+``
 
                 for doc in fallback_docs:
                     output_data.append(doc)
