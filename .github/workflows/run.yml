@@ -4,8 +4,52 @@ on:
   workflow_dispatch:
     inputs:
       run_mode:
-        description: "_FALLBACK: ${{ inputs.enable_browser_fallback }}        description: "Choose run mode"
-      FALLBACK_DOMAINS: ${{ inputs.fallback_domains }}
+        description: "Choose run mode"
+        required: true
+        default: "full"
+        type: choice
+        options:
+          - full
+          - test
+          - baseline
+
+      url_file:
+        description: "CSV file to run"
+        required: true
+        default: "documents.csv"
+        type: choice
+        options:
+          - documents.csv
+          - test_urls.csv
+          - baseline_urls.csv
+
+      enable_browser_fallback:
+        description: "Use browser fallback for selected zero-doc URLs?"
+        required: true
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+
+      fallback_domains:
+        description: "Comma-separated domains for browser fallback"
+        required: false
+        default: "chandra-asri.com"
+        type: string
+
+jobs:
+  run-script:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    env:
+      RUN_MODE: ${{ github.event.inputs.run_mode }}
+      TARGET_URL_FILE: ${{ github.event.inputs.url_file }}
+      ENABLE_BROWSER_FALLBACK: ${{ github.event.inputs.enable_browser_fallback }}
+      FALLBACK_DOMAINS: ${{ github.event.inputs.fallback_domains }}
 
     steps:
       - name: Checkout repository
@@ -35,46 +79,3 @@ on:
           git commit -m "Update scraped data" || echo "No changes to commit"
 
           git push
-        required: true
-        type: choice
-        options:
-          - full
-          - test
-          - baseline
-        default: full
-
-      url_file:
-        description: "CSV file to run"
-        required: true
-        type: choice
-        options:
-          - documents.csv
-          - test_urls.csv
-          - baseline_urls.csv
-        default: documents.csv
-
-      enable_browser_fallback:
-        description: "Use browser fallback for selected zero-doc URLs?"
-        required: true
-        type: choice
-        options:
-          - "false"
-          - "true"
-        default: "false"
-
-      fallback_domains:
-        description: "Comma-separated domains for browser fallback"
-        required: false
-        type: string
-        default: "chandra-asri.com"
-
-jobs:
-  run-script:
-    runs-on: ubuntu-latest
-
-    permissions:
-      contents: write
-
-    env:
-      RUN_MODE: ${{ inputs.run_mode }}
-      TARGET_URL_FILE: ${{ inputs.url_file }}
