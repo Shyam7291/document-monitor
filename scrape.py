@@ -463,16 +463,14 @@ def is_navigation_link(url):
 
 def should_use_browser_fallback(source_url):
     """
-    Browser fallback should not run for every zero-doc URL.
-    It should run only when enabled and only for selected domains.
+    Browser fallback runs only if enabled.
+
+    Important:
+    It is still called only for failed URLs or zero-doc URLs.
+    If normal scraper captures even 1 document, fallback will not run.
     """
 
-    if not ENABLE_BROWSER_FALLBACK:
-        return False
-
-    lower = source_url.lower()
-
-    return any(domain in lower for domain in FALLBACK_DOMAINS)
+    return ENABLE_BROWSER_FALLBACK
 
 
 def extract_title_from_playwright_element(element):
