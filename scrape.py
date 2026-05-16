@@ -67,6 +67,22 @@ BAD_SECTION_TITLES = {
     "corporate governance"
 }
 
+IMAGE_OR_ASSET_EXTENSIONS = (
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".svg",
+    ".gif",
+    ".webp",
+    ".ico",
+    ".css",
+    ".js",
+    ".woff",
+    ".woff2",
+    ".ttf",
+    ".eot"
+)
+
 
 def add_issue(source_url, issue_type, status_code="", documents_captured=0, error_message=""):
     """
@@ -172,6 +188,17 @@ def is_bad_title(text):
         return True
 
     return False
+
+
+def is_image_or_asset_url(url):
+    """
+    Reject image/icon/static asset URLs.
+    This prevents PDF icon images like .png/.svg from being captured as documents.
+    """
+
+    lower = url.lower().split("?")[0]
+
+    return lower.endswith(IMAGE_OR_ASSET_EXTENSIONS)
 
 
 def clean_title_from_url(url):
@@ -375,9 +402,13 @@ def get_best_text(link, full_url, source_url):
 def is_document_link(url):
     """
     Keep actual document-like URLs.
+    Reject icons/images/assets like PNG/SVG/JPG.
     """
 
     lower = url.lower()
+
+    if is_image_or_asset_url(lower):
+        return False
 
     if ".pdf" in lower:
         return True
@@ -395,11 +426,14 @@ def is_click_document_candidate(url):
     """
     Used only for browser click fallback.
 
-    Some View / Download buttons open document URLs that may not end with .pdf.
-    This is intentionally broader than is_document_link, but only used after clicking.
+    Reject image/icon assets first.
+    Then allow document-like URLs.
     """
 
     lower = url.lower()
+
+    if is_image_or_asset_url(lower):
+        return False
 
     if is_document_link(lower):
         return True
@@ -435,6 +469,9 @@ def is_navigation_link(url):
 
     lower = url.lower()
 
+    if is_image_or_asset_url(lower):
+        return True
+
     if "#" in lower and not is_document_link(lower):
         return True
 
@@ -460,6 +497,96 @@ def should_use_browser_fallback(source_url):
     """
 
     return ENABLE_BROWSER_FALLBACK
+
+
+def get_iframe_soups(source_url, soup):
+    """
+    Some websites load document lists inside iframes.
+    This function fetches iframe pages and returns BeautifulSoup objects.
+    """
+
+    iframe_soups = []
+
+    iframe_tags = soup.find_all("iframe")
+
+    for iframe in iframe_tags:
+        iframe_src = iframe.get("src")
+
+        if not iframe_src:
+            continue
+
+        iframe_url = urljoin(source_url, iframe_src)
+
+        try:
+            print(f"Checking iframe: {iframe_url}")
+
+            iframe_response = requests.get(iframe_url, timeout=20)
+
+            print("Iframe status:", iframe_response.status_code)
+
+            if iframe_response.status_code == 200:
+                iframe_soup = BeautifulSoup(iframe_response.text, "html.parser")
+                iframe_soups.append({
+                    "iframe_url": iframe_url,
+                    "soup": iframe_soup
+                })
+
+        except Exception as e:
+            print(f"Iframe error: {e}")
+
+    return iframe_soups
+
+
+def extract_links_from_soup(soup, base_url, source_url, seen, label="KEPT"):
+    """
+    Extract document links from a BeautifulSoup object.
+    Used for both main page HTML and iframe HTML.
+    """
+
+    docs_found = []
+
+    links = soup.find_all("a")
+
+    for link in links:
+        href = link.get("href")
+
+        if not href:
+            continue
+
+        full_url = urljoin(base_url, href)
+        href_lower = full_url.lower()
+
+        title = get_best_text(link, full_url, source_url)
+
+        raw_links.append({
+            "company": source_url,
+            "text": title,
+            "url": full_url
+        })
+
+        if is_navigation_link(href_lower):
+            continue
+
+        if is_document_link(href_lower):
+            duplicate_key = normalize_url_key(full_url)
+
+            if duplicate_key in seen:
+                continue
+
+            seen.add(duplicate_key)
+
+            print(f"{label} → {title}")
+
+            doc = {
+                "company": source_url,
+                "document_title": title,
+                "document_url": full_url
+            }
+
+            output_data.append(doc)
+            docs_found.append(doc)
+
+    return docs_found
 
 
 def extract_title_from_playwright_element(element):
@@ -736,46 +863,30 @@ with open(TARGET_URL_FILE, newline="", encoding="utf-8") as file:
                 continue
 
             soup = BeautifulSoup(response.text, "html.parser")
-            links = soup.find_all("a")
 
             seen = set()
 
-            for link in links:
-                href = link.get("href")
+            extract_links_from_soup(
+                soup=soup,
+                base_url=source_url,
+                source_url=source_url,
+                seen=seen,
+                label="KEPT"
+            )
 
-                if not href:
-                    continue
+            iframe_soups = get_iframe_soups(source_url, soup)
 
-                full_url = urljoin(source_url, href)
-                href_lower = full_url.lower()
+            for iframe_item in iframe_soups:
+                iframe_url = iframe_item["iframe_url"]
+                iframe_soup = iframe_item["soup"]
 
-                title = get_best_text(link, full_url, source_url)
-
-                raw_links.append({
-                    "company": source_url,
-                    "text": title,
-                    "url": full_url
-                })
-
-                if is_navigation_link(href_lower):
-                    continue
-
-                if is_document_link(href_lower):
-
-                    duplicate_key = normalize_url_key(full_url)
-
-                    if duplicate_key in seen:
-                        continue
-
-                    seen.add(duplicate_key)
-
-                    print(f"KEPT → {title}")
-
-                    output_data.append({
-                        "company": source_url,
-                        "document_title": title,
-                        "document_url": full_url
-                    })
+                extract_links_from_soup(
+                    soup=iframe_soup,
+                    base_url=iframe_url,
+                    source_url=source_url,
+                    seen=seen,
+                    label="IFRAME KEPT"
+                )
 
             docs_captured_for_url = len(output_data) - start_doc_count
 
@@ -991,6 +1102,8 @@ with open(RUN_SUMMARY_FILE, "a", newline="", encoding="utf-8") as summary_file:
 
 print("\n✅ SCRAPER COMPLETE")
 print("✅ Existing logic preserved")
+print("✅ Image/icon files excluded from document capture")
+print("✅ Iframe scraping enabled")
 print(f"✅ Run mode: {RUN_MODE}")
 print(f"✅ URL file: {TARGET_URL_FILE}")
 print(f"✅ Output file: {OUTPUT_FILE}")
