@@ -1,4 +1,1 @@
 date,run_mode,url_file,source_url,issue_type,status_code,documents_captured,error_message
-2026-05-16 10:53:10,test,test_urls.csv,https://investors.universalmusic.com/reports/	,FETCH_FAILED_STATUS,403,0,Non-200 status code
-2026-05-16 10:53:10,test,test_urls.csv,https://www.gehealthcare.com/en-us/about/sustainability,FETCH_FAILED_STATUS,403,0,Non-200 status code
-2026-05-16 10:53:10,test,test_urls.csv,https://sustainability.quantaservices.com/,FETCH_FAILED_STATUS,403,0,Non-200 status code
