@@ -909,4 +909,4 @@ print("✅ diff.csv updated")
 print("✅ capture_issues.csv updated")
 print("✅ run_summary.csv updated")
 print(f"✅ Run {current_run_number}: {len(output_data)} documents captured")
-``
+
