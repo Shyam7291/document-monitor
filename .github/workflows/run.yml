@@ -2,16 +2,10 @@ name: Run Scraper
 
 on:
   workflow_dispatch:
-  # Enable later for automatic daily run:
-  # schedule:
-  #   - cron: "0 3 * * *"
-
-jobs:
-  run-script:
-    runs-on: ubuntu-latest
-
-    permissions:
-      contents: write
+    inputs:
+      run_mode:
+        description: "_FALLBACK: ${{ inputs.enable_browser_fallback }}        description: "Choose run mode"
+      FALLBACK_DOMAINS: ${{ inputs.fallback_domains }}
 
     steps:
       - name: Checkout repository
@@ -36,8 +30,51 @@ jobs:
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
 
-          git add output.csv raw_links.csv diff.csv capture_issues.csv run_summary.csv
+          git add output*.csv raw_links*.csv capture_issues*.csv diff.csv run_summary.csv 2>/dev/null || true
 
           git commit -m "Update scraped data" || echo "No changes to commit"
 
           git push
+        required: true
+        type: choice
+        options:
+          - full
+          - test
+          - baseline
+        default: full
+
+      url_file:
+        description: "CSV file to run"
+        required: true
+        type: choice
+        options:
+          - documents.csv
+          - test_urls.csv
+          - baseline_urls.csv
+        default: documents.csv
+
+      enable_browser_fallback:
+        description: "Use browser fallback for selected zero-doc URLs?"
+        required: true
+        type: choice
+        options:
+          - "false"
+          - "true"
+        default: "false"
+
+      fallback_domains:
+        description: "Comma-separated domains for browser fallback"
+        required: false
+        type: string
+        default: "chandra-asri.com"
+
+jobs:
+  run-script:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    env:
+      RUN_MODE: ${{ inputs.run_mode }}
+      TARGET_URL_FILE: ${{ inputs.url_file }}
