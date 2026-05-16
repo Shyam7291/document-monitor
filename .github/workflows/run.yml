@@ -2,9 +2,9 @@ name: Run Scraper
 
 on:
   workflow_dispatch:
-  # Later, when you want automatic daily run, uncomment this:
+  # Enable later for automatic daily run:
   # schedule:
-  #   - cron: "0 3 * * *"   # Runs daily at 03:00 UTC / 08:30 IST
+  #   - cron: "0 3 * * *"
 
 jobs:
   run-script:
@@ -36,8 +36,8 @@ jobs:
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
 
-          git add output.csv raw_links.csv diff.csv
-          git add output.csv raw_links.csv diff.csv capture_issues.csv
+          git add output.csv raw_links.csv diff.csv capture_issues.csv run_summary.csv
+
           git commit -m "Update scraped data" || echo "No changes to commit"
 
           git push
