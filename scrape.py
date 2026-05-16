@@ -16,13 +16,6 @@ TARGET_URL_FILE = os.environ.get("TARGET_URL_FILE", "documents.csv").strip()
 
 ENABLE_BROWSER_FALLBACK = os.environ.get("ENABLE_BROWSER_FALLBACK", "false").strip().lower() == "true"
 
-FALLBACK_DOMAINS_RAW = os.environ.get("FALLBACK_DOMAINS", "chandra-asri.com")
-FALLBACK_DOMAINS = [
-    x.strip().lower()
-    for x in FALLBACK_DOMAINS_RAW.split(",")
-    if x.strip()
-]
-
 if RUN_MODE == "full":
     OUTPUT_FILE = "output.csv"
     RAW_FILE = "raw_links.csv"
