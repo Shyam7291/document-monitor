@@ -6,37 +6,31 @@ on:
       run_mode:
         description: "Choose run mode"
         required: true
-        default: "full"
         type: choice
         options:
           - full
           - test
           - baseline
+        default: full
 
       url_file:
         description: "CSV file to run"
         required: true
-        default: "documents.csv"
         type: choice
         options:
           - documents.csv
           - test_urls.csv
           - baseline_urls.csv
+        default: documents.csv
 
       enable_browser_fallback:
-        description: "Use browser fallback for selected zero-doc URLs?"
+        description: "Use browser fallback only for failed/zero-doc URLs?"
         required: true
-        default: "false"
         type: choice
         options:
           - "false"
           - "true"
-
-      fallback_domains:
-        description: "Comma-separated domains for browser fallback"
-        required: false
-        default: "chandra-asri.com"
-        type: string
+        default: "false"
 
 jobs:
   run-script:
@@ -49,7 +43,6 @@ jobs:
       RUN_MODE: ${{ github.event.inputs.run_mode }}
       TARGET_URL_FILE: ${{ github.event.inputs.url_file }}
       ENABLE_BROWSER_FALLBACK: ${{ github.event.inputs.enable_browser_fallback }}
-      FALLBACK_DOMAINS: ${{ github.event.inputs.fallback_domains }}
 
     steps:
       - name: Checkout repository
