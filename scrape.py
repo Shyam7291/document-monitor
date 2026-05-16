@@ -7,6 +7,42 @@ from datetime import datetime
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse, unquote
 
+# =========================
+# RUN MODE CONFIGURATION
+# =========================
+
+RUN_MODE = os.environ.get("RUN_MODE", "full").strip().lower()
+TARGET_URL_FILE = os.environ.get("TARGET_URL_FILE", "documents.csv").strip()
+
+ENABLE_BROWSER_FALLBACK = os.environ.get("ENABLE_BROWSER_FALLBACK", "false").strip().lower() == "true"
+
+FALLBACK_DOMAINS_RAW = os.environ.get("FALLBACK_DOMAINS", "chandra-asri.com")
+FALLBACK_DOMAINS = [
+    x.strip().lower()
+    for x in FALLBACK_DOMAINS_RAW.split(",")
+    if x.strip()
+]
+
+if RUN_MODE == "full":
+    OUTPUT_FILE = "output.csv"
+    RAW_FILE = "raw_links.csv"
+    ISSUES_FILE = "capture_issues.csv"
+elif RUN_MODE == "test":
+    OUTPUT_FILE = "output_test.csv"
+    RAW_FILE = "raw_links_test.csv"
+    ISSUES_FILE = "capture_issues_test.csv"
+elif RUN_MODE == "baseline":
+    OUTPUT_FILE = "output_baseline.csv"
+    RAW_FILE = "raw_links_baseline.csv"
+    ISSUES_FILE = "capture_issues_baseline.csv"
+else:
+    OUTPUT_FILE = "output.csv"
+    RAW_FILE = "raw_links.csv"
+    ISSUES_FILE = "capture_issues.csv"
+
+DIFF_FILE = "diff.csv"
+RUN_SUMMARY_FILE = "run_summary.csv"
+
 output_data = []
 raw_links = []
 issue_rows = []
@@ -41,7 +77,7 @@ BAD_SECTION_TITLES = {
 
 def add_issue(source_url, issue_type, status_code="", documents_captured=0, error_message=""):
     """
-    Add URL-level issue to capture_issues.csv.
+    Add URL-level issue to capture_issues CSV.
 
     issue_type examples:
     - SUCCESS_ZERO_DOCS
@@ -51,6 +87,8 @@ def add_issue(source_url, issue_type, status_code="", documents_captured=0, erro
 
     issue_rows.append({
         "date": current_date,
+        "run_mode": RUN_MODE,
+        "url_file": TARGET_URL_FILE,
         "source_url": source_url,
         "issue_type": issue_type,
         "status_code": status_code,
@@ -430,6 +468,20 @@ def is_navigation_link(url):
     return False
 
 
+def should_use_browser_fallback(source_url):
+    """
+    Browser fallback should not run for every zero-doc URL.
+    It should run only when enabled and only for selected domains.
+    """
+
+    if not ENABLE_BROWSER_FALLBACK:
+        return False
+
+    lower = source_url.lower()
+
+    return any(domain in lower for domain in FALLBACK_DOMAINS)
+
+
 def extract_title_from_playwright_element(element):
     """
     Extract title near clicked View / Download button using browser DOM.
@@ -512,7 +564,7 @@ def browser_click_fallback(source_url, existing_keys):
         print(f"Playwright not available: {e}")
         return fallback_docs
 
-    print("Running browser click fallback for zero-doc page...")
+    print("Running browser click fallback for selected zero-doc page...")
 
     try:
         with sync_playwright() as p:
@@ -566,7 +618,7 @@ def browser_click_fallback(source_url, existing_keys):
                 has_text=re.compile(r"(view|download|pdf|open)", re.IGNORECASE)
             )
 
-            count = min(clickable.count(), 30)
+            count = min(clickable.count(), 10)
 
             for i in range(count):
                 try:
@@ -578,10 +630,10 @@ def browser_click_fallback(source_url, existing_keys):
 
                     # Try popup/new tab
                     try:
-                        with page.expect_popup(timeout=3000) as popup_info:
-                            element.click(timeout=5000)
+                        with page.expect_popup(timeout=2500) as popup_info:
+                            element.click(timeout=4000)
                         popup = popup_info.value
-                        popup.wait_for_load_state("domcontentloaded", timeout=15000)
+                        popup.wait_for_load_state("domcontentloaded", timeout=10000)
                         captured_url = popup.url
                         popup.close()
                     except Exception:
@@ -590,8 +642,8 @@ def browser_click_fallback(source_url, existing_keys):
                     # Try download event
                     if not captured_url:
                         try:
-                            with page.expect_download(timeout=3000) as download_info:
-                                element.click(timeout=5000)
+                            with page.expect_download(timeout=2500) as download_info:
+                                element.click(timeout=4000)
                             download = download_info.value
                             captured_url = download.url
                         except Exception:
@@ -600,8 +652,8 @@ def browser_click_fallback(source_url, existing_keys):
                     # Try same-tab navigation
                     if not captured_url:
                         try:
-                            element.click(timeout=5000)
-                            page.wait_for_timeout(1500)
+                            element.click(timeout=4000)
+                            page.wait_for_timeout(1000)
 
                             if page.url != before_url:
                                 captured_url = page.url
@@ -650,11 +702,22 @@ def browser_click_fallback(source_url, existing_keys):
 
 
 # MAIN SCRAPER
-with open("documents.csv", newline="", encoding="utf-8") as file:
+
+total_urls_processed = 0
+
+if not os.path.exists(TARGET_URL_FILE):
+    raise FileNotFoundError(f"URL file not found: {TARGET_URL_FILE}")
+
+with open(TARGET_URL_FILE, newline="", encoding="utf-8") as file:
     reader = csv.DictReader(file)
 
     for row in reader:
         source_url = row["source_url"]
+
+        if not source_url:
+            continue
+
+        total_urls_processed += 1
 
         print(f"\nChecking: {source_url}")
 
@@ -721,8 +784,11 @@ with open("documents.csv", newline="", encoding="utf-8") as file:
 
             docs_captured_for_url = len(output_data) - start_doc_count
 
-            # Browser fallback only when normal scraper found 0 docs
-            if docs_captured_for_url == 0:
+            # Browser fallback only when:
+            # 1. normal scraper found 0 docs
+            # 2. fallback is enabled from GitHub Actions input
+            # 3. source URL domain matches fallback_domains
+            if docs_captured_for_url == 0 and should_use_browser_fallback(source_url):
                 fallback_docs = browser_click_fallback(source_url, seen)
 
                 for doc in fallback_docs:
@@ -763,9 +829,9 @@ with open("documents.csv", newline="", encoding="utf-8") as file:
 old_output_urls = set()
 existing_diff_urls = set()
 
-# Load previous output.csv URLs only
-if os.path.exists("output.csv"):
-    with open("output.csv", newline="", encoding="utf-8") as old_file:
+# Load previous output URLs only for full mode
+if RUN_MODE == "full" and os.path.exists(OUTPUT_FILE):
+    with open(OUTPUT_FILE, newline="", encoding="utf-8") as old_file:
         reader = csv.DictReader(old_file)
 
         for r in reader:
@@ -773,9 +839,9 @@ if os.path.exists("output.csv"):
                 old_output_urls.add(normalize_url_key(r["document_url"]))
 
 
-# Load existing diff.csv URLs also
-if os.path.exists("diff.csv"):
-    with open("diff.csv", newline="", encoding="utf-8") as diff_read_file:
+# Load existing diff.csv URLs only for full mode
+if RUN_MODE == "full" and os.path.exists(DIFF_FILE):
+    with open(DIFF_FILE, newline="", encoding="utf-8") as diff_read_file:
         reader = csv.DictReader(diff_read_file)
 
         for r in reader:
@@ -785,21 +851,22 @@ if os.path.exists("diff.csv"):
 
 new_records = []
 
-for r in output_data:
-    current_url_key = normalize_url_key(r["document_url"])
+if RUN_MODE == "full":
+    for r in output_data:
+        current_url_key = normalize_url_key(r["document_url"])
 
-    # Add to diff only if document URL is new
-    if current_url_key not in old_output_urls and current_url_key not in existing_diff_urls:
-        new_records.append({
-            "date": current_date,
-            "company": r["company"],
-            "document_title": r["document_title"],
-            "document_url": r["document_url"]
-        })
+        # Add to diff only if document URL is new
+        if current_url_key not in old_output_urls and current_url_key not in existing_diff_urls:
+            new_records.append({
+                "date": current_date,
+                "company": r["company"],
+                "document_title": r["document_title"],
+                "document_url": r["document_url"]
+            })
 
 
-# SAVE output.csv
-with open("output.csv", "w", newline="", encoding="utf-8") as out_file:
+# SAVE output file
+with open(OUTPUT_FILE, "w", newline="", encoding="utf-8") as out_file:
     writer = csv.DictWriter(
         out_file,
         fieldnames=["company", "document_title", "document_url"]
@@ -808,8 +875,8 @@ with open("output.csv", "w", newline="", encoding="utf-8") as out_file:
     writer.writerows(output_data)
 
 
-# SAVE raw_links.csv
-with open("raw_links.csv", "w", newline="", encoding="utf-8") as raw_file:
+# SAVE raw links file
+with open(RAW_FILE, "w", newline="", encoding="utf-8") as raw_file:
     writer = csv.DictWriter(
         raw_file,
         fieldnames=["company", "text", "url"]
@@ -818,25 +885,28 @@ with open("raw_links.csv", "w", newline="", encoding="utf-8") as raw_file:
     writer.writerows(raw_links)
 
 
-# APPEND diff.csv
-file_exists = os.path.exists("diff.csv")
+# APPEND diff.csv only for full production run
+if RUN_MODE == "full":
+    file_exists = os.path.exists(DIFF_FILE)
 
-with open("diff.csv", "a", newline="", encoding="utf-8") as diff_file:
-    fieldnames = ["date", "company", "document_title", "document_url"]
-    writer = csv.DictWriter(diff_file, fieldnames=fieldnames)
+    with open(DIFF_FILE, "a", newline="", encoding="utf-8") as diff_file:
+        fieldnames = ["date", "company", "document_title", "document_url"]
+        writer = csv.DictWriter(diff_file, fieldnames=fieldnames)
 
-    if not file_exists:
-        writer.writeheader()
+        if not file_exists:
+            writer.writeheader()
 
-    writer.writerows(new_records)
+        writer.writerows(new_records)
 
 
-# SAVE capture_issues.csv
-with open("capture_issues.csv", "w", newline="", encoding="utf-8") as issue_file:
+# SAVE capture issues file
+with open(ISSUES_FILE, "w", newline="", encoding="utf-8") as issue_file:
     writer = csv.DictWriter(
         issue_file,
         fieldnames=[
             "date",
+            "run_mode",
+            "url_file",
             "source_url",
             "issue_type",
             "status_code",
@@ -851,9 +921,9 @@ with open("capture_issues.csv", "w", newline="", encoding="utf-8") as issue_file
 # APPEND run_summary.csv
 previous_run_number = 0
 
-if os.path.exists("run_summary.csv"):
+if os.path.exists(RUN_SUMMARY_FILE):
     try:
-        with open("run_summary.csv", newline="", encoding="utf-8") as summary_read:
+        with open(RUN_SUMMARY_FILE, newline="", encoding="utf-8") as summary_read:
             reader = csv.DictReader(summary_read)
 
             for r in reader:
@@ -866,18 +936,26 @@ if os.path.exists("run_summary.csv"):
 
 current_run_number = previous_run_number + 1
 
-summary_file_exists = os.path.exists("run_summary.csv")
+summary_file_exists = os.path.exists(RUN_SUMMARY_FILE)
 
-with open("run_summary.csv", "a", newline="", encoding="utf-8") as summary_file:
+with open(RUN_SUMMARY_FILE, "a", newline="", encoding="utf-8") as summary_file:
     fieldnames = [
         "run_number",
         "date",
+        "run_mode",
+        "url_file",
+        "total_urls_processed",
         "total_documents_captured",
         "new_diff_records",
         "issue_count",
         "success_zero_docs_count",
         "fetch_failed_status_count",
-        "fetch_error_count"
+        "fetch_error_count",
+        "browser_fallback_enabled",
+        "fallback_domains",
+        "output_file",
+        "raw_file",
+        "issues_file"
     ]
 
     writer = csv.DictWriter(summary_file, fieldnames=fieldnames)
@@ -888,25 +966,34 @@ with open("run_summary.csv", "a", newline="", encoding="utf-8") as summary_file:
     writer.writerow({
         "run_number": current_run_number,
         "date": current_date,
+        "run_mode": RUN_MODE,
+        "url_file": TARGET_URL_FILE,
+        "total_urls_processed": total_urls_processed,
         "total_documents_captured": len(output_data),
         "new_diff_records": len(new_records),
         "issue_count": len(issue_rows),
         "success_zero_docs_count": sum(1 for x in issue_rows if x["issue_type"] == "SUCCESS_ZERO_DOCS"),
         "fetch_failed_status_count": sum(1 for x in issue_rows if x["issue_type"] == "FETCH_FAILED_STATUS"),
-        "fetch_error_count": sum(1 for x in issue_rows if x["issue_type"] == "FETCH_ERROR")
+        "fetch_error_count": sum(1 for x in issue_rows if x["issue_type"] == "FETCH_ERROR"),
+        "browser_fallback_enabled": ENABLE_BROWSER_FALLBACK,
+        "fallback_domains": ",".join(FALLBACK_DOMAINS),
+        "output_file": OUTPUT_FILE,
+        "raw_file": RAW_FILE,
+        "issues_file": ISSUES_FILE
     })
 
 
 print("\n✅ SCRAPER COMPLETE")
 print("✅ Existing logic preserved")
-print("✅ Browser fallback runs only for zero-doc URLs")
-print("✅ Added static-files title fallback from HTML context")
-print("✅ UUID titles rejected")
-print("✅ Diff compares only document_url")
-print("✅ output.csv updated")
-print("✅ raw_links.csv updated")
-print("✅ diff.csv updated")
-print("✅ capture_issues.csv updated")
-print("✅ run_summary.csv updated")
+print(f"✅ Run mode: {RUN_MODE}")
+print(f"✅ URL file: {TARGET_URL_FILE}")
+print(f"✅ Output file: {OUTPUT_FILE}")
+print(f"✅ Raw file: {RAW_FILE}")
+print(f"✅ Issues file: {ISSUES_FILE}")
+print(f"✅ URLs processed: {total_urls_processed}")
+print(f"✅ Documents captured: {len(output_data)}")
+print(f"✅ New diff records: {len(new_records)}")
+print(f"✅ Issues: {len(issue_rows)}")
+print(f"✅ Browser fallback enabled: {ENABLE_BROWSER_FALLBACK}")
+print(f"✅ Fallback domains: {','.join(FALLBACK_DOMAINS)}")
 print(f"✅ Run {current_run_number}: {len(output_data)} documents captured")
-
