@@ -194,7 +194,6 @@ def clean_title_from_url(url):
     filename_raw = html.unescape(filename_raw)
     filename_raw = filename_raw.split("?")[0]
 
-    # Important: check UUID BEFORE replacing hyphens
     filename_without_ext = filename_raw
     filename_without_ext = filename_without_ext.replace(".pdf", "")
     filename_without_ext = filename_without_ext.replace(".ashx", "")
@@ -257,7 +256,6 @@ def get_title_from_html_context(link):
     If URL title is weak, scan same row/block and choose longest meaningful text.
     """
 
-    # 1. Table row first
     row = link.find_parent("tr")
     if row:
         row_candidates = collect_text_candidates_from_container(row)
@@ -265,7 +263,6 @@ def get_title_from_html_context(link):
         if row_candidates:
             return max(row_candidates, key=len)
 
-    # 2. List item
     li = link.find_parent("li")
     if li:
         li_candidates = collect_text_candidates_from_container(li)
@@ -273,7 +270,6 @@ def get_title_from_html_context(link):
         if li_candidates:
             return max(li_candidates, key=len)
 
-    # 3. Parent block
     current = link.parent
     levels_checked = 0
 
@@ -328,8 +324,6 @@ def get_best_text(link, full_url, source_url):
     5. Then fallback.
     """
 
-    # Special rule for FICO / static-files:
-    # URL is UUID, so do NOT use URL first.
     if is_static_file_link(full_url):
         html_title = get_title_from_html_context(link)
 
@@ -346,29 +340,24 @@ def get_best_text(link, full_url, source_url):
         if url_title:
             return url_title
 
-    # Normal rule: URL title first
     url_title = clean_title_from_url(full_url)
 
-    # Space42 URLs usually contain useful document names
     if "space42.ai" in source_url.lower() and url_title:
         return url_title
 
     if url_title:
         return url_title
 
-    # HTML context second
     html_title = get_title_from_html_context(link)
 
     if html_title:
         return html_title
 
-    # Link text third
     link_text = get_link_text_title(link)
 
     if link_text:
         return link_text
 
-    # Final fallback
     parsed = urlparse(full_url)
     filename = parsed.path.split("/")[-1]
     filename = unquote(filename)
@@ -568,7 +557,6 @@ def browser_click_fallback(source_url, existing_keys):
             page.goto(source_url, wait_until="networkidle", timeout=60000)
             page.wait_for_timeout(3000)
 
-            # First: collect already-rendered href/data links
             html_content = page.content()
             soup = BeautifulSoup(html_content, "html.parser")
 
@@ -602,7 +590,6 @@ def browser_click_fallback(source_url, existing_keys):
                             "document_url": full_url
                         })
 
-            # Second: click View / Download buttons/links
             clickable = page.locator(
                 "a, button, [role='button'], .btn, .button"
             ).filter(
@@ -619,7 +606,6 @@ def browser_click_fallback(source_url, existing_keys):
                     before_url = page.url
                     captured_url = ""
 
-                    # Try popup/new tab
                     try:
                         with page.expect_popup(timeout=2500) as popup_info:
                             element.click(timeout=4000)
@@ -630,7 +616,6 @@ def browser_click_fallback(source_url, existing_keys):
                     except Exception:
                         pass
 
-                    # Try download event
                     if not captured_url:
                         try:
                             with page.expect_download(timeout=2500) as download_info:
@@ -640,7 +625,6 @@ def browser_click_fallback(source_url, existing_keys):
                         except Exception:
                             pass
 
-                    # Try same-tab navigation
                     if not captured_url:
                         try:
                             element.click(timeout=4000)
@@ -723,7 +707,6 @@ with open(TARGET_URL_FILE, newline="", encoding="utf-8") as file:
 
                 docs_captured_for_url = 0
 
-                # Browser fallback for failed status pages like 403 / 404 / 500
                 if should_use_browser_fallback(source_url):
                     print("Non-200 status detected. Trying browser fallback...")
 
@@ -796,7 +779,6 @@ with open(TARGET_URL_FILE, newline="", encoding="utf-8") as file:
 
             docs_captured_for_url = len(output_data) - start_doc_count
 
-            # Browser fallback only when normal scraper found 0 docs
             if docs_captured_for_url == 0 and should_use_browser_fallback(source_url):
                 fallback_docs = browser_click_fallback(source_url, seen)
 
@@ -825,7 +807,6 @@ with open(TARGET_URL_FILE, newline="", encoding="utf-8") as file:
 
             docs_captured_for_url = 0
 
-            # Browser fallback for timeout/request errors
             if should_use_browser_fallback(source_url):
                 print("Request error detected. Trying browser fallback...")
 
@@ -859,7 +840,6 @@ with open(TARGET_URL_FILE, newline="", encoding="utf-8") as file:
 old_output_urls = set()
 existing_diff_urls = set()
 
-# Load previous output URLs only for full mode
 if RUN_MODE == "full" and os.path.exists(OUTPUT_FILE):
     with open(OUTPUT_FILE, newline="", encoding="utf-8") as old_file:
         reader = csv.DictReader(old_file)
@@ -869,7 +849,6 @@ if RUN_MODE == "full" and os.path.exists(OUTPUT_FILE):
                 old_output_urls.add(normalize_url_key(r["document_url"]))
 
 
-# Load existing diff.csv URLs only for full mode
 if RUN_MODE == "full" and os.path.exists(DIFF_FILE):
     with open(DIFF_FILE, newline="", encoding="utf-8") as diff_read_file:
         reader = csv.DictReader(diff_read_file)
@@ -885,7 +864,6 @@ if RUN_MODE == "full":
     for r in output_data:
         current_url_key = normalize_url_key(r["document_url"])
 
-        # Add to diff only if document URL is new
         if current_url_key not in old_output_urls and current_url_key not in existing_diff_urls:
             new_records.append({
                 "date": current_date,
@@ -982,7 +960,6 @@ with open(RUN_SUMMARY_FILE, "a", newline="", encoding="utf-8") as summary_file:
         "fetch_failed_status_count",
         "fetch_error_count",
         "browser_fallback_enabled",
-        "fallback_domains",
         "output_file",
         "raw_file",
         "issues_file"
@@ -1006,7 +983,6 @@ with open(RUN_SUMMARY_FILE, "a", newline="", encoding="utf-8") as summary_file:
         "fetch_failed_status_count": sum(1 for x in issue_rows if x["issue_type"] == "FETCH_FAILED_STATUS"),
         "fetch_error_count": sum(1 for x in issue_rows if x["issue_type"] == "FETCH_ERROR"),
         "browser_fallback_enabled": ENABLE_BROWSER_FALLBACK,
-        "fallback_domains": ",".join(FALLBACK_DOMAINS),
         "output_file": OUTPUT_FILE,
         "raw_file": RAW_FILE,
         "issues_file": ISSUES_FILE
@@ -1025,5 +1001,4 @@ print(f"✅ Documents captured: {len(output_data)}")
 print(f"✅ New diff records: {len(new_records)}")
 print(f"✅ Issues: {len(issue_rows)}")
 print(f"✅ Browser fallback enabled: {ENABLE_BROWSER_FALLBACK}")
-print(f"✅ Fallback domains: {','.join(FALLBACK_DOMAINS)}")
 print(f"✅ Run {current_run_number}: {len(output_data)} documents captured")
