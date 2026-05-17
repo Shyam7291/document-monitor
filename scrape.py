@@ -44,6 +44,19 @@ issue_rows = []
 
 current_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
+# =========================
+# REQUEST HEADERS / FETCH
+# =========================
+
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                  "AppleWebKit/537.36 (KHTML, like Gecko) "
+                  "Chrome/124.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Connection": "close"
+}
+
 IGNORE_WORDS = {
     "download",
     "view",
@@ -84,6 +97,45 @@ IMAGE_OR_ASSET_EXTENSIONS = (
     ".ttf",
     ".eot"
 )
+
+
+def fetch_url(source_url):
+    """
+    Fetch URL with browser-like headers and retry.
+    Helps sites that timeout/reset simple Python requests.
+    """
+
+    try:
+        response = requests.get(
+            source_url,
+            timeout=30,
+            headers=HEADERS
+        )
+        return response
+
+    except requests.exceptions.Timeout as e:
+        print(f"Timeout while fetching {source_url}: {e}")
+        print("Retrying once with longer timeout...")
+
+        try:
+            response = requests.get(
+                source_url,
+                timeout=60,
+                headers=HEADERS
+            )
+            return response
+
+        except Exception as retry_error:
+            print(f"Retry failed: {retry_error}")
+            return None
+
+    except requests.exceptions.ConnectionError as e:
+        print(f"Connection error while fetching {source_url}: {e}")
+        return None
+
+    except Exception as e:
+        print(f"Request error while fetching {source_url}: {e}")
+        return None
 
 
 def add_issue(source_url, issue_type, status_code="", documents_captured=0, error_message=""):
@@ -442,7 +494,11 @@ def get_iframe_soups(source_url, soup):
         try:
             print(f"Checking iframe: {iframe_url}")
 
-            iframe_response = requests.get(iframe_url, timeout=20)
+            iframe_response = fetch_url(iframe_url)
+
+            if iframe_response is None:
+                print("Iframe failed to fetch")
+                continue
 
             print("Iframe status:", iframe_response.status_code)
 
@@ -814,7 +870,41 @@ with open(TARGET_URL_FILE, newline="", encoding="utf-8") as file:
         start_doc_count = len(output_data)
 
         try:
-            response = requests.get(source_url, timeout=15)
+            response = fetch_url(source_url)
+
+            if response is None:
+                print("Failed to fetch page")
+
+                docs_captured_for_url = 0
+
+                if should_use_browser_fallback(source_url):
+                    print("Request failed. Trying browser fallback...")
+
+                    seen = set()
+                    fallback_docs = browser_click_fallback(source_url, seen)
+
+                    for doc in fallback_docs:
+                        output_data.append(doc)
+
+                        raw_links.append({
+                            "company": doc["company"],
+                            "text": doc["document_title"],
+                            "url": doc["document_url"]
+                        })
+
+                    docs_captured_for_url = len(fallback_docs)
+
+                if docs_captured_for_url == 0:
+                    add_issue(
+                        source_url=source_url,
+                        issue_type="FETCH_ERROR",
+                        status_code="",
+                        documents_captured=0,
+                        error_message="Request failed / timeout and browser fallback captured 0 documents"
+                    )
+
+                continue
+
             print("Status:", response.status_code)
 
             if response.status_code != 200:
@@ -1093,6 +1183,7 @@ print("✅ PDF links are checked before navigation filters")
 print("✅ Image/icon files excluded from document capture")
 print("✅ Iframe scraping enabled")
 print("✅ Browser fallback scans frames/iframes")
+print("✅ Browser-like headers and retry fetch enabled")
 print(f"✅ Run mode: {RUN_MODE}")
 print(f"✅ URL file: {TARGET_URL_FILE}")
 print(f"✅ Output file: {OUTPUT_FILE}")
