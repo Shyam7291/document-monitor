@@ -34,7 +34,9 @@ else:
     ISSUES_FILE = "capture_issues.csv"
 
 DIFF_FILE = "diff.csv"
-RUN_SUMMARY_FILE = "run_summary.csv"
+
+# New clean summary file because old run_summary.csv has mixed columns
+RUN_SUMMARY_FILE = "run_summary_v2.csv"
 
 output_data = []
 raw_links = []
@@ -344,6 +346,11 @@ def get_best_text(link, full_url, source_url):
 
 
 def is_document_link(url):
+    """
+    Keep actual document-like URLs.
+    IMPORTANT: This function must be checked before navigation filtering.
+    """
+
     lower = url.lower()
 
     if is_image_or_asset_url(lower):
@@ -453,6 +460,14 @@ def get_iframe_soups(source_url, soup):
 
 
 def extract_links_from_soup(soup, base_url, source_url, seen, label="KEPT"):
+    """
+    Extract document links from a BeautifulSoup object.
+
+    Important fix:
+    Document links are checked BEFORE navigation links.
+    This ensures valid .pdf/.ashx/static-file links never get skipped by navigation filters.
+    """
+
     docs_found = []
 
     links = soup.find_all("a")
@@ -474,9 +489,7 @@ def extract_links_from_soup(soup, base_url, source_url, seen, label="KEPT"):
             "url": full_url
         })
 
-        if is_navigation_link(href_lower):
-            continue
-
+        # ✅ FIRST: keep document links
         if is_document_link(href_lower):
             duplicate_key = normalize_url_key(full_url)
 
@@ -495,6 +508,12 @@ def extract_links_from_soup(soup, base_url, source_url, seen, label="KEPT"):
 
             output_data.append(doc)
             docs_found.append(doc)
+
+            continue
+
+        # ❌ SECOND: skip navigation only after document check
+        if is_navigation_link(href_lower):
+            continue
 
     return docs_found
 
@@ -952,6 +971,7 @@ if RUN_MODE == "full":
             })
 
 
+# SAVE output file
 with open(OUTPUT_FILE, "w", newline="", encoding="utf-8") as out_file:
     writer = csv.DictWriter(
         out_file,
@@ -961,6 +981,7 @@ with open(OUTPUT_FILE, "w", newline="", encoding="utf-8") as out_file:
     writer.writerows(output_data)
 
 
+# SAVE raw links file
 with open(RAW_FILE, "w", newline="", encoding="utf-8") as raw_file:
     writer = csv.DictWriter(
         raw_file,
@@ -970,6 +991,7 @@ with open(RAW_FILE, "w", newline="", encoding="utf-8") as raw_file:
     writer.writerows(raw_links)
 
 
+# APPEND diff.csv only for full production run
 if RUN_MODE == "full":
     file_exists = os.path.exists(DIFF_FILE)
 
@@ -983,6 +1005,7 @@ if RUN_MODE == "full":
         writer.writerows(new_records)
 
 
+# SAVE capture issues file
 with open(ISSUES_FILE, "w", newline="", encoding="utf-8") as issue_file:
     writer = csv.DictWriter(
         issue_file,
@@ -1001,6 +1024,7 @@ with open(ISSUES_FILE, "w", newline="", encoding="utf-8") as issue_file:
     writer.writerows(issue_rows)
 
 
+# APPEND clean run_summary_v2.csv
 previous_run_number = 0
 
 if os.path.exists(RUN_SUMMARY_FILE):
@@ -1065,6 +1089,7 @@ with open(RUN_SUMMARY_FILE, "a", newline="", encoding="utf-8") as summary_file:
 
 print("\n✅ SCRAPER COMPLETE")
 print("✅ Existing logic preserved")
+print("✅ PDF links are checked before navigation filters")
 print("✅ Image/icon files excluded from document capture")
 print("✅ Iframe scraping enabled")
 print("✅ Browser fallback scans frames/iframes")
@@ -1073,6 +1098,7 @@ print(f"✅ URL file: {TARGET_URL_FILE}")
 print(f"✅ Output file: {OUTPUT_FILE}")
 print(f"✅ Raw file: {RAW_FILE}")
 print(f"✅ Issues file: {ISSUES_FILE}")
+print(f"✅ Summary file: {RUN_SUMMARY_FILE}")
 print(f"✅ URLs processed: {total_urls_processed}")
 print(f"✅ Documents captured: {len(output_data)}")
 print(f"✅ New diff records: {len(new_records)}")
