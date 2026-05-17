@@ -1,45 +1,36 @@
 name: Run Scraper
 
-on:
+"on":
   workflow_dispatch:
-    inputs files    inputs:
-        run: |
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
-
-          git add output*.csv raw_links*.csv capture_issues*.csv diff.csv run_summary*.csv 2>/dev/null || true
-
-          git commit -m "Update scraped data" || echo "No changes to commit"
-
-          git push
+    inputs:
       run_mode:
         description: "Choose run mode"
         required: true
+        default: "full"
         type: choice
         options:
           - full
           - test
           - baseline
-        default: full
 
       url_file:
         description: "CSV file to run"
         required: true
+        default: "documents.csv"
         type: choice
         options:
           - documents.csv
           - test_urls.csv
           - baseline_urls.csv
-        default: documents.csv
 
       enable_browser_fallback:
         description: "Use browser fallback only for failed/zero-doc URLs?"
         required: true
+        default: "false"
         type: choice
         options:
           - "false"
           - "true"
-        default: "false"
 
 jobs:
   run-script:
@@ -71,3 +62,13 @@ jobs:
       - name: Run script
         run: python scrape.py
 
+      - name: Commit and push output files
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+
+          git add output*.csv raw_links*.csv capture_issues*.csv diff.csv run_summary*.csv 2>/dev/null || true
+
+          git commit -m "Update scraped data" || echo "No changes to commit"
+
+          git push
