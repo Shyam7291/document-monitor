@@ -2,7 +2,16 @@ name: Run Scraper
 
 on:
   workflow_dispatch:
-    inputs:
+    inputs files    inputs:
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+
+          git add output*.csv raw_links*.csv capture_issues*.csv diff.csv run_summary*.csv 2>/dev/null || true
+
+          git commit -m "Update scraped data" || echo "No changes to commit"
+
+          git push
       run_mode:
         description: "Choose run mode"
         required: true
@@ -62,13 +71,3 @@ jobs:
       - name: Run script
         run: python scrape.py
 
-      - name: Commit and push output files
-        run: |
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
-
-          git add output*.csv raw_links*.csv capture_issues*.csv diff.csv run_summary.csv 2>/dev/null || true
-
-          git commit -m "Update scraped data" || echo "No changes to commit"
-
-          git push
