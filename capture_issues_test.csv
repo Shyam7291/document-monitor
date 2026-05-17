@@ -1,2 +1,1 @@
 date,run_mode,url_file,source_url,issue_type,status_code,documents_captured,error_message
-2026-05-16 17:44:47,test,test_urls.csv,https://www.agthia.com/investors/adx-filings-agm/,FETCH_ERROR,,0,"('Connection aborted.', ConnectionResetError(104, 'Connection reset by peer'))"
