@@ -1,1 +1,2 @@
 date,run_mode,url_file,source_url,issue_type,status_code,documents_captured,error_message
+2026-05-18 14:47:21,test,test_urls.csv,https://www.coalindia.in/esg/,FETCH_FAILED_STATUS,403,0,Non-200 status code and browser fallback captured 0 documents
