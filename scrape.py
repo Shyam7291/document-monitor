@@ -101,33 +101,60 @@ IMAGE_OR_ASSET_EXTENSIONS = (
 
 def fetch_url(source_url):
     """
-    Fetch URL with browser-like headers and retry.
-    Helps sites that timeout/reset simple Python requests.
+    Safe fetch logic.
+
+    Default:
+    - Use old simple requests.get() behavior for all normal URLs.
+
+    Special:
+    - Use browser-like headers + retry only for EQT ESG site,
+      because EQT was timing out with normal request.
     """
 
-    try:
-        response = requests.get(
-            source_url,
-            timeout=30,
-            headers=HEADERS
-        )
-        return response
+    source_lower = source_url.lower()
 
-    except requests.exceptions.Timeout as e:
-        print(f"Timeout while fetching {source_url}: {e}")
-        print("Retrying once with longer timeout...")
-
+    # ✅ Special handling only for EQT ESG site
+    if "esg.eqt.com" in source_lower:
         try:
             response = requests.get(
                 source_url,
-                timeout=60,
+                timeout=30,
                 headers=HEADERS
             )
             return response
 
-        except Exception as retry_error:
-            print(f"Retry failed: {retry_error}")
+        except requests.exceptions.Timeout as e:
+            print(f"EQT timeout while fetching {source_url}: {e}")
+            print("Retrying EQT once with longer timeout...")
+
+            try:
+                response = requests.get(
+                    source_url,
+                    timeout=60,
+                    headers=HEADERS
+                )
+                return response
+
+            except Exception as retry_error:
+                print(f"EQT retry failed: {retry_error}")
+                return None
+
+        except requests.exceptions.ConnectionError as e:
+            print(f"EQT connection error while fetching {source_url}: {e}")
             return None
+
+        except Exception as e:
+            print(f"EQT request error while fetching {source_url}: {e}")
+            return None
+
+    # ✅ Default old behavior for all other websites
+    try:
+        response = requests.get(source_url, timeout=15)
+        return response
+
+    except requests.exceptions.Timeout as e:
+        print(f"Timeout while fetching {source_url}: {e}")
+        return None
 
     except requests.exceptions.ConnectionError as e:
         print(f"Connection error while fetching {source_url}: {e}")
