@@ -1,7 +1,3 @@
 date,run_mode,url_file,source_url,issue_type,status_code,documents_captured,error_message
-2026-05-17 18:46:47,full,documents.csv,https://www.agthia.com/investors/adx-filings-agm/,FETCH_ERROR,,0,Request failed / timeout and browser fallback captured 0 documents
-2026-05-17 18:46:47,full,documents.csv,https://investors.fico.com/corporate-governance,FETCH_ERROR,,0,Request failed / timeout and browser fallback captured 0 documents
-2026-05-17 18:46:47,full,documents.csv,https://investorcentre.sigmahealthcare.com.au/corporate-sustainability,FETCH_ERROR,,0,Request failed / timeout and browser fallback captured 0 documents
-2026-05-17 18:46:47,full,documents.csv,https://investorcentre.sigmahealthcare.com.au/corporate-governance/governance-documents,FETCH_ERROR,,0,Request failed / timeout and browser fallback captured 0 documents
-2026-05-17 18:46:47,full,documents.csv,https://chandra-asri.com/en/sustainability/reports-and-publications,SUCCESS_ZERO_DOCS,200,0,Page opened successfully but no document links captured
-2026-05-17 18:46:47,full,documents.csv,https://investors.biontech.de/agm/agm-2026,FETCH_ERROR,,0,Request failed / timeout and browser fallback captured 0 documents
+2026-05-18 04:21:09,full,documents.csv,https://www.agthia.com/investors/adx-filings-agm/,FETCH_ERROR,,0,Request failed / timeout and browser fallback captured 0 documents
+2026-05-18 04:21:09,full,documents.csv,https://chandra-asri.com/en/sustainability/reports-and-publications,SUCCESS_ZERO_DOCS,200,0,Page opened successfully but no document links captured
