@@ -113,7 +113,7 @@ def fetch_url(source_url):
 
     source_lower = source_url.lower()
 
-    # ✅ Special handling only for EQT ESG site
+    # Special handling only for EQT ESG site
     if "esg.eqt.com" in source_lower:
         try:
             response = requests.get(
@@ -147,7 +147,7 @@ def fetch_url(source_url):
             print(f"EQT request error while fetching {source_url}: {e}")
             return None
 
-    # ✅ Default old behavior for all other websites
+    # Default old behavior for all other websites
     try:
         response = requests.get(source_url, timeout=15)
         return response
@@ -572,7 +572,7 @@ def extract_links_from_soup(soup, base_url, source_url, seen, label="KEPT"):
             "url": full_url
         })
 
-        # ✅ FIRST: keep document links
+        # FIRST: keep document links
         if is_document_link(href_lower):
             duplicate_key = normalize_url_key(full_url)
 
@@ -594,7 +594,7 @@ def extract_links_from_soup(soup, base_url, source_url, seen, label="KEPT"):
 
             continue
 
-        # ❌ SECOND: skip navigation only after document check
+        # SECOND: skip navigation only after document check
         if is_navigation_link(href_lower):
             continue
 
@@ -668,7 +668,7 @@ def browser_click_fallback(source_url, existing_keys):
         print(f"Playwright not available: {e}")
         return fallback_docs
 
-    print("Running browser click fallback for failed/zero-doc page...")
+    print("Running enhanced browser fallback for failed/zero-doc page...")
 
     def add_doc_from_url(found_url, title_hint=""):
         full_url = urljoin(source_url, found_url)
@@ -744,6 +744,71 @@ def browser_click_fallback(source_url, existing_keys):
 
                     add_doc_from_url(full_url, title)
 
+    def scan_all_rendered_content(page):
+        try:
+            html_content = page.content()
+            main_soup = BeautifulSoup(html_content, "html.parser")
+            scan_soup_for_links(main_soup, page.url or source_url)
+        except Exception as e:
+            print(f"Main page scan error: {e}")
+
+        try:
+            frames = page.frames
+            print(f"Frames found: {len(frames)}")
+
+            for frame in frames:
+                try:
+                    frame_url = frame.url or source_url
+
+                    if frame_url == "about:blank":
+                        continue
+
+                    print(f"Scanning frame: {frame_url}")
+
+                    frame_html = frame.content()
+                    frame_soup = BeautifulSoup(frame_html, "html.parser")
+
+                    scan_soup_for_links(frame_soup, frame_url)
+
+                except Exception as frame_error:
+                    print(f"Frame scan error: {frame_error}")
+
+        except Exception as e:
+            print(f"Frame collection error: {e}")
+
+    def is_expandable_element(element):
+        try:
+            return element.evaluate(
+                """
+                el => {
+                    const text = (el.innerText || "").replace(/\\s+/g, " ").trim();
+                    const cls = (el.className || "").toString().toLowerCase();
+                    const href = (el.getAttribute("href") || "").trim();
+
+                    if (text.length > 80) return false;
+
+                    if (el.hasAttribute("aria-expanded")) return true;
+                    if (el.hasAttribute("data-toggle")) return true;
+                    if (el.hasAttribute("data-bs-toggle")) return true;
+                    if (el.hasAttribute("onclick")) return true;
+                    if (href.startsWith("#")) return true;
+
+                    if (cls.includes("dropdown")) return true;
+                    if (cls.includes("accordion")) return true;
+                    if (cls.includes("collapse")) return true;
+                    if (cls.includes("tab")) return true;
+                    if (cls.includes("nav")) return true;
+                    if (cls.includes("card")) return true;
+                    if (cls.includes("menu")) return true;
+                    if (cls.includes("toggle")) return true;
+
+                    return false;
+                }
+                """
+            )
+        except Exception:
+            return False
+
     try:
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True)
@@ -756,6 +821,18 @@ def browser_click_fallback(source_url, existing_keys):
             )
 
             page = context.new_page()
+
+            # Capture document-like network responses too
+            def handle_response(response):
+                try:
+                    response_url = response.url
+
+                    if is_click_document_candidate(response_url):
+                        add_doc_from_url(response_url, "")
+                except Exception:
+                    pass
+
+            page.on("response", handle_response)
 
             try:
                 page.goto(source_url, wait_until="domcontentloaded", timeout=60000)
@@ -771,45 +848,74 @@ def browser_click_fallback(source_url, existing_keys):
 
             page.wait_for_timeout(5000)
 
-            try:
-                html_content = page.content()
-                main_soup = BeautifulSoup(html_content, "html.parser")
-                scan_soup_for_links(main_soup, source_url)
-            except Exception as e:
-                print(f"Main page scan error: {e}")
+            # Initial scan
+            scan_all_rendered_content(page)
 
+            # Generic expandable UI click phase
             try:
-                frames = page.frames
-                print(f"Frames found: {len(frames)}")
+                expander_selector = (
+                    "a[href^='#'], "
+                    "button, "
+                    "[role='button'], "
+                    "[aria-expanded], "
+                    "[data-toggle], "
+                    "[data-bs-toggle], "
+                    ".dropdown-toggle, "
+                    ".accordion-button, "
+                    ".nav-link, "
+                    ".tab, "
+                    ".card, "
+                    "li, "
+                    "div, "
+                    "span"
+                )
 
-                for frame in frames:
+                expandable_candidates = page.locator(expander_selector)
+
+                total_expandables = expandable_candidates.count()
+                max_expandable_clicks = min(total_expandables, 35)
+
+                print(f"Expandable candidates found: {total_expandables}")
+                print(f"Expandable candidates to try: {max_expandable_clicks}")
+
+                clicked_expanders = 0
+
+                for i in range(max_expandable_clicks):
                     try:
-                        frame_url = frame.url or source_url
+                        element = expandable_candidates.nth(i)
 
-                        if frame_url == "about:blank":
+                        if not is_expandable_element(element):
                             continue
 
-                        print(f"Scanning frame: {frame_url}")
+                        element.scroll_into_view_if_needed(timeout=3000)
+                        element.click(timeout=3000, force=True)
+                        clicked_expanders += 1
 
-                        frame_html = frame.content()
-                        frame_soup = BeautifulSoup(frame_html, "html.parser")
+                        page.wait_for_timeout(1000)
 
-                        scan_soup_for_links(frame_soup, frame_url)
+                        # After every expand/click, scan again
+                        scan_all_rendered_content(page)
 
-                    except Exception as frame_error:
-                        print(f"Frame scan error: {frame_error}")
+                    except Exception:
+                        continue
+
+                print(f"Expandable controls clicked: {clicked_expanders}")
 
             except Exception as e:
-                print(f"Frame collection error: {e}")
+                print(f"Expandable click phase error: {e}")
 
+            # Obvious document action controls
             try:
                 clickable = page.locator(
                     "a, button, [role='button'], .btn, .button"
                 ).filter(
-                    has_text=re.compile(r"(view|download|pdf|open)", re.IGNORECASE)
+                    has_text=re.compile(
+                        r"(view|download|pdf|open|report|annual|sustainability|disclosure)",
+                        re.IGNORECASE
+                    )
                 )
 
-                count = min(clickable.count(), 10)
+                count = min(clickable.count(), 15)
 
                 print(f"Clickable fallback controls found: {count}")
 
@@ -859,6 +965,8 @@ def browser_click_fallback(source_url, existing_keys):
 
                         if captured_url:
                             add_doc_from_url(captured_url, title)
+
+                        scan_all_rendered_content(page)
 
                     except Exception:
                         continue
@@ -1210,7 +1318,9 @@ print("✅ PDF links are checked before navigation filters")
 print("✅ Image/icon files excluded from document capture")
 print("✅ Iframe scraping enabled")
 print("✅ Browser fallback scans frames/iframes")
-print("✅ Browser-like headers and retry fetch enabled")
+print("✅ Browser fallback clicks generic expandable UI")
+print("✅ Browser fallback captures document network responses")
+print("✅ Browser-like headers and retry fetch enabled for EQT only")
 print(f"✅ Run mode: {RUN_MODE}")
 print(f"✅ URL file: {TARGET_URL_FILE}")
 print(f"✅ Output file: {OUTPUT_FILE}")
