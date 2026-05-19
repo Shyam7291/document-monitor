@@ -109,6 +109,11 @@ def fetch_url(source_url):
     Special:
     - Use browser-like headers + retry only for EQT ESG site,
       because EQT was timing out with normal request.
+
+    Extra:
+    - If a normal site returns 403 / 406 / 429,
+      retry once with browser-like headers.
+      This helps intermittent blocking without changing behavior for normal 200 pages.
     """
 
     source_lower = source_url.lower()
@@ -146,6 +151,48 @@ def fetch_url(source_url):
         except Exception as e:
             print(f"EQT request error while fetching {source_url}: {e}")
             return None
+
+    # Default old behavior for all other websites
+    try:
+        response = requests.get(source_url, timeout=15)
+
+        # Generic retry only when site blocks simple request
+        if response.status_code in [403, 406, 429]:
+            print(f"Status {response.status_code} detected. Retrying with browser-like headers...")
+
+            try:
+                parsed = urlparse(source_url)
+
+                retry_headers = HEADERS.copy()
+                retry_headers["Referer"] = f"{parsed.scheme}://{parsed.netloc}/"
+
+                retry_response = requests.get(
+                    source_url,
+                    timeout=25,
+                    headers=retry_headers
+                )
+
+                print("Retry status:", retry_response.status_code)
+
+                return retry_response
+
+            except Exception as retry_error:
+                print(f"Blocked-status retry failed: {retry_error}")
+                return response
+
+        return response
+
+    except requests.exceptions.Timeout as e:
+        print(f"Timeout while fetching {source_url}: {e}")
+        return None
+
+    except requests.exceptions.ConnectionError as e:
+        print(f"Connection error while fetching {source_url}: {e}")
+        return None
+
+    except Exception as e:
+        print(f"Request error while fetching {source_url}: {e}")
+        return None
 
     # Default old behavior for all other websites
     try:
