@@ -1,2 +1,1 @@
 date,run_mode,url_file,source_url,issue_type,status_code,documents_captured,error_message
-2026-05-19 07:59:30,test,test_urls.csv,https://coalindia.in/esg/,FETCH_ERROR,,0,Request failed / timeout and browser fallback captured 0 documents
