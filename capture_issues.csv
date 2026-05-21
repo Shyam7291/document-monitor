@@ -1,3 +1,6 @@
 date,run_mode,url_file,source_url,issue_type,status_code,documents_captured,error_message
-2026-05-18 07:16:28,full,documents.csv,https://www.agthia.com/investors/adx-filings-agm/,FETCH_ERROR,,0,Request failed / timeout and browser fallback captured 0 documents
-2026-05-18 07:16:28,full,documents.csv,https://chandra-asri.com/en/sustainability/reports-and-publications,SUCCESS_ZERO_DOCS,200,0,Page opened successfully but no document links captured
+2026-05-21 15:33:12,seed,documents_p2.csv,https://www.acwapower.com/en/sustainability/sustainability/,FETCH_ERROR,,0,Request failed / timeout and browser fallback captured 0 documents
+2026-05-21 15:33:12,seed,documents_p2.csv,https://www.coalindia.in/esg/,FETCH_FAILED_STATUS,403,0,Non-200 status code and browser fallback captured 0 documents
+2026-05-21 15:33:12,seed,documents_p2.csv,https://www.goldfields.com/sustainability-data.php,FETCH_ERROR,,0,Request failed / timeout and browser fallback captured 0 documents
+2026-05-21 15:33:12,seed,documents_p2.csv,https://www.atmosenergy.com/company/corporate-responsibility-reports/,SUCCESS_ZERO_DOCS,200,0,Page opened successfully but no document links captured
+2026-05-21 15:33:12,seed,documents_p2.csv,https://evolutionmining.com/document-centre/#corporate-governance#reports,SUCCESS_ZERO_DOCS,200,0,Page opened successfully but no document links captured
