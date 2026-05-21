@@ -20,7 +20,7 @@ ENABLE_BROWSER_FALLBACK = os.environ.get("ENABLE_BROWSER_FALLBACK", "false").str
 # Sleep between URLs to reduce blocking
 SLEEP_SECONDS = float(os.environ.get("SLEEP_SECONDS", "2"))
 
-if RUN_MODE == "full":
+if RUN_MODE in ["full", "seed"]:
     OUTPUT_FILE = "output.csv"
     RAW_FILE = "raw_links.csv"
     ISSUES_FILE = "capture_issues.csv"
