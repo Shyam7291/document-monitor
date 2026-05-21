@@ -11,6 +11,7 @@ name: Run Scraper
         options:
           - full
           - test
+          - seed
           - baseline
 
       url_file:
