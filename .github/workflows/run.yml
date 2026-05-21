@@ -16,21 +16,40 @@ name: Run Scraper
       url_file:
         description: "CSV file to run"
         required: true
-        default: "documents.csv"
+        default: "documents_p2.csv"
         type: choice
         options:
           - documents.csv
+          - documents_p1.csv
+          - documents_p2.csv
+          - documents_p3.csv
           - test_urls.csv
           - baseline_urls.csv
 
       enable_browser_fallback:
-        description: "Use browser fallback only for failed/zero-doc URLs?"
+        description: "Use browser fallback only for failed/zero-doc/hash URLs?"
         required: true
         default: "false"
         type: choice
         options:
           - "false"
           - "true"
+
+      sleep_seconds:
+        description: "Delay between URLs to reduce blocking"
+        required: true
+        default: "2"
+        type: choice
+        options:
+          - "0"
+          - "1"
+          - "2"
+          - "3"
+          - "5"
+
+  schedule:
+    # Scheduled P2 production run every 3 days at 03:00 UTC / 08:30 IST approximately
+    - cron: "0 3 */3 * *"
 
 jobs:
   run-script:
@@ -40,13 +59,23 @@ jobs:
       contents: write
 
     env:
-      RUN_MODE: ${{ github.event.inputs.run_mode }}
-      TARGET_URL_FILE: ${{ github.event.inputs.url_file }}
-      ENABLE_BROWSER_FALLBACK: ${{ github.event.inputs.enable_browser_fallback }}
+      # For manual workflow_dispatch, use selected inputs.
+      # For scheduled runs, inputs are empty, so defaults below are used.
+      RUN_MODE: ${{ github.event.inputs.run_mode || 'full' }}
+      TARGET_URL_FILE: ${{ github.event.inputs.url_file || 'documents_p2.csv' }}
+      ENABLE_BROWSER_FALLBACK: ${{ github.event.inputs.enable_browser_fallback || 'false' }}
+      SLEEP_SECONDS: ${{ github.event.inputs.sleep_seconds || '2' }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Show run configuration
+        run: |
+          echo "RUN_MODE=$RUN_MODE"
+          echo "TARGET_URL_FILE=$TARGET_URL_FILE"
+          echo "ENABLE_BROWSER_FALLBACK=$ENABLE_BROWSER_FALLBACK"
+          echo "SLEEP_SECONDS=$SLEEP_SECONDS"
 
       - name: Set up Python
         uses: actions/setup-python@v5
