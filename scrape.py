@@ -1612,4 +1612,3 @@ print(f"✅ New diff records: {len(new_records)}")
 print(f"✅ Issues: {len(issue_rows)}")
 print(f"✅ Browser fallback enabled: {ENABLE_BROWSER_FALLBACK}")
 print(f"✅ Run {current_run_number}: {len(output_data)} documents captured")
-``
