@@ -194,23 +194,6 @@ def fetch_url(source_url):
         print(f"Request error while fetching {source_url}: {e}")
         return None
 
-    # Default old behavior for all other websites
-    try:
-        response = requests.get(source_url, timeout=15)
-        return response
-
-    except requests.exceptions.Timeout as e:
-        print(f"Timeout while fetching {source_url}: {e}")
-        return None
-
-    except requests.exceptions.ConnectionError as e:
-        print(f"Connection error while fetching {source_url}: {e}")
-        return None
-
-    except Exception as e:
-        print(f"Request error while fetching {source_url}: {e}")
-        return None
-
 
 def add_issue(source_url, issue_type, status_code="", documents_captured=0, error_message=""):
     issue_rows.append({
@@ -233,6 +216,45 @@ def normalize_text(text):
     text = unquote(text)
     text = re.sub(r"\s+", " ", text)
     return text.strip()
+
+
+def is_generic_action_title(text):
+    """
+    Detect weak/generic link text that should not be used as document title.
+
+    Examples:
+    - Download PDF
+    - Download PDF (opens in new window)
+    - View report
+    - Open document
+    - Click here
+    - Learn more
+    """
+
+    text = normalize_text(text).lower()
+
+    if not text:
+        return True
+
+    generic_patterns = [
+        r"^download\s*(pdf|report|document|file)?",
+        r"^view\s*(pdf|report|document|file)?",
+        r"^open\s*(pdf|report|document|file)?",
+        r"^read\s*(more|report|document)?",
+        r"^click\s*here",
+        r"^learn\s*more",
+        r"opens?\s+in\s+(a\s+)?new\s+(window|tab)",
+        r"^pdf$",
+        r"^download$",
+        r"^view$",
+        r"^open$",
+        r"^more$",
+        r"^details$",
+        r"^file$",
+        r"^document$"
+    ]
+
+    return any(re.search(pattern, text, re.IGNORECASE) for pattern in generic_patterns)
 
 
 def is_date_only(text):
@@ -274,6 +296,9 @@ def is_bad_title(text):
     if not text:
         return True
 
+    if is_generic_action_title(text):
+        return True
+
     if lower in IGNORE_WORDS:
         return True
 
@@ -299,6 +324,75 @@ def is_bad_title(text):
         return True
 
     return False
+
+
+def title_quality_score(title):
+    """
+    Score title quality.
+    Higher score means title is more descriptive.
+    """
+
+    title = normalize_text(title)
+
+    if not title:
+        return 0
+
+    if is_bad_title(title):
+        return 0
+
+    score = 0
+
+    # Basic length value
+    score += min(len(title), 80)
+
+    # Bonus for useful report/document words
+    useful_words = [
+        "annual",
+        "quarter",
+        "quarterly",
+        "interim",
+        "sustainability",
+        "esg",
+        "climate",
+        "governance",
+        "financial",
+        "statement",
+        "report",
+        "results",
+        "presentation",
+        "proxy",
+        "agm",
+        "csr",
+        "brsr",
+        "modern slavery",
+        "committee",
+        "charter",
+        "policy"
+    ]
+
+    lower = title.lower()
+
+    for word in useful_words:
+        if word in lower:
+            score += 12
+
+    # Bonus for year
+    if re.search(r"\b20\d{2}\b", title):
+        score += 15
+
+    # Bonus for quarter / period markers
+    if re.search(r"\b(q[1-4]|h1|h2|fy|year[-\s]?end|annual)\b", lower):
+        score += 10
+
+    # Penalize long junk-like titles
+    if len(title) > 160:
+        score -= 30
+
+    # Penalize generic action text heavily
+    if is_generic_action_title(title):
+        score -= 100
+
+    return score
 
 
 def is_image_or_asset_url(url):
@@ -337,6 +431,69 @@ def clean_title_from_url(url):
         return ""
 
     return filename
+
+
+def choose_best_title_from_candidates(candidates):
+    """
+    Choose best title from candidate list.
+
+    Each candidate is:
+    {
+        "title": "...",
+        "source": "url/html_context/link_text/browser_title"
+    }
+    """
+
+    valid_candidates = []
+
+    for candidate in candidates:
+        title = normalize_text(candidate.get("title", ""))
+        source = candidate.get("source", "unknown")
+
+        if not title:
+            continue
+
+        score = title_quality_score(title)
+
+        if score <= 0:
+            continue
+
+        valid_candidates.append({
+            "title": title,
+            "source": source,
+            "score": score
+        })
+
+    if not valid_candidates:
+        return {
+            "title": "Unknown Title",
+            "source": "unknown",
+            "score": 0
+        }
+
+    valid_candidates.sort(key=lambda x: x["score"], reverse=True)
+
+    return valid_candidates[0]
+
+
+def choose_best_title_from_text_and_url(text_title, url_title):
+    """
+    Choose better title between HTML/link/browser text and URL-derived title.
+    Prefer URL title when text title is generic action text.
+    """
+
+    candidates = [
+        {
+            "title": text_title,
+            "source": "browser_or_html_text"
+        },
+        {
+            "title": url_title,
+            "source": "url"
+        }
+    ]
+
+    return choose_best_title_from_candidates(candidates)
 
 
 def collect_text_candidates_from_container(container):
@@ -422,53 +579,94 @@ def is_static_file_link(url):
     return "/static-files/" in url.lower()
 
 
-def get_best_text(link, full_url, source_url):
-    if is_static_file_link(full_url):
-        html_title = get_title_from_html_context(link)
+def get_best_title_with_source(link, full_url, source_url):
+    """
+    New title selector with source tracking.
 
-        if html_title:
-            return html_title
-
-        link_text = get_link_text_title(link)
-
-        if link_text:
-            return link_text
-
-        url_title = clean_title_from_url(full_url)
-
-        if url_title:
-            return url_title
-
-    url_title = clean_title_from_url(full_url)
-
-    if "space42.ai" in source_url.lower() and url_title:
-        return url_title
-
-    if url_title:
-        return url_title
+    It keeps the old logic idea but makes title choice stronger:
+    - static-file links prefer HTML context
+    - generic link text is rejected
+    - URL filename title is preferred when it is better
+    - returns both title and title_source
+    """
 
     html_title = get_title_from_html_context(link)
-
-    if html_title:
-        return html_title
-
     link_text = get_link_text_title(link)
+    url_title = clean_title_from_url(full_url)
 
-    if link_text:
-        return link_text
+    candidates = []
 
-    parsed = urlparse(full_url)
-    filename = parsed.path.split("/")[-1]
-    filename = unquote(filename)
-    filename = html.unescape(filename)
-    filename = filename.split("?")[0]
-    filename = filename.replace(".pdf", "")
-    filename = filename.replace(".ashx", "")
-    filename = filename.replace("-", " ")
-    filename = filename.replace("_", " ")
-    filename = normalize_text(filename)
+    if is_static_file_link(full_url):
+        candidates.extend([
+            {
+                "title": html_title,
+                "source": "html_context_static_file"
+            },
+            {
+                "title": link_text,
+                "source": "link_text_static_file"
+            },
+            {
+                "title": url_title,
+                "source": "url_static_file"
+            }
+        ])
+    else:
+        candidates.extend([
+            {
+                "title": url_title,
+                "source": "url"
+            },
+            {
+                "title": html_title,
+                "source": "html_context"
+            },
+            {
+                "title": link_text,
+                "source": "link_text"
+            }
+        ])
 
-    return filename if filename else "Unknown Title"
+    # Preserve Space42 preference for URL title if useful
+    if "space42.ai" in source_url.lower() and url_title and not is_bad_title(url_title):
+        return {
+            "title": url_title,
+            "source": "url_space42",
+            "score": title_quality_score(url_title)
+        }
+
+    best = choose_best_title_from_candidates(candidates)
+
+    if not best["title"] or best["title"] == "Unknown Title":
+        parsed = urlparse(full_url)
+        filename = parsed.path.split("/")[-1]
+        filename = unquote(filename)
+        filename = html.unescape(filename)
+        filename = filename.split("?")[0]
+        filename = filename.replace(".pdf", "")
+        filename = filename.replace(".ashx", "")
+        filename = filename.replace("-", " ")
+        filename = filename.replace("_", " ")
+        filename = normalize_text(filename)
+
+        if filename and not is_bad_title(filename):
+            return {
+                "title": filename,
+                "source": "fallback_filename",
+                "score": title_quality_score(filename)
+            }
+
+    return best
+
+
+def get_best_text(link, full_url, source_url):
+    """
+    Kept for backward compatibility.
+    Existing code can still call get_best_text().
+    """
+
+    best = get_best_title_with_source(link, full_url, source_url)
+    return best["title"]
 
 
 def is_document_link(url):
@@ -611,11 +809,14 @@ def extract_links_from_soup(soup, base_url, source_url, seen, label="KEPT"):
         full_url = urljoin(base_url, href)
         href_lower = full_url.lower()
 
-        title = get_best_text(link, full_url, source_url)
+        title_info = get_best_title_with_source(link, full_url, source_url)
+        title = title_info["title"]
+        title_source = title_info["source"]
 
         raw_links.append({
             "company": source_url,
             "text": title,
+            "title_source": title_source,
             "url": full_url
         })
 
@@ -628,11 +829,12 @@ def extract_links_from_soup(soup, base_url, source_url, seen, label="KEPT"):
 
             seen.add(duplicate_key)
 
-            print(f"{label} → {title}")
+            print(f"{label} → {title} [{title_source}]")
 
             doc = {
                 "company": source_url,
                 "document_title": title,
+                "document_title_source": title_source,
                 "document_url": full_url
             }
 
@@ -665,6 +867,9 @@ def extract_title_from_playwright_element(element):
                     if (t.length < 6) return true;
                     if (/^\\d{1,2}\\s+\\w+,\\s+\\d{4}$/.test(t)) return true;
                     if (!/[A-Za-z]/.test(t)) return true;
+                    if (/^download\\s*(pdf|report|document)?/i.test(t)) return true;
+                    if (/^view\\s*(pdf|report|document)?/i.test(t)) return true;
+                    if (/opens? in (a )?new (window|tab)/i.test(t)) return true;
                     return false;
                 }
 
@@ -727,21 +932,24 @@ def browser_click_fallback(source_url, existing_keys):
         if not is_click_document_candidate(full_url):
             return
 
-        title = title_hint
+        url_title = clean_title_from_url(full_url)
 
-        if not title or is_bad_title(title):
-            title = clean_title_from_url(full_url)
+        title_info = choose_best_title_from_text_and_url(title_hint, url_title)
+        title = title_info["title"]
+        title_source = title_info["source"]
 
         if not title or is_bad_title(title):
             title = "Unknown Title"
+            title_source = "unknown"
 
         existing_keys.add(key)
 
-        print(f"FALLBACK KEPT → {title}")
+        print(f"FALLBACK KEPT → {title} [{title_source}]")
 
         fallback_docs.append({
             "company": source_url,
             "document_title": title,
+            "document_title_source": title_source,
             "document_url": full_url
         })
 
@@ -784,12 +992,12 @@ def browser_click_fallback(source_url, existing_keys):
                     if not is_click_document_candidate(full_url):
                         continue
 
-                    title = normalize_text(tag.get_text(" ", strip=True))
+                    text_title = normalize_text(tag.get_text(" ", strip=True))
+                    url_title = clean_title_from_url(full_url)
 
-                    if is_bad_title(title):
-                        title = clean_title_from_url(full_url)
+                    title_info = choose_best_title_from_text_and_url(text_title, url_title)
 
-                    add_doc_from_url(full_url, title)
+                    add_doc_from_url(full_url, title_info["title"])
 
     def scan_all_rendered_content(page):
         try:
@@ -1071,6 +1279,7 @@ with open(TARGET_URL_FILE, newline="", encoding="utf-8") as file:
                         raw_links.append({
                             "company": doc["company"],
                             "text": doc["document_title"],
+                            "title_source": doc.get("document_title_source", "browser_fallback"),
                             "url": doc["document_url"]
                         })
 
@@ -1106,6 +1315,7 @@ with open(TARGET_URL_FILE, newline="", encoding="utf-8") as file:
                         raw_links.append({
                             "company": doc["company"],
                             "text": doc["document_title"],
+                            "title_source": doc.get("document_title_source", "browser_fallback"),
                             "url": doc["document_url"]
                         })
 
@@ -1159,6 +1369,7 @@ with open(TARGET_URL_FILE, newline="", encoding="utf-8") as file:
                     raw_links.append({
                         "company": doc["company"],
                         "text": doc["document_title"],
+                        "title_source": doc.get("document_title_source", "browser_fallback"),
                         "url": doc["document_url"]
                     })
 
@@ -1190,6 +1401,7 @@ with open(TARGET_URL_FILE, newline="", encoding="utf-8") as file:
                     raw_links.append({
                         "company": doc["company"],
                         "text": doc["document_title"],
+                        "title_source": doc.get("document_title_source", "browser_fallback"),
                         "url": doc["document_url"]
                     })
 
@@ -1239,6 +1451,7 @@ if RUN_MODE == "full":
                 "date": current_date,
                 "company": r["company"],
                 "document_title": r["document_title"],
+                "document_title_source": r.get("document_title_source", ""),
                 "document_url": r["document_url"]
             })
 
@@ -1247,7 +1460,12 @@ if RUN_MODE == "full":
 with open(OUTPUT_FILE, "w", newline="", encoding="utf-8") as out_file:
     writer = csv.DictWriter(
         out_file,
-        fieldnames=["company", "document_title", "document_url"]
+        fieldnames=[
+            "company",
+            "document_title",
+            "document_title_source",
+            "document_url"
+        ]
     )
     writer.writeheader()
     writer.writerows(output_data)
@@ -1257,7 +1475,12 @@ with open(OUTPUT_FILE, "w", newline="", encoding="utf-8") as out_file:
 with open(RAW_FILE, "w", newline="", encoding="utf-8") as raw_file:
     writer = csv.DictWriter(
         raw_file,
-        fieldnames=["company", "text", "url"]
+        fieldnames=[
+            "company",
+            "text",
+            "title_source",
+            "url"
+        ]
     )
     writer.writeheader()
     writer.writerows(raw_links)
@@ -1268,7 +1491,13 @@ if RUN_MODE == "full":
     file_exists = os.path.exists(DIFF_FILE)
 
     with open(DIFF_FILE, "a", newline="", encoding="utf-8") as diff_file:
-        fieldnames = ["date", "company", "document_title", "document_url"]
+        fieldnames = [
+            "date",
+            "company",
+            "document_title",
+            "document_title_source",
+            "document_url"
+        ]
         writer = csv.DictWriter(diff_file, fieldnames=fieldnames)
 
         if not file_exists:
@@ -1361,6 +1590,9 @@ with open(RUN_SUMMARY_FILE, "a", newline="", encoding="utf-8") as summary_file:
 
 print("\n✅ SCRAPER COMPLETE")
 print("✅ Existing logic preserved")
+print("✅ Improved document title selection")
+print("✅ Generic title/action text rejected")
+print("✅ document_title_source added")
 print("✅ PDF links are checked before navigation filters")
 print("✅ Image/icon files excluded from document capture")
 print("✅ Iframe scraping enabled")
@@ -1380,3 +1612,4 @@ print(f"✅ New diff records: {len(new_records)}")
 print(f"✅ Issues: {len(issue_rows)}")
 print(f"✅ Browser fallback enabled: {ENABLE_BROWSER_FALLBACK}")
 print(f"✅ Run {current_run_number}: {len(output_data)} documents captured")
+``
