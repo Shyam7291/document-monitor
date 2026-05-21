@@ -3,6 +3,7 @@ import requests
 import os
 import re
 import html
+import time
 from datetime import datetime
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse, unquote
@@ -15,6 +16,9 @@ RUN_MODE = os.environ.get("RUN_MODE", "full").strip().lower()
 TARGET_URL_FILE = os.environ.get("TARGET_URL_FILE", "documents.csv").strip()
 
 ENABLE_BROWSER_FALLBACK = os.environ.get("ENABLE_BROWSER_FALLBACK", "false").strip().lower() == "true"
+
+# Sleep between URLs to reduce blocking
+SLEEP_SECONDS = float(os.environ.get("SLEEP_SECONDS", "2"))
 
 if RUN_MODE == "full":
     OUTPUT_FILE = "output.csv"
@@ -41,6 +45,9 @@ RUN_SUMMARY_FILE = "run_summary_v2.csv"
 output_data = []
 raw_links = []
 issue_rows = []
+
+# Global duplicate prevention across the whole run
+global_seen_document_urls = set()
 
 current_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -221,14 +228,6 @@ def normalize_text(text):
 def is_generic_action_title(text):
     """
     Detect weak/generic link text that should not be used as document title.
-
-    Examples:
-    - Download PDF
-    - Download PDF (opens in new window)
-    - View report
-    - Open document
-    - Click here
-    - Learn more
     """
 
     text = normalize_text(text).lower()
@@ -342,10 +341,8 @@ def title_quality_score(title):
 
     score = 0
 
-    # Basic length value
     score += min(len(title), 80)
 
-    # Bonus for useful report/document words
     useful_words = [
         "annual",
         "quarter",
@@ -376,19 +373,15 @@ def title_quality_score(title):
         if word in lower:
             score += 12
 
-    # Bonus for year
     if re.search(r"\b20\d{2}\b", title):
         score += 15
 
-    # Bonus for quarter / period markers
     if re.search(r"\b(q[1-4]|h1|h2|fy|year[-\s]?end|annual)\b", lower):
         score += 10
 
-    # Penalize long junk-like titles
     if len(title) > 160:
         score -= 30
 
-    # Penalize generic action text heavily
     if is_generic_action_title(title):
         score -= 100
 
@@ -434,16 +427,6 @@ def clean_title_from_url(url):
 
 
 def choose_best_title_from_candidates(candidates):
-    """
-    Choose best title from candidate list.
-
-    Each candidate is:
-    {
-        "title": "...",
-        "source": "url/html_context/link_text/browser_title"
-    }
-    """
-
     valid_candidates = []
 
     for candidate in candidates:
@@ -477,11 +460,6 @@ def choose_best_title_from_candidates(candidates):
 
 
 def choose_best_title_from_text_and_url(text_title, url_title):
-    """
-    Choose better title between HTML/link/browser text and URL-derived title.
-    Prefer URL title when text title is generic action text.
-    """
-
     candidates = [
         {
             "title": text_title,
@@ -579,17 +557,23 @@ def is_static_file_link(url):
     return "/static-files/" in url.lower()
 
 
+def mark_document_seen(document_url):
+    """
+    Mark document URL globally.
+    Returns True if this document URL is new for the current run.
+    Returns False if duplicate.
+    """
+
+    duplicate_key = normalize_url_key(document_url)
+
+    if duplicate_key in global_seen_document_urls:
+        return False
+
+    global_seen_document_urls.add(duplicate_key)
+    return True
+
+
 def get_best_title_with_source(link, full_url, source_url):
-    """
-    New title selector with source tracking.
-
-    It keeps the old logic idea but makes title choice stronger:
-    - static-file links prefer HTML context
-    - generic link text is rejected
-    - URL filename title is preferred when it is better
-    - returns both title and title_source
-    """
-
     html_title = get_title_from_html_context(link)
     link_text = get_link_text_title(link)
     url_title = clean_title_from_url(full_url)
@@ -627,7 +611,6 @@ def get_best_title_with_source(link, full_url, source_url):
             }
         ])
 
-    # Preserve Space42 preference for URL title if useful
     if "space42.ai" in source_url.lower() and url_title and not is_bad_title(url_title):
         return {
             "title": url_title,
@@ -660,21 +643,11 @@ def get_best_title_with_source(link, full_url, source_url):
 
 
 def get_best_text(link, full_url, source_url):
-    """
-    Kept for backward compatibility.
-    Existing code can still call get_best_text().
-    """
-
     best = get_best_title_with_source(link, full_url, source_url)
     return best["title"]
 
 
 def is_document_link(url):
-    """
-    Keep actual document-like URLs.
-    IMPORTANT: This function must be checked before navigation filtering.
-    """
-
     lower = url.lower()
 
     if is_image_or_asset_url(lower):
@@ -750,6 +723,35 @@ def should_use_browser_fallback(source_url):
     return ENABLE_BROWSER_FALLBACK
 
 
+def source_url_has_hash(source_url):
+    return "#" in source_url
+
+
+def get_hash_fragments(source_url):
+    parsed = urlparse(source_url)
+    fragment = parsed.fragment
+
+    if not fragment:
+        return []
+
+    parts = [p for p in fragment.split("#") if p.strip()]
+
+    cleaned_parts = []
+
+    for part in parts:
+        raw = unquote(part.strip())
+        text = raw.replace("-", " ").replace("_", " ")
+        text = normalize_text(text)
+
+        if text:
+            cleaned_parts.append({
+                "raw": raw,
+                "text": text
+            })
+
+    return cleaned_parts
+
+
 def get_iframe_soups(source_url, soup):
     iframe_soups = []
 
@@ -788,14 +790,6 @@ def get_iframe_soups(source_url, soup):
 
 
 def extract_links_from_soup(soup, base_url, source_url, seen, label="KEPT"):
-    """
-    Extract document links from a BeautifulSoup object.
-
-    Important fix:
-    Document links are checked BEFORE navigation links.
-    This ensures valid .pdf/.ashx/static-file links never get skipped by navigation filters.
-    """
-
     docs_found = []
 
     links = soup.find_all("a")
@@ -820,7 +814,6 @@ def extract_links_from_soup(soup, base_url, source_url, seen, label="KEPT"):
             "url": full_url
         })
 
-        # FIRST: keep document links
         if is_document_link(href_lower):
             duplicate_key = normalize_url_key(full_url)
 
@@ -828,6 +821,10 @@ def extract_links_from_soup(soup, base_url, source_url, seen, label="KEPT"):
                 continue
 
             seen.add(duplicate_key)
+
+            if not mark_document_seen(full_url):
+                print(f"GLOBAL DUPLICATE SKIPPED → {title}")
+                continue
 
             print(f"{label} → {title} [{title_source}]")
 
@@ -843,7 +840,6 @@ def extract_links_from_soup(soup, base_url, source_url, seen, label="KEPT"):
 
             continue
 
-        # SECOND: skip navigation only after document check
         if is_navigation_link(href_lower):
             continue
 
@@ -920,7 +916,7 @@ def browser_click_fallback(source_url, existing_keys):
         print(f"Playwright not available: {e}")
         return fallback_docs
 
-    print("Running enhanced browser fallback for failed/zero-doc page...")
+    print("Running enhanced browser fallback for failed/zero-doc/hash page...")
 
     def add_doc_from_url(found_url, title_hint=""):
         full_url = urljoin(source_url, found_url)
@@ -930,6 +926,10 @@ def browser_click_fallback(source_url, existing_keys):
             return
 
         if not is_click_document_candidate(full_url):
+            return
+
+        if not mark_document_seen(full_url):
+            print(f"GLOBAL DUPLICATE SKIPPED FROM FALLBACK → {full_url}")
             return
 
         url_title = clean_title_from_url(full_url)
@@ -1031,6 +1031,73 @@ def browser_click_fallback(source_url, existing_keys):
         except Exception as e:
             print(f"Frame collection error: {e}")
 
+    def interact_with_hash_fragments(page):
+        hash_fragments = get_hash_fragments(source_url)
+
+        if not hash_fragments:
+            return
+
+        print(f"Hash fragments found: {hash_fragments}")
+
+        for fragment in hash_fragments:
+            raw_fragment = fragment["raw"]
+            text_fragment = fragment["text"]
+
+            try:
+                clicked = page.evaluate(
+                    """
+                    data => {
+                        const raw = data.raw;
+                        const text = data.text.toLowerCase();
+
+                        function clean(t) {
+                            return (t || "").replace(/\\s+/g, " ").trim().toLowerCase();
+                        }
+
+                        const candidates = Array.from(document.querySelectorAll(
+                            "a, button, [role='button'], [aria-expanded], [data-toggle], [data-bs-toggle], li, div, span"
+                        ));
+
+                        for (const el of candidates) {
+                            const id = (el.getAttribute("id") || "").trim();
+                            const href = (el.getAttribute("href") || "").trim();
+                            const dataTarget = (el.getAttribute("data-target") || "").trim();
+                            const dataBsTarget = (el.getAttribute("data-bs-target") || "").trim();
+                            const label = clean(el.innerText);
+
+                            if (label.length > 120) continue;
+
+                            if (id === raw || href === "#" + raw || dataTarget === "#" + raw || dataBsTarget === "#" + raw || label.includes(text)) {
+                                try {
+                                    el.scrollIntoView({block: "center", inline: "center"});
+                                } catch(e) {}
+
+                                try {
+                                    el.click();
+                                    return true;
+                                } catch(e) {
+                                    return false;
+                                }
+                            }
+                        }
+
+                        return false;
+                    }
+                    """,
+                    {
+                        "raw": raw_fragment,
+                        "text": text_fragment
+                    }
+                )
+
+                print(f"Hash interaction for '{text_fragment}': {clicked}")
+
+                page.wait_for_timeout(1200)
+                scan_all_rendered_content(page)
+
+            except Exception as e:
+                print(f"Hash interaction error for {text_fragment}: {e}")
+
     def is_expandable_element(element):
         try:
             return element.evaluate(
@@ -1077,7 +1144,6 @@ def browser_click_fallback(source_url, existing_keys):
 
             page = context.new_page()
 
-            # Capture document-like network responses too
             def handle_response(response):
                 try:
                     response_url = response.url
@@ -1103,10 +1169,10 @@ def browser_click_fallback(source_url, existing_keys):
 
             page.wait_for_timeout(5000)
 
-            # Initial scan
             scan_all_rendered_content(page)
 
-            # Generic expandable UI click phase
+            interact_with_hash_fragments(page)
+
             try:
                 expander_selector = (
                     "a[href^='#'], "
@@ -1148,7 +1214,6 @@ def browser_click_fallback(source_url, existing_keys):
 
                         page.wait_for_timeout(1000)
 
-                        # After every expand/click, scan again
                         scan_all_rendered_content(page)
 
                     except Exception:
@@ -1159,7 +1224,6 @@ def browser_click_fallback(source_url, existing_keys):
             except Exception as e:
                 print(f"Expandable click phase error: {e}")
 
-            # Obvious document action controls
             try:
                 clickable = page.locator(
                     "a, button, [role='button'], .btn, .button"
@@ -1252,6 +1316,10 @@ with open(TARGET_URL_FILE, newline="", encoding="utf-8") as file:
 
         if not source_url:
             continue
+
+        if total_urls_processed > 0 and SLEEP_SECONDS > 0:
+            print(f"Sleeping {SLEEP_SECONDS} seconds before next URL...")
+            time.sleep(SLEEP_SECONDS)
 
         total_urls_processed += 1
 
@@ -1360,7 +1428,12 @@ with open(TARGET_URL_FILE, newline="", encoding="utf-8") as file:
 
             docs_captured_for_url = len(output_data) - start_doc_count
 
-            if docs_captured_for_url == 0 and should_use_browser_fallback(source_url):
+            needs_hash_fallback = source_url_has_hash(source_url)
+
+            if needs_hash_fallback:
+                print("Hash URL detected. Browser fallback may be needed for section-specific documents.")
+
+            if (docs_captured_for_url == 0 or needs_hash_fallback) and should_use_browser_fallback(source_url):
                 fallback_docs = browser_click_fallback(source_url, seen)
 
                 for doc in fallback_docs:
@@ -1561,7 +1634,8 @@ with open(RUN_SUMMARY_FILE, "a", newline="", encoding="utf-8") as summary_file:
         "browser_fallback_enabled",
         "output_file",
         "raw_file",
-        "issues_file"
+        "issues_file",
+        "sleep_seconds"
     ]
 
     writer = csv.DictWriter(summary_file, fieldnames=fieldnames)
@@ -1584,7 +1658,8 @@ with open(RUN_SUMMARY_FILE, "a", newline="", encoding="utf-8") as summary_file:
         "browser_fallback_enabled": ENABLE_BROWSER_FALLBACK,
         "output_file": OUTPUT_FILE,
         "raw_file": RAW_FILE,
-        "issues_file": ISSUES_FILE
+        "issues_file": ISSUES_FILE,
+        "sleep_seconds": SLEEP_SECONDS
     })
 
 
@@ -1594,12 +1669,15 @@ print("✅ Improved document title selection")
 print("✅ Generic title/action text rejected")
 print("✅ document_title_source added")
 print("✅ PDF links are checked before navigation filters")
+print("✅ Global duplicate document URL prevention enabled")
 print("✅ Image/icon files excluded from document capture")
 print("✅ Iframe scraping enabled")
+print("✅ Hash-aware fallback enabled")
 print("✅ Browser fallback scans frames/iframes")
 print("✅ Browser fallback clicks generic expandable UI")
 print("✅ Browser fallback captures document network responses")
 print("✅ Browser-like headers and retry fetch enabled for EQT only")
+print(f"✅ Sleep seconds between URLs: {SLEEP_SECONDS}")
 print(f"✅ Run mode: {RUN_MODE}")
 print(f"✅ URL file: {TARGET_URL_FILE}")
 print(f"✅ Output file: {OUTPUT_FILE}")
