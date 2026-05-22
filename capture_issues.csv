@@ -1,6 +1,24 @@
 date,run_mode,url_file,source_url,issue_type,status_code,documents_captured,error_message
-2026-05-22 06:45:47,seed,documents_p2.csv,https://www.acwapower.com/en/sustainability/sustainability/,FETCH_ERROR,,0,Request failed / timeout and browser fallback captured 0 documents
-2026-05-22 06:45:47,seed,documents_p2.csv,https://www.coalindia.in/esg/,FETCH_FAILED_STATUS,403,0,Non-200 status code and browser fallback captured 0 documents
-2026-05-22 06:45:47,seed,documents_p2.csv,https://www.goldfields.com/sustainability-data.php,FETCH_ERROR,,0,Request failed / timeout and browser fallback captured 0 documents
-2026-05-22 06:45:47,seed,documents_p2.csv,https://www.atmosenergy.com/company/corporate-responsibility-reports/,SUCCESS_ZERO_DOCS,200,0,Page opened successfully but no document links captured
-2026-05-22 06:45:47,seed,documents_p2.csv,https://evolutionmining.com/document-centre/#corporate-governance#reports,SUCCESS_ZERO_DOCS,200,0,Page opened successfully but no document links captured
+2026-05-22 12:08:08,full,documents_p2.csv,https://www.acwapower.com/en/investors/earnings-and-reports/,FETCH_ERROR,,0,Request failed / timeout and browser fallback captured 0 documents
+2026-05-22 12:08:08,full,documents_p2.csv,https://www.acwapower.com/en/sustainability/sustainability/,FETCH_ERROR,,0,Request failed / timeout and browser fallback captured 0 documents
+2026-05-22 12:08:08,full,documents_p2.csv,https://www.tatasteel.com/sustainability/governance/taskforce-on-nature-related-financial-disclosures-tnfd-reports/,SUCCESS_ZERO_DOCS,200,0,Page opened successfully but no document links captured
+2026-05-22 12:08:08,full,documents_p2.csv,https://chandra-asri.com/en/sustainability/reports-and-publications,FETCH_FAILED_STATUS,404,0,Non-200 status code and browser fallback captured 0 documents
+2026-05-22 12:08:08,full,documents_p2.csv,https://chandra-asri.com/en/investor/reports?category_id=3,SUCCESS_ZERO_DOCS,200,0,Page opened successfully but no document links captured
+2026-05-22 12:08:08,full,documents_p2.csv,https://chandra-asri.com/en/investor/reports?category_id=4,SUCCESS_ZERO_DOCS,200,0,Page opened successfully but no document links captured
+2026-05-22 12:08:08,full,documents_p2.csv,https://investors.universalmusic.com/reports/	,FETCH_FAILED_STATUS,403,0,Non-200 status code and browser fallback captured 0 documents
+2026-05-22 12:08:08,full,documents_p2.csv,https://www.dollargeneral.com/about-us/corporate-social-responsibility	,FETCH_FAILED_STATUS,404,0,Non-200 status code and browser fallback captured 0 documents
+2026-05-22 12:08:08,full,documents_p2.csv,https://sunpharma.com/policies/	,FETCH_FAILED_STATUS,404,0,Non-200 status code and browser fallback captured 0 documents
+2026-05-22 12:08:08,full,documents_p2.csv,https://www.coalindia.in/esg/,FETCH_FAILED_STATUS,403,0,Non-200 status code and browser fallback captured 0 documents
+2026-05-22 12:08:08,full,documents_p2.csv,https://www.goldfields.com/sustainability-reporting.php,FETCH_ERROR,,0,Request failed / timeout and browser fallback captured 0 documents
+2026-05-22 12:08:08,full,documents_p2.csv,https://www.goldfields.com/sustainability-data.php,FETCH_ERROR,,0,Request failed / timeout and browser fallback captured 0 documents
+2026-05-22 12:08:08,full,documents_p2.csv,https://www.goldfields.com/integrated-annual-reports.php,FETCH_ERROR,,0,Request failed / timeout and browser fallback captured 0 documents
+2026-05-22 12:08:08,full,documents_p2.csv,https://www.regeneron.com/responsibility	,FETCH_FAILED_STATUS,400,0,Non-200 status code and browser fallback captured 0 documents
+2026-05-22 12:08:08,full,documents_p2.csv,https://www.nrg.com/sustainability/reporting.hthttps://www.nrg.com/sustainability/reporting.html,FETCH_FAILED_STATUS,404,0,Non-200 status code and browser fallback captured 0 documents
+2026-05-22 12:08:08,full,documents_p2.csv,https://investors.airbnb.com/governance/default.aspx#esg,SUCCESS_ZERO_DOCS,200,0,Page opened successfully but no document links captured
+2026-05-22 12:08:08,full,documents_p2.csv,https://www.franco-nevada.com/sustainability/default.aspx,SUCCESS_ZERO_DOCS,200,0,Page opened successfully but no document links captured
+2026-05-22 12:08:08,full,documents_p2.csv,https://www.wheatonpm.com/sustainability/reporting-disclosure-portal/default.aspx,SUCCESS_ZERO_DOCS,200,0,Page opened successfully but no document links captured
+2026-05-22 12:08:08,full,documents_p2.csv,https://www.leidos.com/company/responsibility-and-sustainability,SUCCESS_ZERO_DOCS,200,0,Page opened successfully but no document links captured
+2026-05-22 12:08:08,full,documents_p2.csv,https://www.atmosenergy.com/company/corporate-responsibility-reports/,SUCCESS_ZERO_DOCS,200,0,Page opened successfully but no document links captured
+2026-05-22 12:08:08,full,documents_p2.csv,https://evolutionmining.com/document-centre/#corporate-governance#tax-governance-statements,SUCCESS_ZERO_DOCS,200,0,Page opened successfully but no document links captured
+2026-05-22 12:08:08,full,documents_p2.csv,https://evolutionmining.com/document-centre/#corporate-governance#reports,SUCCESS_ZERO_DOCS,200,0,Page opened successfully but no document links captured
+2026-05-22 12:08:08,full,documents_p2.csv,https://www.sabic.com/en/reports,FETCH_FAILED_STATUS,406,0,Non-200 status code and browser fallback captured 0 documents
