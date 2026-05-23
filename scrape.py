@@ -40,7 +40,7 @@ else:
 DIFF_FILE = "diff.csv"
 
 # New clean summary file because old run_summary.csv has mixed columns
-RUN_SUMMARY_FILE = "run_summary_v2.csv"
+RUN_SUMMARY_FILE = "run_summary_master.csv"
 
 output_data = []
 raw_links = []
