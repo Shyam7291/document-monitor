@@ -1,0 +1,2 @@
+run_number,date,run_mode,url_file,total_urls_processed,total_documents_captured,new_diff_records,issue_count,success_zero_docs_count,fetch_failed_status_count,fetch_error_count,browser_fallback_enabled,output_file,raw_file,issues_file
+1,2026-05-23 17:22:29,test,test_urls.csv,11,289,0,1,0,1,0,True,output_test.csv,raw_links_test.csv,capture_issues_test.csv
