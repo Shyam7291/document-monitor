@@ -39,8 +39,37 @@ else:
 
 DIFF_FILE = "diff.csv"
 
-# New clean summary file because old run_summary.csv has mixed columns
+# Final clean summary file
 RUN_SUMMARY_FILE = "run_summary_master.csv"
+
+# =========================
+# LOCKED CSV FORMATS
+# =========================
+
+RUN_SUMMARY_FIELDNAMES = [
+    "run_number",
+    "date",
+    "run_mode",
+    "url_file",
+    "total_urls_processed",
+    "total_documents_captured",
+    "new_diff_records",
+    "issue_count",
+    "success_zero_docs_count",
+    "fetch_failed_status_count",
+    "fetch_error_count",
+    "browser_fallback_enabled",
+    "output_file",
+    "raw_file",
+    "issues_file"
+]
+
+DIFF_FIELDNAMES = [
+    "date",
+    "company",
+    "document_title",
+    "document_url"
+]
 
 output_data = []
 raw_links = []
@@ -213,6 +242,37 @@ def add_issue(source_url, issue_type, status_code="", documents_captured=0, erro
         "documents_captured": documents_captured,
         "error_message": error_message
     })
+
+
+def validate_csv_header(file_path, expected_fieldnames):
+    """
+    Lock CSV format.
+
+    If the file already exists and its header does not exactly match
+    the expected fieldnames, stop the run before corrupting the file.
+    """
+
+    if not os.path.exists(file_path):
+        return
+
+    try:
+        with open(file_path, newline="", encoding="utf-8") as existing_file:
+            reader = csv.reader(existing_file)
+            existing_header = next(reader, None)
+
+        if existing_header is None:
+            return
+
+        if existing_header != expected_fieldnames:
+            raise ValueError(
+                f"CSV header mismatch in {file_path}. "
+                f"Expected: {expected_fieldnames}. "
+                f"Found: {existing_header}. "
+                f"Please backup/reset this file before running again."
+            )
+
+    except StopIteration:
+        return
 
 
 def normalize_text(text):
@@ -1505,6 +1565,8 @@ if RUN_MODE == "full" and os.path.exists(OUTPUT_FILE):
 
 
 if RUN_MODE == "full" and os.path.exists(DIFF_FILE):
+    validate_csv_header(DIFF_FILE, DIFF_FIELDNAMES)
+
     with open(DIFF_FILE, newline="", encoding="utf-8") as diff_read_file:
         reader = csv.DictReader(diff_read_file)
 
@@ -1524,7 +1586,6 @@ if RUN_MODE == "full":
                 "date": current_date,
                 "company": r["company"],
                 "document_title": r["document_title"],
-                "document_title_source": r.get("document_title_source", ""),
                 "document_url": r["document_url"]
             })
 
@@ -1561,17 +1622,24 @@ with open(RAW_FILE, "w", newline="", encoding="utf-8") as raw_file:
 
 # APPEND diff.csv only for full production run
 if RUN_MODE == "full":
+    validate_csv_header(DIFF_FILE, DIFF_FIELDNAMES)
+
     file_exists = os.path.exists(DIFF_FILE)
 
+    for record in new_records:
+        extra_keys = set(record.keys()) - set(DIFF_FIELDNAMES)
+        missing_keys = set(DIFF_FIELDNAMES) - set(record.keys())
+
+        if extra_keys or missing_keys:
+            raise ValueError(
+                f"Diff row format mismatch. "
+                f"Extra keys: {extra_keys}. "
+                f"Missing keys: {missing_keys}. "
+                f"Record: {record}"
+            )
+
     with open(DIFF_FILE, "a", newline="", encoding="utf-8") as diff_file:
-        fieldnames = [
-            "date",
-            "company",
-            "document_title",
-            "document_title_source",
-            "document_url"
-        ]
-        writer = csv.DictWriter(diff_file, fieldnames=fieldnames)
+        writer = csv.DictWriter(diff_file, fieldnames=DIFF_FIELDNAMES)
 
         if not file_exists:
             writer.writeheader()
@@ -1598,10 +1666,12 @@ with open(ISSUES_FILE, "w", newline="", encoding="utf-8") as issue_file:
     writer.writerows(issue_rows)
 
 
-# APPEND clean run_summary_v2.csv
+# APPEND clean run_summary_master.csv
 previous_run_number = 0
 
 if os.path.exists(RUN_SUMMARY_FILE):
+    validate_csv_header(RUN_SUMMARY_FILE, RUN_SUMMARY_FIELDNAMES)
+
     try:
         with open(RUN_SUMMARY_FILE, newline="", encoding="utf-8") as summary_read:
             reader = csv.DictReader(summary_read)
@@ -1618,47 +1688,42 @@ current_run_number = previous_run_number + 1
 
 summary_file_exists = os.path.exists(RUN_SUMMARY_FILE)
 
-with open(RUN_SUMMARY_FILE, "a", newline="", encoding="utf-8") as summary_file:
-    fieldnames = [
-        "run_number",
-        "date",
-        "run_mode",
-        "url_file",
-        "total_urls_processed",
-        "total_documents_captured",
-        "new_diff_records",
-        "issue_count",
-        "success_zero_docs_count",
-        "fetch_failed_status_count",
-        "fetch_error_count",
-        "browser_fallback_enabled",
-        "output_file",
-        "raw_file",
-        "issues_file",
-    ]
+summary_row = {
+    "run_number": current_run_number,
+    "date": current_date,
+    "run_mode": RUN_MODE,
+    "url_file": TARGET_URL_FILE,
+    "total_urls_processed": total_urls_processed,
+    "total_documents_captured": len(output_data),
+    "new_diff_records": len(new_records),
+    "issue_count": len(issue_rows),
+    "success_zero_docs_count": sum(1 for x in issue_rows if x["issue_type"] == "SUCCESS_ZERO_DOCS"),
+    "fetch_failed_status_count": sum(1 for x in issue_rows if x["issue_type"] == "FETCH_FAILED_STATUS"),
+    "fetch_error_count": sum(1 for x in issue_rows if x["issue_type"] == "FETCH_ERROR"),
+    "browser_fallback_enabled": ENABLE_BROWSER_FALLBACK,
+    "output_file": OUTPUT_FILE,
+    "raw_file": RAW_FILE,
+    "issues_file": ISSUES_FILE
+}
 
-    writer = csv.DictWriter(summary_file, fieldnames=fieldnames)
+extra_keys = set(summary_row.keys()) - set(RUN_SUMMARY_FIELDNAMES)
+missing_keys = set(RUN_SUMMARY_FIELDNAMES) - set(summary_row.keys())
+
+if extra_keys or missing_keys:
+    raise ValueError(
+        f"Run summary row format mismatch. "
+        f"Extra keys: {extra_keys}. "
+        f"Missing keys: {missing_keys}. "
+        f"Row: {summary_row}"
+    )
+
+with open(RUN_SUMMARY_FILE, "a", newline="", encoding="utf-8") as summary_file:
+    writer = csv.DictWriter(summary_file, fieldnames=RUN_SUMMARY_FIELDNAMES)
 
     if not summary_file_exists:
         writer.writeheader()
 
-    writer.writerow({
-        "run_number": current_run_number,
-        "date": current_date,
-        "run_mode": RUN_MODE,
-        "url_file": TARGET_URL_FILE,
-        "total_urls_processed": total_urls_processed,
-        "total_documents_captured": len(output_data),
-        "new_diff_records": len(new_records),
-        "issue_count": len(issue_rows),
-        "success_zero_docs_count": sum(1 for x in issue_rows if x["issue_type"] == "SUCCESS_ZERO_DOCS"),
-        "fetch_failed_status_count": sum(1 for x in issue_rows if x["issue_type"] == "FETCH_FAILED_STATUS"),
-        "fetch_error_count": sum(1 for x in issue_rows if x["issue_type"] == "FETCH_ERROR"),
-        "browser_fallback_enabled": ENABLE_BROWSER_FALLBACK,
-        "output_file": OUTPUT_FILE,
-        "raw_file": RAW_FILE,
-        "issues_file": ISSUES_FILE,
-    })
+    writer.writerow(summary_row)
 
 
 print("\n✅ SCRAPER COMPLETE")
@@ -1675,6 +1740,8 @@ print("✅ Browser fallback scans frames/iframes")
 print("✅ Browser fallback clicks generic expandable UI")
 print("✅ Browser fallback captures document network responses")
 print("✅ Browser-like headers and retry fetch enabled for EQT only")
+print("✅ diff.csv format locked")
+print("✅ run_summary_master.csv format locked")
 print(f"✅ Sleep seconds between URLs: {SLEEP_SECONDS}")
 print(f"✅ Run mode: {RUN_MODE}")
 print(f"✅ URL file: {TARGET_URL_FILE}")
