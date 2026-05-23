@@ -97,7 +97,7 @@ jobs:
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
 
-          git add output*.csv raw_links*.csv capture_issues*.csv diff.csv run_summary*.csv 2>/dev/null || true
+          git add -A output*.csv raw_links*.csv capture_issues*.csv diff.csv run_summary*.csv 2>/dev/null || true
 
           git commit -m "Update scraped data" || echo "No changes to commit"
 
