@@ -1635,7 +1635,6 @@ with open(RUN_SUMMARY_FILE, "a", newline="", encoding="utf-8") as summary_file:
         "output_file",
         "raw_file",
         "issues_file",
-        "sleep_seconds"
     ]
 
     writer = csv.DictWriter(summary_file, fieldnames=fieldnames)
