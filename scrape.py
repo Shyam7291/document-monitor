@@ -1658,7 +1658,6 @@ with open(RUN_SUMMARY_FILE, "a", newline="", encoding="utf-8") as summary_file:
         "output_file": OUTPUT_FILE,
         "raw_file": RAW_FILE,
         "issues_file": ISSUES_FILE,
-        "sleep_seconds": SLEEP_SECONDS
     })
 
 
