@@ -43,6 +43,7 @@ else:
 
 DIFF_FILE = "diff.csv"
 KNOWN_DOCUMENTS_FILE = "known_documents.csv"
+REPORT_KEYWORDS_FILE = "report_keywords.csv"
 
 # Final clean summary file
 RUN_SUMMARY_FILE = "run_summary_master.csv"
