@@ -494,6 +494,88 @@ def normalize_text(text):
     return text.strip()
 
 
+def load_report_keywords():
+    """
+    Load configurable report/card keywords from report_keywords.csv.
+
+    If report_keywords.csv is missing or empty, use safe default keywords.
+    This allows adding future card/report phrases without changing Python code.
+    """
+
+    default_keywords = [
+        "integrated annual report",
+        "annual report",
+        "sustainability report",
+        "esg report",
+        "climate report",
+        "cdp",
+        "databook"
+    ]
+
+    keywords = []
+
+    if os.path.exists(REPORT_KEYWORDS_FILE):
+        try:
+            with open(REPORT_KEYWORDS_FILE, newline="", encoding="utf-8") as keyword_file:
+                reader = csv.DictReader(keyword_file)
+
+                for row in reader:
+                    keyword = normalize_text(row.get("keyword", ""))
+
+                    if keyword:
+                        keywords.append(keyword.lower())
+
+        except Exception as e:
+            print(f"Report keywords load error: {e}")
+
+    if not keywords:
+        keywords = default_keywords
+
+    unique_keywords = []
+    seen_keywords = set()
+
+    for keyword in keywords:
+        key = keyword.lower().strip()
+
+        if key and key not in seen_keywords:
+            seen_keywords.add(key)
+            unique_keywords.append(key)
+
+    return unique_keywords
+
+
+def build_report_keyword_regex():
+    """
+    Build regex pattern from report_keywords.csv values.
+    Spaces in keywords are converted to flexible whitespace.
+    """
+
+    escaped_keywords = []
+
+    for keyword in REPORT_CARD_KEYWORDS:
+        keyword = keyword.strip()
+
+        if not keyword:
+            continue
+
+        escaped = re.escape(keyword)
+        escaped = escaped.replace(r"\ ", r"\s+")
+        escaped_keywords.append(escaped)
+
+    if not escaped_keywords:
+        escaped_keywords = [
+            r"annual\s+report",
+            r"sustainability\s+report",
+            r"esg\s+report"
+        ]
+
+    return r"(" + "|".join(escaped_keywords) + r")"
+
+
+REPORT_CARD_KEYWORDS = load_report_keywords()
+REPORT_CARD_KEYWORD_REGEX = build_report_keyword_regex()
+
+
 def is_generic_action_title(text):
     """
     Detect weak/generic link text that should not be used as document title.
@@ -1181,13 +1263,7 @@ def should_trigger_report_card_fallback(soup, docs_captured_for_url):
     Detect pages where report documents appear as visual cards/tiles
     and normal HTML scraping captured only a few direct links.
 
-    Generic examples:
-    - Integrated Annual Report 2024
-    - Sustainability Report 2023
-    - ESG Report 2022
-    - Climate Report 2021
-    - CDP Questionnaire 2024
-    - ESG Databook 2025
+    Keywords are loaded from report_keywords.csv.
     """
 
     if docs_captured_for_url >= 5:
@@ -1197,20 +1273,23 @@ def should_trigger_report_card_fallback(soup, docs_captured_for_url):
         page_text = normalize_text(soup.get_text(" ", strip=True))
 
         report_matches = re.findall(
-            r"\b("
-            r"integrated\s+annual\s+report|"
-            r"annual\s+report|"
-            r"sustainability\s+report|"
-            r"esg\s+report|"
-            r"climate\s+report|"
-            r"cdp\s+.*?questionnaire|"
-            r"databook"
-            r")\b.{0,60}\b20\d{2}\b",
+            REPORT_CARD_KEYWORD_REGEX + r".{0,80}\b20\d{2}\b",
             page_text,
             flags=re.IGNORECASE
         )
 
-        unique_matches = set([x.lower().strip() for x in report_matches])
+        unique_matches = set()
+
+        for match in report_matches:
+            if isinstance(match, tuple):
+                match_text = " ".join([str(x) for x in match if x])
+            else:
+                match_text = str(match)
+
+            match_text = normalize_text(match_text).lower()
+
+            if match_text:
+                unique_matches.add(match_text)
 
         if len(unique_matches) >= 3:
             print(f"Report-card fallback signal detected: {len(unique_matches)} report-like items")
@@ -1417,11 +1496,7 @@ def browser_click_fallback(source_url, existing_keys):
         """
         Click report-like cards/tiles that may open PDFs or trigger downloads.
 
-        This is generic and helps pages where documents are shown as cards:
-        - Integrated Annual Report 2024
-        - Sustainability Report 2023
-        - ESG Report 2022
-        - Climate Report 2021
+        Keywords are loaded from report_keywords.csv.
         """
 
         try:
@@ -1431,7 +1506,7 @@ def browser_click_fallback(source_url, existing_keys):
 
             report_cards = page.locator(report_card_selector).filter(
                 has_text=re.compile(
-                    r"(integrated\s+annual\s+report|annual\s+report|sustainability\s+report|esg\s+report|climate\s+report|cdp|databook|20\d{2})",
+                    REPORT_CARD_KEYWORD_REGEX + r"|20\d{2}",
                     re.IGNORECASE
                 )
             )
@@ -2179,6 +2254,8 @@ print("✅ Image/icon files excluded from document capture")
 print("✅ Iframe scraping enabled")
 print("✅ Hash-aware fallback enabled")
 print("✅ Report-card fallback enabled")
+print(f"✅ Report keywords file: {REPORT_KEYWORDS_FILE}")
+print(f"✅ Report-card keywords loaded: {len(REPORT_CARD_KEYWORDS)}")
 print("✅ Browser fallback scans frames/iframes")
 print("✅ Browser fallback clicks generic expandable UI")
 print("✅ Browser fallback captures document network responses")
