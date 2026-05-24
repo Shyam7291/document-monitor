@@ -1759,8 +1759,10 @@ with open(TARGET_URL_FILE, newline="", encoding="utf-8") as file:
                 )
 
 
-# Preserve previous output documents for URLs that failed or partially captured today
-preserve_previous_output_documents(target_source_urls, previous_output_by_company)
+# Previous output preservation disabled intentionally.
+# output.csv now represents only documents captured in the current run.
+# known_documents.csv remains the permanent history used for diff protection.
+# preserve_previous_output_documents(target_source_urls, previous_output_by_company)
 
 
 # DIFF SYSTEM
