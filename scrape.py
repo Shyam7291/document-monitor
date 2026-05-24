@@ -2,7 +2,130 @@ import csv
 import requests
 import os
 import re
-import "link",import html
+import html
+import time
+from datetime import datetime
+from bs4 import BeautifulSoup
+from urllib.parse import urljoin, urlparse, unquote
+
+# =========================
+# RUN MODE CONFIGURATION
+# =========================
+
+RUN_MODE = os.environ.get("RUN_MODE", "full").strip().lower()
+TARGET_URL_FILE = os.environ.get("TARGET_URL_FILE", "documents.csv").strip()
+
+ENABLE_BROWSER_FALLBACK = os.environ.get("ENABLE_BROWSER_FALLBACK", "false").strip().lower() == "true"
+
+# Sleep between URLs to reduce blocking
+SLEEP_SECONDS = float(os.environ.get("SLEEP_SECONDS", "2"))
+
+# Retry failed URLs once after the first pass
+RETRY_FAILED_URLS = os.environ.get("RETRY_FAILED_URLS", "true").strip().lower() == "true"
+RETRY_SLEEP_SECONDS = float(os.environ.get("RETRY_SLEEP_SECONDS", "10"))
+
+if RUN_MODE in ["full", "seed"]:
+    OUTPUT_FILE = "output.csv"
+    RAW_FILE = "raw_links.csv"
+    ISSUES_FILE = "capture_issues.csv"
+elif RUN_MODE == "test":
+    OUTPUT_FILE = "output_test.csv"
+    RAW_FILE = "raw_links_test.csv"
+    ISSUES_FILE = "capture_issues_test.csv"
+elif RUN_MODE == "baseline":
+    OUTPUT_FILE = "output_baseline.csv"
+    RAW_FILE = "raw_links_baseline.csv"
+    ISSUES_FILE = "capture_issues_baseline.csv"
+else:
+    OUTPUT_FILE = "output.csv"
+    RAW_FILE = "raw_links.csv"
+    ISSUES_FILE = "capture_issues.csv"
+
+DIFF_FILE = "diff.csv"
+KNOWN_DOCUMENTS_FILE = "known_documents.csv"
+
+# Final clean summary file
+RUN_SUMMARY_FILE = "run_summary_master.csv"
+
+# =========================
+# LOCKED CSV FORMATS
+# =========================
+
+RUN_SUMMARY_FIELDNAMES = [
+    "run_number",
+    "date",
+    "run_mode",
+    "url_file",
+    "total_urls_processed",
+    "total_documents_captured",
+    "new_diff_records",
+    "issue_count",
+    "success_zero_docs_count",
+    "fetch_failed_status_count",
+    "fetch_error_count",
+    "browser_fallback_enabled",
+    "output_file",
+    "raw_file",
+    "issues_file"
+]
+
+DIFF_FIELDNAMES = [
+    "date",
+    "company",
+    "document_title",
+    "document_url"
+]
+
+KNOWN_DOCUMENTS_FIELDNAMES = [
+    "first_seen_date",
+    "company",
+    "document_title",
+    "document_url",
+    "source_run_mode"
+]
+
+output_data = []
+raw_links = []
+issue_rows = []
+
+# Retry queue for failed/zero-doc URLs
+retry_queue = []
+
+# Global duplicate prevention across the whole run
+global_seen_document_urls = set()
+
+# Known document history loaded from known_documents.csv
+known_document_urls = set()
+known_source_urls = set()
+known_document_urls_before_run = set()
+known_source_urls_before_run = set()
+known_documents_to_append = []
+
+current_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+# =========================
+# REQUEST HEADERS / FETCH
+# =========================
+
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                  "AppleWebKit/537.36 (KHTML, like Gecko) "
+                  "Chrome/124.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Connection": "close"
+}
+
+IGNORE_WORDS = {
+    "download",
+    "view",
+    "open",
+    "read",
+    "click",
+    "file",
+    "document",
+    "pdf",
+    "link",
     "here",
     "more",
     "details"
@@ -1934,125 +2057,3 @@ print(f"✅ Known documents appended: {len(known_documents_to_append)}")
 print(f"✅ Issues: {len(issue_rows)}")
 print(f"✅ Browser fallback enabled: {ENABLE_BROWSER_FALLBACK}")
 print(f"✅ Run {current_run_number}: {len(output_data)} documents captured")
-import time
-from datetime import datetime
-from bs4 import BeautifulSoup
-from urllib.parse import urljoin, urlparse, unquote
-
-# =========================
-# RUN MODE CONFIGURATION
-# =========================
-
-RUN_MODE = os.environ.get("RUN_MODE", "full").strip().lower()
-TARGET_URL_FILE = os.environ.get("TARGET_URL_FILE", "documents.csv").strip()
-
-ENABLE_BROWSER_FALLBACK = os.environ.get("ENABLE_BROWSER_FALLBACK", "false").strip().lower() == "true"
-
-# Sleep between URLs to reduce blocking
-SLEEP_SECONDS = float(os.environ.get("SLEEP_SECONDS", "2"))
-
-# Retry failed URLs once after the first pass
-RETRY_FAILED_URLS = os.environ.get("RETRY_FAILED_URLS", "true").strip().lower() == "true"
-RETRY_SLEEP_SECONDS = float(os.environ.get("RETRY_SLEEP_SECONDS", "10"))
-
-if RUN_MODE in ["full", "seed"]:
-    OUTPUT_FILE = "output.csv"
-    RAW_FILE = "raw_links.csv"
-    ISSUES_FILE = "capture_issues.csv"
-elif RUN_MODE == "test":
-    OUTPUT_FILE = "output_test.csv"
-    RAW_FILE = "raw_links_test.csv"
-    ISSUES_FILE = "capture_issues_test.csv"
-elif RUN_MODE == "baseline":
-    OUTPUT_FILE = "output_baseline.csv"
-    RAW_FILE = "raw_links_baseline.csv"
-    ISSUES_FILE = "capture_issues_baseline.csv"
-else:
-    OUTPUT_FILE = "output.csv"
-    RAW_FILE = "raw_links.csv"
-    ISSUES_FILE = "capture_issues.csv"
-
-DIFF_FILE = "diff.csv"
-KNOWN_DOCUMENTS_FILE = "known_documents.csv"
-
-# Final clean summary file
-RUN_SUMMARY_FILE = "run_summary_master.csv"
-
-# =========================
-# LOCKED CSV FORMATS
-# =========================
-
-RUN_SUMMARY_FIELDNAMES = [
-    "run_number",
-    "date",
-    "run_mode",
-    "url_file",
-    "total_urls_processed",
-    "total_documents_captured",
-    "new_diff_records",
-    "issue_count",
-    "success_zero_docs_count",
-    "fetch_failed_status_count",
-    "fetch_error_count",
-    "browser_fallback_enabled",
-    "output_file",
-    "raw_file",
-    "issues_file"
-]
-
-DIFF_FIELDNAMES = [
-    "date",
-    "company",
-    "document_title",
-    "document_url"
-]
-
-KNOWN_DOCUMENTS_FIELDNAMES = [
-    "first_seen_date",
-    "company",
-    "document_title",
-    "document_url",
-    "source_run_mode"
-]
-
-output_data = []
-raw_links = []
-issue_rows = []
-
-# Retry queue for failed/zero-doc URLs
-retry_queue = []
-
-# Global duplicate prevention across the whole run
-global_seen_document_urls = set()
-
-# Known document history loaded from known_documents.csv
-known_document_urls = set()
-known_source_urls = set()
-known_document_urls_before_run = set()
-known_source_urls_before_run = set()
-known_documents_to_append = []
-
-current_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-# =========================
-# REQUEST HEADERS / FETCH
-# =========================
-
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                  "AppleWebKit/537.36 (KHTML, like Gecko) "
-                  "Chrome/124.0 Safari/537.36",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-    "Accept-Language": "en-US,en;q=0.9",
-    "Connection": "close"
-}
-
-IGNORE_WORDS = {
-    "download",
-    "view",
-    "open",
-    "read",
-    "click",
-    "file",
-    "document",
-    "pdf",
