@@ -38,6 +38,7 @@ else:
     ISSUES_FILE = "capture_issues.csv"
 
 DIFF_FILE = "diff.csv"
+KNOWN_DOCUMENTS_FILE = "known_documents.csv"
 
 # Final clean summary file
 RUN_SUMMARY_FILE = "run_summary_master.csv"
@@ -71,12 +72,27 @@ DIFF_FIELDNAMES = [
     "document_url"
 ]
 
+KNOWN_DOCUMENTS_FIELDNAMES = [
+    "first_seen_date",
+    "company",
+    "document_title",
+    "document_url",
+    "source_run_mode"
+]
+
 output_data = []
 raw_links = []
 issue_rows = []
 
 # Global duplicate prevention across the whole run
 global_seen_document_urls = set()
+
+# Known document history loaded from known_documents.csv
+known_document_urls = set()
+known_source_urls = set()
+known_document_urls_before_run = set()
+known_source_urls_before_run = set()
+known_documents_to_append = []
 
 current_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -273,6 +289,190 @@ def validate_csv_header(file_path, expected_fieldnames):
 
     except StopIteration:
         return
+
+
+def load_known_documents():
+    """
+    Load permanent known document history.
+
+    known_document_urls:
+    - used to prevent old documents from appearing in diff again.
+
+    known_source_urls:
+    - used to identify newly onboarded source URLs.
+    """
+
+    loaded_document_urls = set()
+    loaded_source_urls = set()
+
+    if not os.path.exists(KNOWN_DOCUMENTS_FILE):
+        return loaded_document_urls, loaded_source_urls
+
+    validate_csv_header(KNOWN_DOCUMENTS_FILE, KNOWN_DOCUMENTS_FIELDNAMES)
+
+    try:
+        with open(KNOWN_DOCUMENTS_FILE, newline="", encoding="utf-8") as known_file:
+            reader = csv.DictReader(known_file)
+
+            for r in reader:
+                document_url = r.get("document_url", "")
+                company = r.get("company", "")
+
+                if document_url:
+                    loaded_document_urls.add(normalize_url_key(document_url))
+
+                if company:
+                    loaded_source_urls.add(company)
+
+    except Exception as e:
+        print(f"Known documents load error: {e}")
+
+    return loaded_document_urls, loaded_source_urls
+
+
+def append_known_documents():
+    """
+    Append new known documents to known_documents.csv.
+
+    This runs only for seed/full modes.
+    Test and baseline modes do not update permanent known history.
+    """
+
+    if RUN_MODE not in ["full", "seed"]:
+        return
+
+    if not known_documents_to_append:
+        return
+
+    validate_csv_header(KNOWN_DOCUMENTS_FILE, KNOWN_DOCUMENTS_FIELDNAMES)
+
+    file_exists = os.path.exists(KNOWN_DOCUMENTS_FILE)
+
+    for record in known_documents_to_append:
+        extra_keys = set(record.keys()) - set(KNOWN_DOCUMENTS_FIELDNAMES)
+        missing_keys = set(KNOWN_DOCUMENTS_FIELDNAMES) - set(record.keys())
+
+        if extra_keys or missing_keys:
+            raise ValueError(
+                f"Known documents row format mismatch. "
+                f"Extra keys: {extra_keys}. "
+                f"Missing keys: {missing_keys}. "
+                f"Record: {record}"
+            )
+
+    with open(KNOWN_DOCUMENTS_FILE, "a", newline="", encoding="utf-8") as known_file:
+        writer = csv.DictWriter(known_file, fieldnames=KNOWN_DOCUMENTS_FIELDNAMES)
+
+        if not file_exists:
+            writer.writeheader()
+
+        writer.writerows(known_documents_to_append)
+
+
+def load_previous_output_by_company():
+    """
+    Load previous output.csv before current run overwrites it.
+
+    Used to preserve documents for URLs that temporarily fail in current run.
+    """
+
+    previous_output_by_company = {}
+
+    if not os.path.exists(OUTPUT_FILE):
+        return previous_output_by_company
+
+    try:
+        with open(OUTPUT_FILE, newline="", encoding="utf-8") as old_output_file:
+            reader = csv.DictReader(old_output_file)
+
+            for r in reader:
+                company = r.get("company", "")
+                document_url = r.get("document_url", "")
+
+                if not company or not document_url:
+                    continue
+
+                previous_output_by_company.setdefault(company, []).append({
+                    "company": company,
+                    "document_title": r.get("document_title", "Unknown Title"),
+                    "document_title_source": r.get("document_title_source", "previous_output"),
+                    "document_url": document_url
+                })
+
+    except Exception as e:
+        print(f"Previous output load error: {e}")
+
+    return previous_output_by_company
+
+
+def preserve_previous_output_documents(target_source_urls, previous_output_by_company):
+    """
+    Preserve previous output documents for target URLs.
+
+    If a URL fails today or captures fewer docs today,
+    old documents from output.csv are kept so output.csv does not shrink.
+    """
+
+    preserved_count = 0
+
+    for source_url in target_source_urls:
+        previous_docs = previous_output_by_company.get(source_url, [])
+
+        for doc in previous_docs:
+            document_url = doc.get("document_url", "")
+
+            if not document_url:
+                continue
+
+            if not mark_document_seen(document_url):
+                continue
+
+            preserved_doc = {
+                "company": doc.get("company", source_url),
+                "document_title": doc.get("document_title", "Unknown Title"),
+                "document_title_source": doc.get("document_title_source", "previous_output_reused"),
+                "document_url": document_url
+            }
+
+            output_data.append(preserved_doc)
+            preserved_count += 1
+
+    if preserved_count > 0:
+        print(f"PREVIOUS OUTPUT PRESERVED → {preserved_count} documents")
+
+    return preserved_count
+
+
+def queue_known_document_if_new(doc):
+    """
+    Add document to known_documents queue if not already known.
+
+    This is used in seed/full only.
+    """
+
+    if RUN_MODE not in ["full", "seed"]:
+        return
+
+    document_url = doc.get("document_url", "")
+
+    if not document_url:
+        return
+
+    document_key = normalize_url_key(document_url)
+
+    if document_key in known_document_urls:
+        return
+
+    known_document_urls.add(document_key)
+    known_source_urls.add(doc.get("company", ""))
+
+    known_documents_to_append.append({
+        "first_seen_date": current_date,
+        "company": doc.get("company", ""),
+        "document_title": doc.get("document_title", "Unknown Title"),
+        "document_url": document_url,
+        "source_run_mode": RUN_MODE
+    })
 
 
 def normalize_text(text):
@@ -1363,6 +1563,13 @@ def browser_click_fallback(source_url, existing_keys):
 
 # MAIN SCRAPER
 
+known_document_urls, known_source_urls = load_known_documents()
+known_document_urls_before_run = set(known_document_urls)
+known_source_urls_before_run = set(known_source_urls)
+
+previous_output_by_company = load_previous_output_by_company()
+target_source_urls = []
+
 total_urls_processed = 0
 
 if not os.path.exists(TARGET_URL_FILE):
@@ -1376,6 +1583,8 @@ with open(TARGET_URL_FILE, newline="", encoding="utf-8") as file:
 
         if not source_url:
             continue
+
+        target_source_urls.append(source_url)
 
         if total_urls_processed > 0 and SLEEP_SECONDS > 0:
             print(f"Sleeping {SLEEP_SECONDS} seconds before next URL...")
@@ -1550,19 +1759,13 @@ with open(TARGET_URL_FILE, newline="", encoding="utf-8") as file:
                 )
 
 
+# Preserve previous output documents for URLs that failed or partially captured today
+preserve_previous_output_documents(target_source_urls, previous_output_by_company)
+
+
 # DIFF SYSTEM
 
-old_output_urls = set()
 existing_diff_urls = set()
-
-if RUN_MODE == "full" and os.path.exists(OUTPUT_FILE):
-    with open(OUTPUT_FILE, newline="", encoding="utf-8") as old_file:
-        reader = csv.DictReader(old_file)
-
-        for r in reader:
-            if "document_url" in r and r["document_url"]:
-                old_output_urls.add(normalize_url_key(r["document_url"]))
-
 
 if RUN_MODE == "full" and os.path.exists(DIFF_FILE):
     validate_csv_header(DIFF_FILE, DIFF_FIELDNAMES)
@@ -1579,15 +1782,35 @@ new_records = []
 
 if RUN_MODE == "full":
     for r in output_data:
-        current_url_key = normalize_url_key(r["document_url"])
+        document_url = r.get("document_url", "")
+        source_url = r.get("company", "")
 
-        if current_url_key not in old_output_urls and current_url_key not in existing_diff_urls:
+        if not document_url or not source_url:
+            continue
+
+        current_url_key = normalize_url_key(document_url)
+
+        source_was_known_before_run = source_url in known_source_urls_before_run
+        document_was_known_before_run = current_url_key in known_document_urls_before_run
+        already_in_diff = current_url_key in existing_diff_urls
+
+        # Add to diff only when:
+        # 1. source URL was already known before this run
+        # 2. document URL was not known before this run
+        # 3. document URL is not already in diff.csv
+        if source_was_known_before_run and not document_was_known_before_run and not already_in_diff:
             new_records.append({
                 "date": current_date,
-                "company": r["company"],
-                "document_title": r["document_title"],
-                "document_url": r["document_url"]
+                "company": source_url,
+                "document_title": r.get("document_title", "Unknown Title"),
+                "document_url": document_url
             })
+
+# Update known document queue for seed/full.
+# New source URLs are baselined into known_documents.csv but not added to diff.csv.
+if RUN_MODE in ["full", "seed"]:
+    for r in output_data:
+        queue_known_document_if_new(r)
 
 
 # SAVE output file
@@ -1645,6 +1868,10 @@ if RUN_MODE == "full":
             writer.writeheader()
 
         writer.writerows(new_records)
+
+
+# APPEND known_documents.csv for seed/full runs
+append_known_documents()
 
 
 # SAVE capture issues file
@@ -1733,6 +1960,9 @@ print("✅ Generic title/action text rejected")
 print("✅ document_title_source added")
 print("✅ PDF links are checked before navigation filters")
 print("✅ Global duplicate document URL prevention enabled")
+print("✅ Previous output preservation enabled")
+print("✅ known_documents.csv history enabled")
+print("✅ New source URL onboarding does not pollute diff.csv")
 print("✅ Image/icon files excluded from document capture")
 print("✅ Iframe scraping enabled")
 print("✅ Hash-aware fallback enabled")
@@ -1742,6 +1972,7 @@ print("✅ Browser fallback captures document network responses")
 print("✅ Browser-like headers and retry fetch enabled for EQT only")
 print("✅ diff.csv format locked")
 print("✅ run_summary_master.csv format locked")
+print("✅ known_documents.csv format locked")
 print(f"✅ Sleep seconds between URLs: {SLEEP_SECONDS}")
 print(f"✅ Run mode: {RUN_MODE}")
 print(f"✅ URL file: {TARGET_URL_FILE}")
@@ -1749,9 +1980,11 @@ print(f"✅ Output file: {OUTPUT_FILE}")
 print(f"✅ Raw file: {RAW_FILE}")
 print(f"✅ Issues file: {ISSUES_FILE}")
 print(f"✅ Summary file: {RUN_SUMMARY_FILE}")
+print(f"✅ Known documents file: {KNOWN_DOCUMENTS_FILE}")
 print(f"✅ URLs processed: {total_urls_processed}")
 print(f"✅ Documents captured: {len(output_data)}")
 print(f"✅ New diff records: {len(new_records)}")
+print(f"✅ Known documents appended: {len(known_documents_to_append)}")
 print(f"✅ Issues: {len(issue_rows)}")
 print(f"✅ Browser fallback enabled: {ENABLE_BROWSER_FALLBACK}")
 print(f"✅ Run {current_run_number}: {len(output_data)} documents captured")
