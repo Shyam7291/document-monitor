@@ -1425,6 +1425,234 @@ def browser_click_fallback(source_url, existing_keys):
         except Exception as e:
             print(f"Frame collection error: {e}")
 
+    def collect_report_detail_links(page):
+        """
+        Collect report/detail page links from rendered page.
+
+        This handles pages where report cards open an intermediate viewer/detail page,
+        and the PDF is available only after clicking a download icon on that detail page.
+        """
+
+        detail_links = []
+        seen_detail_urls = set()
+
+        try:
+            html_content = page.content()
+            page_soup = BeautifulSoup(html_content, "html.parser")
+
+            for link in page_soup.find_all("a"):
+                href = link.get("href")
+
+                if not href:
+                    continue
+
+                full_url = urljoin(page.url or source_url, href)
+                full_url_lower = full_url.lower()
+
+                if is_image_or_asset_url(full_url_lower):
+                    continue
+
+                # Direct documents are already handled elsewhere.
+                if is_document_link(full_url_lower):
+                    continue
+
+                link_text = normalize_text(link.get_text(" ", strip=True))
+                combined_text = normalize_text(f"{link_text} {full_url}")
+
+                keyword_hit = False
+
+                try:
+                    keyword_hit = bool(
+                        re.search(REPORT_CARD_KEYWORD_REGEX, combined_text, flags=re.IGNORECASE)
+                    )
+                except Exception:
+                    keyword_hit = False
+
+                year_hit = bool(re.search(r"\b20\d{2}\b", combined_text))
+
+                path_hit = any(
+                    marker in full_url_lower
+                    for marker in [
+                        "/sustainability-reports/",
+                        "/annual-reports/",
+                        "/annual-report/",
+                        "/reports/",
+                        "/report-",
+                        "sustainability-report",
+                        "annual-report"
+                    ]
+                )
+
+                same_domain = urlparse(full_url).netloc == urlparse(source_url).netloc
+
+                if same_domain and (keyword_hit or year_hit or path_hit):
+                    key = normalize_url_key(full_url)
+
+                    if key not in seen_detail_urls:
+                        seen_detail_urls.add(key)
+
+                        title_hint = link_text or clean_title_from_url(full_url) or "Unknown Title"
+
+                        detail_links.append({
+                            "url": full_url,
+                            "title": title_hint
+                        })
+
+            print(f"Report detail pages discovered: {len(detail_links)}")
+
+        except Exception as e:
+            print(f"Report detail link collection error: {e}")
+
+        return detail_links[:20]
+
+    def click_download_controls_on_detail_page(page, title_hint=""):
+        """
+        On a report detail/viewer page, click download-like controls/icons
+        and capture the final PDF/download URL.
+        """
+
+        try:
+            scan_all_rendered_content(page)
+
+            download_selector = (
+                "a[download], "
+                "a[href*='.pdf'], "
+                "a[href*='.ashx'], "
+                "a[href*='/media/'], "
+                "a[href*='/download'], "
+                "a[href*='/downloads/'], "
+                "a[href*='/files/'], "
+                "button[aria-label*='download' i], "
+                "a[aria-label*='download' i], "
+                "button[title*='download' i], "
+                "a[title*='download' i], "
+                "[class*='download'], "
+                "[class*='Download']"
+            )
+
+            download_controls = page.locator(download_selector)
+
+            count = min(download_controls.count(), 15)
+
+            print(f"Download controls found on detail page: {count}")
+
+            for i in range(count):
+                try:
+                    element = download_controls.nth(i)
+
+                    before_url = page.url
+                    captured_url = ""
+
+                    try:
+                        element.scroll_into_view_if_needed(timeout=3000)
+                    except Exception:
+                        pass
+
+                    try:
+                        href_value = element.get_attribute("href", timeout=1000)
+
+                        if href_value:
+                            possible_url = urljoin(page.url or source_url, href_value)
+
+                            if is_click_document_candidate(possible_url):
+                                captured_url = possible_url
+
+                    except Exception:
+                        pass
+
+                    if not captured_url:
+                        try:
+                            with page.expect_popup(timeout=2500) as popup_info:
+                                element.click(timeout=4000, force=True)
+
+                            popup = popup_info.value
+                            popup.wait_for_load_state("domcontentloaded", timeout=10000)
+                            captured_url = popup.url
+                            popup.close()
+
+                        except Exception:
+                            pass
+
+                    if not captured_url:
+                        try:
+                            with page.expect_download(timeout=2500) as download_info:
+                                element.click(timeout=4000, force=True)
+
+                            download = download_info.value
+                            captured_url = download.url
+
+                        except Exception:
+                            pass
+
+                    if not captured_url:
+                        try:
+                            element.click(timeout=4000, force=True)
+                            page.wait_for_timeout(1500)
+
+                            if page.url != before_url:
+                                captured_url = page.url
+
+                                try:
+                                    page.goto(before_url, wait_until="domcontentloaded", timeout=60000)
+                                    page.wait_for_timeout(1000)
+                                except Exception:
+                                    pass
+
+                        except Exception:
+                            pass
+
+                    if captured_url:
+                        add_doc_from_url(captured_url, title_hint)
+
+                    scan_all_rendered_content(page)
+
+                except Exception:
+                    continue
+
+        except Exception as e:
+            print(f"Download control click error on detail page: {e}")
+
+    def visit_report_detail_pages(page):
+        """
+        Visit report detail pages discovered from the main page,
+        then click download controls/icons on each detail page.
+        """
+
+        try:
+            detail_links = collect_report_detail_links(page)
+
+            if not detail_links:
+                return
+
+            original_url = page.url or source_url
+
+            for detail in detail_links:
+                detail_url = detail.get("url", "")
+                title_hint = detail.get("title", "")
+
+                if not detail_url:
+                    continue
+
+                try:
+                    print(f"Visiting report detail page: {detail_url}")
+
+                    page.goto(detail_url, wait_until="domcontentloaded", timeout=60000)
+                    page.wait_for_timeout(2500)
+
+                    click_download_controls_on_detail_page(page, title_hint)
+
+                except Exception as detail_error:
+                    print(f"Report detail page visit error: {detail_error}")
+
+            try:
+                page.goto(original_url, wait_until="domcontentloaded", timeout=60000)
+                page.wait_for_timeout(1000)
+            except Exception:
+                pass
+
+        except Exception as e:
+            print(f"Report detail page phase error: {e}")
+
     def interact_with_hash_fragments(page):
         hash_fragments = get_hash_fragments(source_url)
 
@@ -1654,6 +1882,8 @@ def browser_click_fallback(source_url, existing_keys):
             scan_all_rendered_content(page)
 
             interact_with_hash_fragments(page)
+
+            visit_report_detail_pages(page)
 
             click_report_card_controls(page)
 
