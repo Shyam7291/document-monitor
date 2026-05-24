@@ -1175,6 +1175,52 @@ def extract_title_from_playwright_element(element):
     return ""
 
 
+def should_trigger_report_card_fallback(soup, docs_captured_for_url):
+    """
+    Detect pages where report documents appear as visual cards/tiles
+    and normal HTML scraping captured only a few direct links.
+
+    Generic examples:
+    - Integrated Annual Report 2024
+    - Sustainability Report 2023
+    - ESG Report 2022
+    - Climate Report 2021
+    - CDP Questionnaire 2024
+    - ESG Databook 2025
+    """
+
+    if docs_captured_for_url >= 5:
+        return False
+
+    try:
+        page_text = normalize_text(soup.get_text(" ", strip=True))
+
+        report_matches = re.findall(
+            r"\b("
+            r"integrated\s+annual\s+report|"
+            r"annual\s+report|"
+            r"sustainability\s+report|"
+            r"esg\s+report|"
+            r"climate\s+report|"
+            r"cdp\s+.*?questionnaire|"
+            r"databook"
+            r")\b.{0,60}\b20\d{2}\b",
+            page_text,
+            flags=re.IGNORECASE
+        )
+
+        unique_matches = set([x.lower().strip() for x in report_matches])
+
+        if len(unique_matches) >= 3:
+            print(f"Report-card fallback signal detected: {len(unique_matches)} report-like items")
+            return True
+
+    except Exception as e:
+        print(f"Report-card fallback detection error: {e}")
+
+    return False
+
+
 def browser_click_fallback(source_url, existing_keys):
     fallback_docs = []
 
@@ -1366,6 +1412,98 @@ def browser_click_fallback(source_url, existing_keys):
             except Exception as e:
                 print(f"Hash interaction error for {text_fragment}: {e}")
 
+    def click_report_card_controls(page):
+        """
+        Click report-like cards/tiles that may open PDFs or trigger downloads.
+
+        This is generic and helps pages where documents are shown as cards:
+        - Integrated Annual Report 2024
+        - Sustainability Report 2023
+        - ESG Report 2022
+        - Climate Report 2021
+        """
+
+        try:
+            report_card_selector = (
+                "a, button, [role='button'], article, section, .card, div, span"
+            )
+
+            report_cards = page.locator(report_card_selector).filter(
+                has_text=re.compile(
+                    r"(integrated\s+annual\s+report|annual\s+report|sustainability\s+report|esg\s+report|climate\s+report|cdp|databook|20\d{2})",
+                    re.IGNORECASE
+                )
+            )
+
+            count = min(report_cards.count(), 25)
+
+            print(f"Report-card fallback controls found: {count}")
+
+            for i in range(count):
+                try:
+                    element = report_cards.nth(i)
+
+                    title = extract_title_from_playwright_element(element)
+
+                    before_url = page.url
+                    captured_url = ""
+
+                    try:
+                        element.scroll_into_view_if_needed(timeout=3000)
+                    except Exception:
+                        pass
+
+                    try:
+                        with page.expect_popup(timeout=2500) as popup_info:
+                            element.click(timeout=4000, force=True)
+
+                        popup = popup_info.value
+                        popup.wait_for_load_state("domcontentloaded", timeout=10000)
+                        captured_url = popup.url
+                        popup.close()
+
+                    except Exception:
+                        pass
+
+                    if not captured_url:
+                        try:
+                            with page.expect_download(timeout=2500) as download_info:
+                                element.click(timeout=4000, force=True)
+
+                            download = download_info.value
+                            captured_url = download.url
+
+                        except Exception:
+                            pass
+
+                    if not captured_url:
+                        try:
+                            element.click(timeout=4000, force=True)
+                            page.wait_for_timeout(1500)
+
+                            if page.url != before_url:
+                                captured_url = page.url
+
+                                try:
+                                    page.goto(source_url, wait_until="domcontentloaded", timeout=60000)
+                                    page.wait_for_timeout(1000)
+                                except Exception:
+                                    pass
+
+                        except Exception:
+                            pass
+
+                    if captured_url:
+                        add_doc_from_url(captured_url, title)
+
+                    scan_all_rendered_content(page)
+
+                except Exception:
+                    continue
+
+        except Exception as e:
+            print(f"Report-card click phase error: {e}")
+
     def is_expandable_element(element):
         try:
             return element.evaluate(
@@ -1440,6 +1578,8 @@ def browser_click_fallback(source_url, existing_keys):
             scan_all_rendered_content(page)
 
             interact_with_hash_fragments(page)
+
+            click_report_card_controls(page)
 
             try:
                 expander_selector = (
@@ -1693,11 +1833,15 @@ def process_source_url(source_url, retry_attempt=False):
         docs_captured_for_url = len(output_data) - start_doc_count
 
         needs_hash_fallback = source_url_has_hash(source_url)
+        needs_report_card_fallback = should_trigger_report_card_fallback(soup, docs_captured_for_url)
 
         if needs_hash_fallback:
             print("Hash URL detected. Browser fallback may be needed for section-specific documents.")
 
-        if (docs_captured_for_url == 0 or needs_hash_fallback) and should_use_browser_fallback(source_url):
+        if needs_report_card_fallback:
+            print("Report-card page detected. Browser fallback may be needed for card-based documents.")
+
+        if (docs_captured_for_url == 0 or needs_hash_fallback or needs_report_card_fallback) and should_use_browser_fallback(source_url):
             fallback_docs = browser_click_fallback(source_url, seen)
 
             for doc in fallback_docs:
@@ -2033,6 +2177,7 @@ print("✅ New source URL onboarding does not pollute diff.csv")
 print("✅ Image/icon files excluded from document capture")
 print("✅ Iframe scraping enabled")
 print("✅ Hash-aware fallback enabled")
+print("✅ Report-card fallback enabled")
 print("✅ Browser fallback scans frames/iframes")
 print("✅ Browser fallback clicks generic expandable UI")
 print("✅ Browser fallback captures document network responses")
