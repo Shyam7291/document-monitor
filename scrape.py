@@ -2,123 +2,7 @@ import csv
 import requests
 import os
 import re
-import html
-import time
-from datetime import datetime
-from bs4 import BeautifulSoup
-from urllib.parse import urljoin, urlparse, unquote
-
-# =========================
-# RUN MODE CONFIGURATION
-# =========================
-
-RUN_MODE = os.environ.get("RUN_MODE", "full").strip().lower()
-TARGET_URL_FILE = os.environ.get("TARGET_URL_FILE", "documents.csv").strip()
-
-ENABLE_BROWSER_FALLBACK = os.environ.get("ENABLE_BROWSER_FALLBACK", "false").strip().lower() == "true"
-
-# Sleep between URLs to reduce blocking
-SLEEP_SECONDS = float(os.environ.get("SLEEP_SECONDS", "2"))
-
-if RUN_MODE in ["full", "seed"]:
-    OUTPUT_FILE = "output.csv"
-    RAW_FILE = "raw_links.csv"
-    ISSUES_FILE = "capture_issues.csv"
-elif RUN_MODE == "test":
-    OUTPUT_FILE = "output_test.csv"
-    RAW_FILE = "raw_links_test.csv"
-    ISSUES_FILE = "capture_issues_test.csv"
-elif RUN_MODE == "baseline":
-    OUTPUT_FILE = "output_baseline.csv"
-    RAW_FILE = "raw_links_baseline.csv"
-    ISSUES_FILE = "capture_issues_baseline.csv"
-else:
-    OUTPUT_FILE = "output.csv"
-    RAW_FILE = "raw_links.csv"
-    ISSUES_FILE = "capture_issues.csv"
-
-DIFF_FILE = "diff.csv"
-KNOWN_DOCUMENTS_FILE = "known_documents.csv"
-
-# Final clean summary file
-RUN_SUMMARY_FILE = "run_summary_master.csv"
-
-# =========================
-# LOCKED CSV FORMATS
-# =========================
-
-RUN_SUMMARY_FIELDNAMES = [
-    "run_number",
-    "date",
-    "run_mode",
-    "url_file",
-    "total_urls_processed",
-    "total_documents_captured",
-    "new_diff_records",
-    "issue_count",
-    "success_zero_docs_count",
-    "fetch_failed_status_count",
-    "fetch_error_count",
-    "browser_fallback_enabled",
-    "output_file",
-    "raw_file",
-    "issues_file"
-]
-
-DIFF_FIELDNAMES = [
-    "date",
-    "company",
-    "document_title",
-    "document_url"
-]
-
-KNOWN_DOCUMENTS_FIELDNAMES = [
-    "first_seen_date",
-    "company",
-    "document_title",
-    "document_url",
-    "source_run_mode"
-]
-
-output_data = []
-raw_links = []
-issue_rows = []
-
-# Global duplicate prevention across the whole run
-global_seen_document_urls = set()
-
-# Known document history loaded from known_documents.csv
-known_document_urls = set()
-known_source_urls = set()
-known_document_urls_before_run = set()
-known_source_urls_before_run = set()
-known_documents_to_append = []
-
-current_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-# =========================
-# REQUEST HEADERS / FETCH
-# =========================
-
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                  "AppleWebKit/537.36 (KHTML, like Gecko) "
-                  "Chrome/124.0 Safari/537.36",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-    "Accept-Language": "en-US,en;q=0.9",
-    "Connection": "close"
-}
-
-IGNORE_WORDS = {
-    "download",
-    "view",
-    "open",
-    "read",
-    "click",
-    "file",
-    "document",
-    "pdf",
-    "link",
+import "link",import html
     "here",
     "more",
     "details"
@@ -373,7 +257,7 @@ def load_previous_output_by_company():
     """
     Load previous output.csv before current run overwrites it.
 
-    Used to preserve documents for URLs that temporarily fail in current run.
+    Kept for compatibility, but current output preservation is intentionally disabled.
     """
 
     previous_output_by_company = {}
@@ -409,8 +293,9 @@ def preserve_previous_output_documents(target_source_urls, previous_output_by_co
     """
     Preserve previous output documents for target URLs.
 
-    If a URL fails today or captures fewer docs today,
-    old documents from output.csv are kept so output.csv does not shrink.
+    Function kept intentionally, but current system does not call it.
+    output.csv represents only documents captured in current run.
+    known_documents.csv is the permanent history used for diff protection.
     """
 
     preserved_count = 0
@@ -1561,6 +1446,203 @@ def browser_click_fallback(source_url, existing_keys):
     return fallback_docs
 
 
+def process_source_url(source_url, retry_attempt=False):
+    """
+    Process one source URL.
+
+    retry_attempt=False means first pass.
+    retry_attempt=True means retry pass.
+
+    Returns number of documents captured for this source URL.
+    """
+
+    print(f"\nChecking: {source_url}")
+
+    start_doc_count = len(output_data)
+
+    try:
+        response = fetch_url(source_url)
+
+        if response is None:
+            print("Failed to fetch page")
+
+            docs_captured_for_url = 0
+
+            if should_use_browser_fallback(source_url):
+                print("Request failed. Trying browser fallback...")
+
+                seen = set()
+                fallback_docs = browser_click_fallback(source_url, seen)
+
+                for doc in fallback_docs:
+                    output_data.append(doc)
+
+                    raw_links.append({
+                        "company": doc["company"],
+                        "text": doc["document_title"],
+                        "title_source": doc.get("document_title_source", "browser_fallback"),
+                        "url": doc["document_url"]
+                    })
+
+                docs_captured_for_url = len(fallback_docs)
+
+            if docs_captured_for_url == 0:
+                if not retry_attempt and RETRY_FAILED_URLS:
+                    print("Queued for retry: request failed")
+                    retry_queue.append(source_url)
+                else:
+                    add_issue(
+                        source_url=source_url,
+                        issue_type="FETCH_ERROR_AFTER_RETRY" if retry_attempt else "FETCH_ERROR",
+                        status_code="",
+                        documents_captured=0,
+                        error_message="Request failed / timeout and browser fallback captured 0 documents"
+                    )
+
+            return docs_captured_for_url
+
+        print("Status:", response.status_code)
+
+        if response.status_code != 200:
+            print("Failed to fetch page")
+
+            docs_captured_for_url = 0
+
+            if should_use_browser_fallback(source_url):
+                print("Non-200 status detected. Trying browser fallback...")
+
+                seen = set()
+                fallback_docs = browser_click_fallback(source_url, seen)
+
+                for doc in fallback_docs:
+                    output_data.append(doc)
+
+                    raw_links.append({
+                        "company": doc["company"],
+                        "text": doc["document_title"],
+                        "title_source": doc.get("document_title_source", "browser_fallback"),
+                        "url": doc["document_url"]
+                    })
+
+                docs_captured_for_url = len(fallback_docs)
+
+            if docs_captured_for_url == 0:
+                if not retry_attempt and RETRY_FAILED_URLS:
+                    print("Queued for retry: non-200 status")
+                    retry_queue.append(source_url)
+                else:
+                    add_issue(
+                        source_url=source_url,
+                        issue_type="FETCH_FAILED_STATUS_AFTER_RETRY" if retry_attempt else "FETCH_FAILED_STATUS",
+                        status_code=response.status_code,
+                        documents_captured=0,
+                        error_message="Non-200 status code and browser fallback captured 0 documents"
+                    )
+
+            return docs_captured_for_url
+
+        soup = BeautifulSoup(response.text, "html.parser")
+
+        seen = set()
+
+        extract_links_from_soup(
+            soup=soup,
+            base_url=source_url,
+            source_url=source_url,
+            seen=seen,
+            label="RETRY KEPT" if retry_attempt else "KEPT"
+        )
+
+        iframe_soups = get_iframe_soups(source_url, soup)
+
+        for iframe_item in iframe_soups:
+            iframe_url = iframe_item["iframe_url"]
+            iframe_soup = iframe_item["soup"]
+
+            extract_links_from_soup(
+                soup=iframe_soup,
+                base_url=iframe_url,
+                source_url=source_url,
+                seen=seen,
+                label="RETRY IFRAME KEPT" if retry_attempt else "IFRAME KEPT"
+            )
+
+        docs_captured_for_url = len(output_data) - start_doc_count
+
+        needs_hash_fallback = source_url_has_hash(source_url)
+
+        if needs_hash_fallback:
+            print("Hash URL detected. Browser fallback may be needed for section-specific documents.")
+
+        if (docs_captured_for_url == 0 or needs_hash_fallback) and should_use_browser_fallback(source_url):
+            fallback_docs = browser_click_fallback(source_url, seen)
+
+            for doc in fallback_docs:
+                output_data.append(doc)
+
+                raw_links.append({
+                    "company": doc["company"],
+                    "text": doc["document_title"],
+                    "title_source": doc.get("document_title_source", "browser_fallback"),
+                    "url": doc["document_url"]
+                })
+
+            docs_captured_for_url = len(output_data) - start_doc_count
+
+        if docs_captured_for_url == 0:
+            if not retry_attempt and RETRY_FAILED_URLS:
+                print("Queued for retry: zero documents captured")
+                retry_queue.append(source_url)
+            else:
+                add_issue(
+                    source_url=source_url,
+                    issue_type="SUCCESS_ZERO_DOCS_AFTER_RETRY" if retry_attempt else "SUCCESS_ZERO_DOCS",
+                    status_code=response.status_code,
+                    documents_captured=0,
+                    error_message="Page opened successfully but no document links captured"
+                )
+
+        return docs_captured_for_url
+
+    except Exception as e:
+        print("Error:", e)
+
+        docs_captured_for_url = 0
+
+        if should_use_browser_fallback(source_url):
+            print("Request error detected. Trying browser fallback...")
+
+            seen = set()
+            fallback_docs = browser_click_fallback(source_url, seen)
+
+            for doc in fallback_docs:
+                output_data.append(doc)
+
+                raw_links.append({
+                    "company": doc["company"],
+                    "text": doc["document_title"],
+                    "title_source": doc.get("document_title_source", "browser_fallback"),
+                    "url": doc["document_url"]
+                })
+
+            docs_captured_for_url = len(fallback_docs)
+
+        if docs_captured_for_url == 0:
+            if not retry_attempt and RETRY_FAILED_URLS:
+                print("Queued for retry: exception")
+                retry_queue.append(source_url)
+            else:
+                add_issue(
+                    source_url=source_url,
+                    issue_type="FETCH_ERROR_AFTER_RETRY" if retry_attempt else "FETCH_ERROR",
+                    status_code="",
+                    documents_captured=0,
+                    error_message=str(e)
+                )
+
+        return docs_captured_for_url
+
+
 # MAIN SCRAPER
 
 known_document_urls, known_source_urls = load_known_documents()
@@ -1592,171 +1674,29 @@ with open(TARGET_URL_FILE, newline="", encoding="utf-8") as file:
 
         total_urls_processed += 1
 
-        print(f"\nChecking: {source_url}")
+        process_source_url(source_url, retry_attempt=False)
 
-        start_doc_count = len(output_data)
 
-        try:
-            response = fetch_url(source_url)
+# RETRY FAILED URLS ONCE AFTER FIRST PASS
 
-            if response is None:
-                print("Failed to fetch page")
+if RETRY_FAILED_URLS and retry_queue:
+    unique_retry_urls = []
+    seen_retry_urls = set()
 
-                docs_captured_for_url = 0
+    for retry_url in retry_queue:
+        if retry_url not in seen_retry_urls:
+            seen_retry_urls.add(retry_url)
+            unique_retry_urls.append(retry_url)
 
-                if should_use_browser_fallback(source_url):
-                    print("Request failed. Trying browser fallback...")
+    print(f"\nRetry queue found: {len(unique_retry_urls)} URLs")
+    print(f"Waiting {RETRY_SLEEP_SECONDS} seconds before retry pass...")
 
-                    seen = set()
-                    fallback_docs = browser_click_fallback(source_url, seen)
+    if RETRY_SLEEP_SECONDS > 0:
+        time.sleep(RETRY_SLEEP_SECONDS)
 
-                    for doc in fallback_docs:
-                        output_data.append(doc)
-
-                        raw_links.append({
-                            "company": doc["company"],
-                            "text": doc["document_title"],
-                            "title_source": doc.get("document_title_source", "browser_fallback"),
-                            "url": doc["document_url"]
-                        })
-
-                    docs_captured_for_url = len(fallback_docs)
-
-                if docs_captured_for_url == 0:
-                    add_issue(
-                        source_url=source_url,
-                        issue_type="FETCH_ERROR",
-                        status_code="",
-                        documents_captured=0,
-                        error_message="Request failed / timeout and browser fallback captured 0 documents"
-                    )
-
-                continue
-
-            print("Status:", response.status_code)
-
-            if response.status_code != 200:
-                print("Failed to fetch page")
-
-                docs_captured_for_url = 0
-
-                if should_use_browser_fallback(source_url):
-                    print("Non-200 status detected. Trying browser fallback...")
-
-                    seen = set()
-                    fallback_docs = browser_click_fallback(source_url, seen)
-
-                    for doc in fallback_docs:
-                        output_data.append(doc)
-
-                        raw_links.append({
-                            "company": doc["company"],
-                            "text": doc["document_title"],
-                            "title_source": doc.get("document_title_source", "browser_fallback"),
-                            "url": doc["document_url"]
-                        })
-
-                    docs_captured_for_url = len(fallback_docs)
-
-                if docs_captured_for_url == 0:
-                    add_issue(
-                        source_url=source_url,
-                        issue_type="FETCH_FAILED_STATUS",
-                        status_code=response.status_code,
-                        documents_captured=0,
-                        error_message="Non-200 status code and browser fallback captured 0 documents"
-                    )
-
-                continue
-
-            soup = BeautifulSoup(response.text, "html.parser")
-
-            seen = set()
-
-            extract_links_from_soup(
-                soup=soup,
-                base_url=source_url,
-                source_url=source_url,
-                seen=seen,
-                label="KEPT"
-            )
-
-            iframe_soups = get_iframe_soups(source_url, soup)
-
-            for iframe_item in iframe_soups:
-                iframe_url = iframe_item["iframe_url"]
-                iframe_soup = iframe_item["soup"]
-
-                extract_links_from_soup(
-                    soup=iframe_soup,
-                    base_url=iframe_url,
-                    source_url=source_url,
-                    seen=seen,
-                    label="IFRAME KEPT"
-                )
-
-            docs_captured_for_url = len(output_data) - start_doc_count
-
-            needs_hash_fallback = source_url_has_hash(source_url)
-
-            if needs_hash_fallback:
-                print("Hash URL detected. Browser fallback may be needed for section-specific documents.")
-
-            if (docs_captured_for_url == 0 or needs_hash_fallback) and should_use_browser_fallback(source_url):
-                fallback_docs = browser_click_fallback(source_url, seen)
-
-                for doc in fallback_docs:
-                    output_data.append(doc)
-
-                    raw_links.append({
-                        "company": doc["company"],
-                        "text": doc["document_title"],
-                        "title_source": doc.get("document_title_source", "browser_fallback"),
-                        "url": doc["document_url"]
-                    })
-
-                docs_captured_for_url = len(output_data) - start_doc_count
-
-            if docs_captured_for_url == 0:
-                add_issue(
-                    source_url=source_url,
-                    issue_type="SUCCESS_ZERO_DOCS",
-                    status_code=response.status_code,
-                    documents_captured=0,
-                    error_message="Page opened successfully but no document links captured"
-                )
-
-        except Exception as e:
-            print("Error:", e)
-
-            docs_captured_for_url = 0
-
-            if should_use_browser_fallback(source_url):
-                print("Request error detected. Trying browser fallback...")
-
-                seen = set()
-                fallback_docs = browser_click_fallback(source_url, seen)
-
-                for doc in fallback_docs:
-                    output_data.append(doc)
-
-                    raw_links.append({
-                        "company": doc["company"],
-                        "text": doc["document_title"],
-                        "title_source": doc.get("document_title_source", "browser_fallback"),
-                        "url": doc["document_url"]
-                    })
-
-                docs_captured_for_url = len(fallback_docs)
-
-            if docs_captured_for_url == 0:
-                add_issue(
-                    source_url=source_url,
-                    issue_type="FETCH_ERROR",
-                    status_code="",
-                    documents_captured=0,
-                    error_message=str(e)
-                )
+    for retry_url in unique_retry_urls:
+        print(f"\nRETRYING: {retry_url}")
+        process_source_url(retry_url, retry_attempt=True)
 
 
 # Previous output preservation disabled intentionally.
@@ -1962,7 +1902,9 @@ print("✅ Generic title/action text rejected")
 print("✅ document_title_source added")
 print("✅ PDF links are checked before navigation filters")
 print("✅ Global duplicate document URL prevention enabled")
-print("✅ Previous output preservation enabled")
+print("✅ Retry queue enabled")
+print("✅ Previous output preservation disabled")
+print("✅ output.csv represents current run capture only")
 print("✅ known_documents.csv history enabled")
 print("✅ New source URL onboarding does not pollute diff.csv")
 print("✅ Image/icon files excluded from document capture")
@@ -1976,6 +1918,8 @@ print("✅ diff.csv format locked")
 print("✅ run_summary_master.csv format locked")
 print("✅ known_documents.csv format locked")
 print(f"✅ Sleep seconds between URLs: {SLEEP_SECONDS}")
+print(f"✅ Retry failed URLs: {RETRY_FAILED_URLS}")
+print(f"✅ Retry sleep seconds: {RETRY_SLEEP_SECONDS}")
 print(f"✅ Run mode: {RUN_MODE}")
 print(f"✅ URL file: {TARGET_URL_FILE}")
 print(f"✅ Output file: {OUTPUT_FILE}")
@@ -1990,3 +1934,125 @@ print(f"✅ Known documents appended: {len(known_documents_to_append)}")
 print(f"✅ Issues: {len(issue_rows)}")
 print(f"✅ Browser fallback enabled: {ENABLE_BROWSER_FALLBACK}")
 print(f"✅ Run {current_run_number}: {len(output_data)} documents captured")
+import time
+from datetime import datetime
+from bs4 import BeautifulSoup
+from urllib.parse import urljoin, urlparse, unquote
+
+# =========================
+# RUN MODE CONFIGURATION
+# =========================
+
+RUN_MODE = os.environ.get("RUN_MODE", "full").strip().lower()
+TARGET_URL_FILE = os.environ.get("TARGET_URL_FILE", "documents.csv").strip()
+
+ENABLE_BROWSER_FALLBACK = os.environ.get("ENABLE_BROWSER_FALLBACK", "false").strip().lower() == "true"
+
+# Sleep between URLs to reduce blocking
+SLEEP_SECONDS = float(os.environ.get("SLEEP_SECONDS", "2"))
+
+# Retry failed URLs once after the first pass
+RETRY_FAILED_URLS = os.environ.get("RETRY_FAILED_URLS", "true").strip().lower() == "true"
+RETRY_SLEEP_SECONDS = float(os.environ.get("RETRY_SLEEP_SECONDS", "10"))
+
+if RUN_MODE in ["full", "seed"]:
+    OUTPUT_FILE = "output.csv"
+    RAW_FILE = "raw_links.csv"
+    ISSUES_FILE = "capture_issues.csv"
+elif RUN_MODE == "test":
+    OUTPUT_FILE = "output_test.csv"
+    RAW_FILE = "raw_links_test.csv"
+    ISSUES_FILE = "capture_issues_test.csv"
+elif RUN_MODE == "baseline":
+    OUTPUT_FILE = "output_baseline.csv"
+    RAW_FILE = "raw_links_baseline.csv"
+    ISSUES_FILE = "capture_issues_baseline.csv"
+else:
+    OUTPUT_FILE = "output.csv"
+    RAW_FILE = "raw_links.csv"
+    ISSUES_FILE = "capture_issues.csv"
+
+DIFF_FILE = "diff.csv"
+KNOWN_DOCUMENTS_FILE = "known_documents.csv"
+
+# Final clean summary file
+RUN_SUMMARY_FILE = "run_summary_master.csv"
+
+# =========================
+# LOCKED CSV FORMATS
+# =========================
+
+RUN_SUMMARY_FIELDNAMES = [
+    "run_number",
+    "date",
+    "run_mode",
+    "url_file",
+    "total_urls_processed",
+    "total_documents_captured",
+    "new_diff_records",
+    "issue_count",
+    "success_zero_docs_count",
+    "fetch_failed_status_count",
+    "fetch_error_count",
+    "browser_fallback_enabled",
+    "output_file",
+    "raw_file",
+    "issues_file"
+]
+
+DIFF_FIELDNAMES = [
+    "date",
+    "company",
+    "document_title",
+    "document_url"
+]
+
+KNOWN_DOCUMENTS_FIELDNAMES = [
+    "first_seen_date",
+    "company",
+    "document_title",
+    "document_url",
+    "source_run_mode"
+]
+
+output_data = []
+raw_links = []
+issue_rows = []
+
+# Retry queue for failed/zero-doc URLs
+retry_queue = []
+
+# Global duplicate prevention across the whole run
+global_seen_document_urls = set()
+
+# Known document history loaded from known_documents.csv
+known_document_urls = set()
+known_source_urls = set()
+known_document_urls_before_run = set()
+known_source_urls_before_run = set()
+known_documents_to_append = []
+
+current_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+# =========================
+# REQUEST HEADERS / FETCH
+# =========================
+
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                  "AppleWebKit/537.36 (KHTML, like Gecko) "
+                  "Chrome/124.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Connection": "close"
+}
+
+IGNORE_WORDS = {
+    "download",
+    "view",
+    "open",
+    "read",
+    "click",
+    "file",
+    "document",
+    "pdf",
