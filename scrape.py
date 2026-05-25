@@ -1104,8 +1104,8 @@ def parse_source_url(raw_source_url):
     }
 
 
-def should_use_browser_fallback(source_url):
-    return ENABLE_BROWSER_FALLBACK
+def should_use_browser_fallback(source_url, force_browser_fallback=False):
+    return ENABLE_BROWSER_FALLBACK or force_browser_fallback
 
 
 def source_url_has_hash(source_url):
