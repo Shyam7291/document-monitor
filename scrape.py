@@ -1695,7 +1695,7 @@ def browser_click_fallback(source_url, existing_keys):
         except Exception as e:
             print(f"Report detail link collection error: {e}")
 
-        return detail_links[:40]
+        return detail_links[:15]
 
     def click_download_controls_on_detail_page(page, title_hint=""):
         """
