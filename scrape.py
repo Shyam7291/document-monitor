@@ -1429,8 +1429,13 @@ def browser_click_fallback(source_url, existing_keys):
         """
         Collect report/detail page links from rendered page.
 
-        This handles pages where report cards open an intermediate viewer/detail page,
+        Handles pages where report cards/rows open an intermediate viewer/detail page,
         and the PDF is available only after clicking a download icon on that detail page.
+
+        Examples:
+        - /sustainability-report-2024/
+        - /annual-report-2024/
+        - /ar2024-25/index.html
         """
 
         detail_links = []
@@ -1457,7 +1462,23 @@ def browser_click_fallback(source_url, existing_keys):
                     continue
 
                 link_text = normalize_text(link.get_text(" ", strip=True))
-                combined_text = normalize_text(f"{link_text} {full_url}")
+
+                # Sometimes the <a> text is empty/icon-only,
+                # but parent row/card contains the report title.
+                parent_text_candidates = []
+
+                for parent_name in ["tr", "li", "article", "section", "div"]:
+                    parent = link.find_parent(parent_name)
+
+                    if parent:
+                        parent_text = normalize_text(parent.get_text(" ", strip=True))
+
+                        if parent_text:
+                            parent_text_candidates.append(parent_text)
+
+                parent_text = " ".join(parent_text_candidates[:3])
+
+                combined_text = normalize_text(f"{link_text} {parent_text} {full_url}")
 
                 keyword_hit = False
 
@@ -1468,7 +1489,13 @@ def browser_click_fallback(source_url, existing_keys):
                 except Exception:
                     keyword_hit = False
 
-                year_hit = bool(re.search(r"\b20\d{2}\b", combined_text))
+                year_hit = bool(
+                    re.search(
+                        r"\b20\d{2}([-/]\d{2})?\b",
+                        combined_text,
+                        flags=re.IGNORECASE
+                    )
+                )
 
                 path_hit = any(
                     marker in full_url_lower
@@ -1479,19 +1506,35 @@ def browser_click_fallback(source_url, existing_keys):
                         "/reports/",
                         "/report-",
                         "sustainability-report",
-                        "annual-report"
+                        "annual-report",
+                        "online-annual-report"
                     ]
+                )
+
+                # RIL-style annual report URL:
+                # https://www.ril.com/ar2024-25/index.html
+                ril_style_ar_hit = bool(
+                    re.search(
+                        r"/ar20\d{2}[-/]\d{2}/",
+                        full_url_lower,
+                        flags=re.IGNORECASE
+                    )
                 )
 
                 same_domain = urlparse(full_url).netloc == urlparse(source_url).netloc
 
-                if same_domain and (keyword_hit or year_hit or path_hit):
+                if same_domain and (keyword_hit or year_hit or path_hit or ril_style_ar_hit):
                     key = normalize_url_key(full_url)
 
                     if key not in seen_detail_urls:
                         seen_detail_urls.add(key)
 
-                        title_hint = link_text or clean_title_from_url(full_url) or "Unknown Title"
+                        title_hint = (
+                            link_text
+                            or parent_text
+                            or clean_title_from_url(full_url)
+                            or "Unknown Title"
+                        )
 
                         detail_links.append({
                             "url": full_url,
@@ -1503,7 +1546,7 @@ def browser_click_fallback(source_url, existing_keys):
         except Exception as e:
             print(f"Report detail link collection error: {e}")
 
-        return detail_links[:20]
+        return detail_links[:30]
 
     def click_download_controls_on_detail_page(page, title_hint=""):
         """
