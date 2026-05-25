@@ -1689,7 +1689,7 @@ def browser_click_fallback(source_url, existing_keys):
 
             print(f"Report detail pages discovered: {len(detail_links)}")
 
-            for detail in detail_links[:15]:
+            for detail in detail_links[:10]:
                 print(f"Report detail candidate: {detail.get('url')} priority={detail.get('priority')}")
 
         except Exception as e:
