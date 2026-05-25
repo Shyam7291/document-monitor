@@ -2114,7 +2114,7 @@ def process_source_url(source_url, retry_attempt=False, force_browser_fallback=F
 
             docs_captured_for_url = 0
 
-            if should_use_browser_fallback(source_url):
+            if should_use_browser_fallback(source_url, force_browser_fallback):
                 print("Request failed. Trying browser fallback...")
 
                 seen = set()
@@ -2154,7 +2154,7 @@ def process_source_url(source_url, retry_attempt=False, force_browser_fallback=F
 
             docs_captured_for_url = 0
 
-            if should_use_browser_fallback(source_url):
+            if should_use_browser_fallback(source_url, force_browser_fallback):
                 print("Non-200 status detected. Trying browser fallback...")
 
                 seen = set()
@@ -2259,7 +2259,7 @@ def process_source_url(source_url, retry_attempt=False, force_browser_fallback=F
 
         docs_captured_for_url = 0
 
-        if should_use_browser_fallback(source_url):
+        if should_use_browser_fallback(source_url, force_browser_fallback):
             print("Request error detected. Trying browser fallback...")
 
             seen = set()
