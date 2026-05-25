@@ -2357,23 +2357,33 @@ with open(TARGET_URL_FILE, newline="", encoding="utf-8") as file:
 # RETRY FAILED URLS ONCE AFTER FIRST PASS
 
 if RETRY_FAILED_URLS and retry_queue:
-    unique_retry_urls = []
+    unique_retry_items = []
     seen_retry_urls = set()
 
-    for retry_url in retry_queue:
+    for retry_item in retry_queue:
+        retry_url = retry_item["source_url"]
+
         if retry_url not in seen_retry_urls:
             seen_retry_urls.add(retry_url)
-            unique_retry_urls.append(retry_url)
+            unique_retry_items.append(retry_item)
 
-    print(f"\nRetry queue found: {len(unique_retry_urls)} URLs")
+    print(f"\nRetry queue found: {len(unique_retry_items)} URLs")
     print(f"Waiting {RETRY_SLEEP_SECONDS} seconds before retry pass...")
 
     if RETRY_SLEEP_SECONDS > 0:
         time.sleep(RETRY_SLEEP_SECONDS)
 
-    for retry_url in unique_retry_urls:
+    for retry_item in unique_retry_items:
+        retry_url = retry_item["source_url"]
+        retry_force_browser_fallback = retry_item.get("force_browser_fallback", False)
+
         print(f"\nRETRYING: {retry_url}")
-        process_source_url(retry_url, retry_attempt=True)
+
+        process_source_url(
+            retry_url,
+            retry_attempt=True,
+            force_browser_fallback=retry_force_browser_fallback
+        )
 
 
 # Previous output preservation disabled intentionally.
