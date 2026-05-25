@@ -1705,7 +1705,27 @@ def browser_click_fallback(source_url, existing_keys):
 
         try:
             scan_all_rendered_content(page)
+            try:
+                detail_html = page.content()
+                detail_soup = BeautifulSoup(detail_html, "html.parser")
 
+                for tag in detail_soup.find_all(True):
+                    for attr in ["href", "src", "data-href", "data-url", "data-download", "data-file"]:
+                        value = tag.get(attr)
+
+                        if not value:
+                            continue
+
+                        possible_url = urljoin(page.url or source_url, value)
+
+                        if is_click_document_candidate(possible_url):
+                            text_title = normalize_text(tag.get_text(" ", strip=True))
+                            final_title = text_title or title_hint
+
+                            add_doc_from_url(possible_url, final_title)
+
+            except Exception as detail_scan_error:
+                print(f"Detail page direct document scan error: {detail_scan_error}")
             download_selector = (
                 "a[download], "
                 "a[href*='.pdf'], "
