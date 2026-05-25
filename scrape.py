@@ -1068,6 +1068,40 @@ def is_navigation_link(url):
         return True
 
     return False
+def parse_source_url(raw_source_url):
+    """
+    Allow per-URL fallback control from CSV.
+
+    Example:
+    Fallback/https://www.ril.com/investors/financial-reporting/online-annual-report
+
+    This means:
+    - actual URL = https://www.ril.com/investors/financial-reporting/online-annual-report
+    - force browser fallback = True
+    """
+
+    raw_source_url = normalize_text(raw_source_url)
+
+    fallback_prefixes = [
+        "fallback/",
+        "fallback:"
+    ]
+
+    lower = raw_source_url.lower()
+
+    for prefix in fallback_prefixes:
+        if lower.startswith(prefix):
+            clean_url = raw_source_url[len(prefix):].strip()
+
+            return {
+                "source_url": clean_url,
+                "force_browser_fallback": True
+            }
+
+    return {
+        "source_url": raw_source_url,
+        "force_browser_fallback": False
+    }
 
 
 def should_use_browser_fallback(source_url):
