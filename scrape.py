@@ -1464,13 +1464,13 @@ def browser_click_fallback(source_url, existing_keys):
         Collect report/detail page links from rendered page.
 
         Handles pages where report cards/rows open an intermediate viewer/detail page,
-        and the PDF is available only after clicking a download icon on that detail page.
+        and the PDF is available only after clicking/opening documents on that detail page.
 
-        This version avoids same-page anchor links like #main-navigation
-        and prioritizes real report detail URLs like:
-        - /ar2024-25/index.html
-        - /sustainability-report-2024/
-        - /annual-report-2024/
+        This version:
+        - skips header/nav/footer/menu links
+        - skips same-page anchors
+        - prioritizes AGM/general meeting/detail pages
+        - prioritizes RIL-style annual report pages
         """
 
         detail_links = []
@@ -1490,6 +1490,44 @@ def browser_click_fallback(source_url, existing_keys):
 
                 # Skip pure same-page anchors
                 if href.startswith("#"):
+                    continue
+
+                # Skip links inside header/nav/footer/menu/cookie/search areas
+                skip_area = False
+
+                for parent in link.parents:
+                    parent_name = getattr(parent, "name", "") or ""
+
+                    try:
+                        parent_id = " ".join(parent.get("id", "").lower().split())
+                    except Exception:
+                        parent_id = ""
+
+                    try:
+                        parent_class = " ".join(parent.get("class", [])).lower()
+                    except Exception:
+                        parent_class = ""
+
+                    combined_parent = f"{parent_name} {parent_id} {parent_class}"
+
+                    if any(
+                        bad_area in combined_parent
+                        for bad_area in [
+                            "header",
+                            "nav",
+                            "footer",
+                            "menu",
+                            "cookie",
+                            "search",
+                            "breadcrumb",
+                            "language",
+                            "social"
+                        ]
+                    ):
+                        skip_area = True
+                        break
+
+                if skip_area:
                     continue
 
                 full_url = urljoin(page.url or source_url, href)
@@ -1557,7 +1595,13 @@ def browser_click_fallback(source_url, existing_keys):
                         "/report-",
                         "sustainability-report",
                         "annual-report",
-                        "online-annual-report"
+                        "online-annual-report",
+
+                        # AGM / general meeting detail pages
+                        "general-meeting",
+                        "annual-general-meeting",
+                        "agm",
+                        "meeting-"
                     ]
                 )
 
@@ -1571,9 +1615,19 @@ def browser_click_fallback(source_url, existing_keys):
                     )
                 )
 
+                # Electrolux-style meeting URL:
+                # /annual-general-meeting-2026/
+                meeting_style_hit = bool(
+                    re.search(
+                        r"(annual-)?general-meeting[-/]?20\d{2}",
+                        full_url_lower,
+                        flags=re.IGNORECASE
+                    )
+                )
+
                 same_domain = parsed_full.netloc == parsed_source.netloc
 
-                if same_domain and (keyword_hit or path_hit or ril_style_ar_hit or (year_hit and keyword_hit)):
+                if same_domain and (keyword_hit or path_hit or ril_style_ar_hit or meeting_style_hit or (year_hit and keyword_hit)):
                     key = normalize_url_key(full_url_without_fragment)
 
                     if key not in seen_detail_urls:
@@ -1589,16 +1643,41 @@ def browser_click_fallback(source_url, existing_keys):
                         priority = 0
 
                         if ril_style_ar_hit:
-                            priority += 100
+                            priority += 120
+
+                        if meeting_style_hit:
+                            priority += 120
+
+                        if any(x in full_url_lower for x in ["annual-general-meeting", "general-meeting", "agm"]):
+                            priority += 110
 
                         if path_hit:
-                            priority += 50
+                            priority += 70
 
                         if keyword_hit:
-                            priority += 30
+                            priority += 50
 
                         if year_hit:
-                            priority += 20
+                            priority += 30
+
+                        # Prefer detail-looking URLs
+                        if full_url_lower.endswith("/") and full_url_lower.count("/") >= 4:
+                            priority += 10
+
+                        # Penalize broad category/navigation pages
+                        if any(
+                            x in full_url_lower
+                            for x in [
+                                "/our-company/",
+                                "/our-business/",
+                                "/investors/",
+                                "/sustainability/",
+                                "/news",
+                                "/careers",
+                                "/contact"
+                            ]
+                        ):
+                            priority -= 40
 
                         detail_links.append({
                             "url": full_url_without_fragment,
@@ -1610,13 +1689,13 @@ def browser_click_fallback(source_url, existing_keys):
 
             print(f"Report detail pages discovered: {len(detail_links)}")
 
-            for detail in detail_links[:10]:
-                print(f"Report detail candidate: {detail.get('url')}")
+            for detail in detail_links[:15]:
+                print(f"Report detail candidate: {detail.get('url')} priority={detail.get('priority')}")
 
         except Exception as e:
             print(f"Report detail link collection error: {e}")
 
-        return detail_links[:30]
+        return detail_links[:40]
 
     def click_download_controls_on_detail_page(page, title_hint=""):
         """
