@@ -1466,10 +1466,11 @@ def browser_click_fallback(source_url, existing_keys):
         Handles pages where report cards/rows open an intermediate viewer/detail page,
         and the PDF is available only after clicking a download icon on that detail page.
 
-        Examples:
+        This version avoids same-page anchor links like #main-navigation
+        and prioritizes real report detail URLs like:
+        - /ar2024-25/index.html
         - /sustainability-report-2024/
         - /annual-report-2024/
-        - /ar2024-25/index.html
         """
 
         detail_links = []
@@ -1485,8 +1486,25 @@ def browser_click_fallback(source_url, existing_keys):
                 if not href:
                     continue
 
+                href = href.strip()
+
+                # Skip pure same-page anchors
+                if href.startswith("#"):
+                    continue
+
                 full_url = urljoin(page.url or source_url, href)
-                full_url_lower = full_url.lower()
+                parsed_full = urlparse(full_url)
+                parsed_source = urlparse(source_url)
+
+                # Remove fragment for comparison/storage
+                full_url_without_fragment = parsed_full._replace(fragment="").geturl()
+                full_url_lower = full_url_without_fragment.lower()
+
+                # Skip same page anchor/navigation URLs
+                current_page_without_fragment = urlparse(page.url or source_url)._replace(fragment="").geturl()
+
+                if full_url_without_fragment == current_page_without_fragment:
+                    continue
 
                 if is_image_or_asset_url(full_url_lower):
                     continue
@@ -1497,8 +1515,6 @@ def browser_click_fallback(source_url, existing_keys):
 
                 link_text = normalize_text(link.get_text(" ", strip=True))
 
-                # Sometimes the <a> text is empty/icon-only,
-                # but parent row/card contains the report title.
                 parent_text_candidates = []
 
                 for parent_name in ["tr", "li", "article", "section", "div"]:
@@ -1512,7 +1528,7 @@ def browser_click_fallback(source_url, existing_keys):
 
                 parent_text = " ".join(parent_text_candidates[:3])
 
-                combined_text = normalize_text(f"{link_text} {parent_text} {full_url}")
+                combined_text = normalize_text(f"{link_text} {parent_text} {full_url_without_fragment}")
 
                 keyword_hit = False
 
@@ -1555,10 +1571,10 @@ def browser_click_fallback(source_url, existing_keys):
                     )
                 )
 
-                same_domain = urlparse(full_url).netloc == urlparse(source_url).netloc
+                same_domain = parsed_full.netloc == parsed_source.netloc
 
-                if same_domain and (keyword_hit or year_hit or path_hit or ril_style_ar_hit):
-                    key = normalize_url_key(full_url)
+                if same_domain and (keyword_hit or path_hit or ril_style_ar_hit or (year_hit and keyword_hit)):
+                    key = normalize_url_key(full_url_without_fragment)
 
                     if key not in seen_detail_urls:
                         seen_detail_urls.add(key)
@@ -1566,16 +1582,36 @@ def browser_click_fallback(source_url, existing_keys):
                         title_hint = (
                             link_text
                             or parent_text
-                            or clean_title_from_url(full_url)
+                            or clean_title_from_url(full_url_without_fragment)
                             or "Unknown Title"
                         )
 
+                        priority = 0
+
+                        if ril_style_ar_hit:
+                            priority += 100
+
+                        if path_hit:
+                            priority += 50
+
+                        if keyword_hit:
+                            priority += 30
+
+                        if year_hit:
+                            priority += 20
+
                         detail_links.append({
-                            "url": full_url,
-                            "title": title_hint
+                            "url": full_url_without_fragment,
+                            "title": title_hint,
+                            "priority": priority
                         })
 
+            detail_links.sort(key=lambda x: x.get("priority", 0), reverse=True)
+
             print(f"Report detail pages discovered: {len(detail_links)}")
+
+            for detail in detail_links[:10]:
+                print(f"Report detail candidate: {detail.get('url')}")
 
         except Exception as e:
             print(f"Report detail link collection error: {e}")
