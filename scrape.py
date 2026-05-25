@@ -2323,12 +2323,23 @@ with open(TARGET_URL_FILE, newline="", encoding="utf-8") as file:
     reader = csv.DictReader(file)
 
     for row in reader:
-        source_url = row["source_url"]
+        raw_source_url = row["source_url"]
+
+        if not raw_source_url:
+            continue
+
+        parsed_source = parse_source_url(raw_source_url)
+
+        source_url = parsed_source["source_url"]
+        force_browser_fallback = parsed_source["force_browser_fallback"]
 
         if not source_url:
             continue
 
         target_source_urls.append(source_url)
+
+        if force_browser_fallback:
+            print(f"Force browser fallback enabled for URL: {source_url}")
 
         if total_urls_processed > 0 and SLEEP_SECONDS > 0:
             print(f"Sleeping {SLEEP_SECONDS} seconds before next URL...")
@@ -2336,7 +2347,11 @@ with open(TARGET_URL_FILE, newline="", encoding="utf-8") as file:
 
         total_urls_processed += 1
 
-        process_source_url(source_url, retry_attempt=False)
+        process_source_url(
+            source_url,
+            retry_attempt=False,
+            force_browser_fallback=force_browser_fallback
+        )
 
 
 # RETRY FAILED URLS ONCE AFTER FIRST PASS
