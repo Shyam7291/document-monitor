@@ -2133,16 +2133,19 @@ def process_source_url(source_url, retry_attempt=False, force_browser_fallback=F
                 docs_captured_for_url = len(fallback_docs)
 
             if docs_captured_for_url == 0:
-                if not retry_attempt and RETRY_FAILED_URLS:
-                    print("Queued for retry: request failed")
-                    retry_queue.append({     "source_url": source_url,     "force_browser_fallback": force_browser_fallback })
-                else:
-                    add_issue(
-                        source_url=source_url,
-                        issue_type="FETCH_ERROR_AFTER_RETRY" if retry_attempt else "FETCH_ERROR",
-                        status_code="",
-                        documents_captured=0,
-                        error_message="Request failed / timeout and browser fallback captured 0 documents"
+    if not retry_attempt and RETRY_FAILED_URLS:
+        print("Queued for retry: request failed")
+        retry_queue.append({
+            "source_url": source_url,
+            "force_browser_fallback": force_browser_fallback
+        })
+    else:
+        add_issue(
+            source_url=source_url,
+            issue_type="FETCH_ERROR_AFTER_RETRY" if retry_attempt else "FETCH_ERROR",
+            status_code="",
+            documents_captured=0,
+            error_message="Request
                     )
 
             return docs_captured_for_url
