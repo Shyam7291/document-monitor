@@ -2092,7 +2092,7 @@ def browser_click_fallback(source_url, existing_keys):
     return fallback_docs
 
 
-def process_source_url(source_url, retry_attempt=False):
+def process_source_url(source_url, retry_attempt=False, force_browser_fallback=False):
     """
     Process one source URL.
 
