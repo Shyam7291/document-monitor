@@ -1724,7 +1724,7 @@ def browser_click_fallback(source_url, existing_keys):
 
             download_controls = page.locator(download_selector)
 
-            count = min(download_controls.count(), 15)
+            count = min(download_controls.count(), 50)
 
             print(f"Download controls found on detail page: {count}")
 
