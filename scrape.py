@@ -2135,7 +2135,7 @@ def process_source_url(source_url, retry_attempt=False, force_browser_fallback=F
             if docs_captured_for_url == 0:
                 if not retry_attempt and RETRY_FAILED_URLS:
                     print("Queued for retry: request failed")
-                    retry_queue.append(source_url)
+                    retry_queue.append({     "source_url": source_url,     "force_browser_fallback": force_browser_fallback })
                 else:
                     add_issue(
                         source_url=source_url,
@@ -2175,7 +2175,7 @@ def process_source_url(source_url, retry_attempt=False, force_browser_fallback=F
             if docs_captured_for_url == 0:
                 if not retry_attempt and RETRY_FAILED_URLS:
                     print("Queued for retry: non-200 status")
-                    retry_queue.append(source_url)
+                    retry_queue.append({     "source_url": source_url,     "force_browser_fallback": force_browser_fallback })
                 else:
                     add_issue(
                         source_url=source_url,
@@ -2242,7 +2242,7 @@ def process_source_url(source_url, retry_attempt=False, force_browser_fallback=F
         if docs_captured_for_url == 0:
             if not retry_attempt and RETRY_FAILED_URLS:
                 print("Queued for retry: zero documents captured")
-                retry_queue.append(source_url)
+                retry_queue.append({     "source_url": source_url,     "force_browser_fallback": force_browser_fallback })
             else:
                 add_issue(
                     source_url=source_url,
@@ -2280,7 +2280,7 @@ def process_source_url(source_url, retry_attempt=False, force_browser_fallback=F
         if docs_captured_for_url == 0:
             if not retry_attempt and RETRY_FAILED_URLS:
                 print("Queued for retry: exception")
-                retry_queue.append(source_url)
+                retry_queue.append({     "source_url": source_url,     "force_browser_fallback": force_browser_fallback })
             else:
                 add_issue(
                     source_url=source_url,
