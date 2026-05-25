@@ -2141,13 +2141,12 @@ def process_source_url(source_url, retry_attempt=False, force_browser_fallback=F
         })
     else:
         add_issue(
-            source_url=source_url,
-            issue_type="FETCH_ERROR_AFTER_RETRY" if retry_attempt else "FETCH_ERROR",
-            status_code="",
-            documents_captured=0,
-            error_message="Request
-                    )
-
+    source_url=source_url,
+    issue_type="FETCH_ERROR_AFTER_RETRY" if retry_attempt else "FETCH_ERROR",
+    status_code="",
+    documents_captured=0,
+    error_message="Request failed / timeout and browser fallback captured 0 documents"
+)
             return docs_captured_for_url
 
         print("Status:", response.status_code)
