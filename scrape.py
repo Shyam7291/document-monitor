@@ -2224,7 +2224,7 @@ def process_source_url(source_url, retry_attempt=False, force_browser_fallback=F
         if needs_report_card_fallback:
             print("Report-card page detected. Browser fallback may be needed for card-based documents.")
 
-        if (docs_captured_for_url == 0 or needs_hash_fallback or needs_report_card_fallback) and should_use_browser_fallback(source_url):
+        if (docs_captured_for_url == 0 or needs_hash_fallback or needs_report_card_fallback or force_browser_fallback) and should_use_browser_fallback(source_url, force_browser_fallback):
             fallback_docs = browser_click_fallback(source_url, seen)
 
             for doc in fallback_docs:
