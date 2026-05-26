@@ -494,88 +494,6 @@ def normalize_text(text):
     return text.strip()
 
 
-def load_report_keywords():
-    """
-    Load configurable report/card keywords from report_keywords.csv.
-
-    If report_keywords.csv is missing or empty, use safe default keywords.
-    This allows adding future card/report phrases without changing Python code.
-    """
-
-    default_keywords = [
-        "integrated annual report",
-        "annual report",
-        "sustainability report",
-        "esg report",
-        "climate report",
-        "cdp",
-        "databook"
-    ]
-
-    keywords = []
-
-    if os.path.exists(REPORT_KEYWORDS_FILE):
-        try:
-            with open(REPORT_KEYWORDS_FILE, newline="", encoding="utf-8") as keyword_file:
-                reader = csv.DictReader(keyword_file)
-
-                for row in reader:
-                    keyword = normalize_text(row.get("keyword", ""))
-
-                    if keyword:
-                        keywords.append(keyword.lower())
-
-        except Exception as e:
-            print(f"Report keywords load error: {e}")
-
-    if not keywords:
-        keywords = default_keywords
-
-    unique_keywords = []
-    seen_keywords = set()
-
-    for keyword in keywords:
-        key = keyword.lower().strip()
-
-        if key and key not in seen_keywords:
-            seen_keywords.add(key)
-            unique_keywords.append(key)
-
-    return unique_keywords
-
-
-def build_report_keyword_regex():
-    """
-    Build regex pattern from report_keywords.csv values.
-    Spaces in keywords are converted to flexible whitespace.
-    """
-
-    escaped_keywords = []
-
-    for keyword in REPORT_CARD_KEYWORDS:
-        keyword = keyword.strip()
-
-        if not keyword:
-            continue
-
-        escaped = re.escape(keyword)
-        escaped = escaped.replace(r"\ ", r"\s+")
-        escaped_keywords.append(escaped)
-
-    if not escaped_keywords:
-        escaped_keywords = [
-            r"annual\s+report",
-            r"sustainability\s+report",
-            r"esg\s+report"
-        ]
-
-    return r"(" + "|".join(escaped_keywords) + r")"
-
-
-REPORT_CARD_KEYWORDS = load_report_keywords()
-REPORT_CARD_KEYWORD_REGEX = build_report_keyword_regex()
-
-
 def is_generic_action_title(text):
     """
     Detect weak/generic link text that should not be used as document title.
@@ -1068,44 +986,10 @@ def is_navigation_link(url):
         return True
 
     return False
-def parse_source_url(raw_source_url):
-    """
-    Allow per-URL fallback control from CSV.
-
-    Example:
-    Fallback/https://www.ril.com/investors/financial-reporting/online-annual-report
-
-    This means:
-    - actual URL = https://www.ril.com/investors/financial-reporting/online-annual-report
-    - force browser fallback = True
-    """
-
-    raw_source_url = normalize_text(raw_source_url)
-
-    fallback_prefixes = [
-        "fallback/",
-        "fallback:"
-    ]
-
-    lower = raw_source_url.lower()
-
-    for prefix in fallback_prefixes:
-        if lower.startswith(prefix):
-            clean_url = raw_source_url[len(prefix):].strip()
-
-            return {
-                "source_url": clean_url,
-                "force_browser_fallback": True
-            }
-
-    return {
-        "source_url": raw_source_url,
-        "force_browser_fallback": False
-    }
 
 
-def should_use_browser_fallback(source_url, force_browser_fallback=False):
-    return ENABLE_BROWSER_FALLBACK or force_browser_fallback
+def should_use_browser_fallback(source_url):
+    return ENABLE_BROWSER_FALLBACK
 
 
 def source_url_has_hash(source_url):
@@ -1297,7 +1181,13 @@ def should_trigger_report_card_fallback(soup, docs_captured_for_url):
     Detect pages where report documents appear as visual cards/tiles
     and normal HTML scraping captured only a few direct links.
 
-    Keywords are loaded from report_keywords.csv.
+    Generic examples:
+    - Integrated Annual Report 2024
+    - Sustainability Report 2023
+    - ESG Report 2022
+    - Climate Report 2021
+    - CDP Questionnaire 2024
+    - ESG Databook 2025
     """
 
     if docs_captured_for_url >= 5:
@@ -1307,23 +1197,20 @@ def should_trigger_report_card_fallback(soup, docs_captured_for_url):
         page_text = normalize_text(soup.get_text(" ", strip=True))
 
         report_matches = re.findall(
-            REPORT_CARD_KEYWORD_REGEX + r".{0,80}\b20\d{2}\b",
+            r"\b("
+            r"integrated\s+annual\s+report|"
+            r"annual\s+report|"
+            r"sustainability\s+report|"
+            r"esg\s+report|"
+            r"climate\s+report|"
+            r"cdp\s+.*?questionnaire|"
+            r"databook"
+            r")\b.{0,60}\b20\d{2}\b",
             page_text,
             flags=re.IGNORECASE
         )
 
-        unique_matches = set()
-
-        for match in report_matches:
-            if isinstance(match, tuple):
-                match_text = " ".join([str(x) for x in match if x])
-            else:
-                match_text = str(match)
-
-            match_text = normalize_text(match_text).lower()
-
-            if match_text:
-                unique_matches.add(match_text)
+        unique_matches = set([x.lower().strip() for x in report_matches])
 
         if len(unique_matches) >= 3:
             print(f"Report-card fallback signal detected: {len(unique_matches)} report-like items")
@@ -1459,412 +1346,6 @@ def browser_click_fallback(source_url, existing_keys):
         except Exception as e:
             print(f"Frame collection error: {e}")
 
-    def collect_report_detail_links(page):
-        """
-        Collect report/detail page links from rendered page.
-
-        Handles pages where report cards/rows open an intermediate viewer/detail page,
-        and the PDF is available only after clicking/opening documents on that detail page.
-
-        This version:
-        - skips header/nav/footer/menu links
-        - skips same-page anchors
-        - prioritizes AGM/general meeting/detail pages
-        - prioritizes RIL-style annual report pages
-        """
-
-        detail_links = []
-        seen_detail_urls = set()
-
-        try:
-            html_content = page.content()
-            page_soup = BeautifulSoup(html_content, "html.parser")
-
-            for link in page_soup.find_all("a"):
-                href = link.get("href")
-
-                if not href:
-                    continue
-
-                href = href.strip()
-
-                # Skip pure same-page anchors
-                if href.startswith("#"):
-                    continue
-
-                # Skip links inside header/nav/footer/menu/cookie/search areas
-                skip_area = False
-
-                for parent in link.parents:
-                    parent_name = getattr(parent, "name", "") or ""
-
-                    try:
-                        parent_id = " ".join(parent.get("id", "").lower().split())
-                    except Exception:
-                        parent_id = ""
-
-                    try:
-                        parent_class = " ".join(parent.get("class", [])).lower()
-                    except Exception:
-                        parent_class = ""
-
-                    combined_parent = f"{parent_name} {parent_id} {parent_class}"
-
-                    if any(
-                        bad_area in combined_parent
-                        for bad_area in [
-                            "header",
-                            "nav",
-                            "footer",
-                            "menu",
-                            "cookie",
-                            "search",
-                            "breadcrumb",
-                            "language",
-                            "social"
-                        ]
-                    ):
-                        skip_area = True
-                        break
-
-                if skip_area:
-                    continue
-
-                full_url = urljoin(page.url or source_url, href)
-                parsed_full = urlparse(full_url)
-                parsed_source = urlparse(source_url)
-
-                # Remove fragment for comparison/storage
-                full_url_without_fragment = parsed_full._replace(fragment="").geturl()
-                full_url_lower = full_url_without_fragment.lower()
-
-                # Skip same page anchor/navigation URLs
-                current_page_without_fragment = urlparse(page.url or source_url)._replace(fragment="").geturl()
-
-                if full_url_without_fragment == current_page_without_fragment:
-                    continue
-
-                if is_image_or_asset_url(full_url_lower):
-                    continue
-
-                # Direct documents are already handled elsewhere.
-                if is_document_link(full_url_lower):
-                    continue
-
-                link_text = normalize_text(link.get_text(" ", strip=True))
-
-                parent_text_candidates = []
-
-                for parent_name in ["tr", "li", "article", "section", "div"]:
-                    parent = link.find_parent(parent_name)
-
-                    if parent:
-                        parent_text = normalize_text(parent.get_text(" ", strip=True))
-
-                        if parent_text:
-                            parent_text_candidates.append(parent_text)
-
-                parent_text = " ".join(parent_text_candidates[:3])
-
-                combined_text = normalize_text(f"{link_text} {parent_text} {full_url_without_fragment}")
-
-                keyword_hit = False
-
-                try:
-                    keyword_hit = bool(
-                        re.search(REPORT_CARD_KEYWORD_REGEX, combined_text, flags=re.IGNORECASE)
-                    )
-                except Exception:
-                    keyword_hit = False
-
-                year_hit = bool(
-                    re.search(
-                        r"\b20\d{2}([-/]\d{2})?\b",
-                        combined_text,
-                        flags=re.IGNORECASE
-                    )
-                )
-
-                path_hit = any(
-                    marker in full_url_lower
-                    for marker in [
-                        "/sustainability-reports/",
-                        "/annual-reports/",
-                        "/annual-report/",
-                        "/reports/",
-                        "/report-",
-                        "sustainability-report",
-                        "annual-report",
-                        "online-annual-report",
-
-                        # AGM / general meeting detail pages
-                        "general-meeting",
-                        "annual-general-meeting",
-                        "agm",
-                        "meeting-"
-                    ]
-                )
-
-                # RIL-style annual report URL:
-                # https://www.ril.com/ar2024-25/index.html
-                ril_style_ar_hit = bool(
-                    re.search(
-                        r"/ar20\d{2}[-/]\d{2}/",
-                        full_url_lower,
-                        flags=re.IGNORECASE
-                    )
-                )
-
-                # Electrolux-style meeting URL:
-                # /annual-general-meeting-2026/
-                meeting_style_hit = bool(
-                    re.search(
-                        r"(annual-)?general-meeting[-/]?20\d{2}",
-                        full_url_lower,
-                        flags=re.IGNORECASE
-                    )
-                )
-
-                same_domain = parsed_full.netloc == parsed_source.netloc
-
-                if same_domain and (keyword_hit or path_hit or ril_style_ar_hit or meeting_style_hit or (year_hit and keyword_hit)):
-                    key = normalize_url_key(full_url_without_fragment)
-
-                    if key not in seen_detail_urls:
-                        seen_detail_urls.add(key)
-
-                        title_hint = (
-                            link_text
-                            or parent_text
-                            or clean_title_from_url(full_url_without_fragment)
-                            or "Unknown Title"
-                        )
-
-                        priority = 0
-
-                        if ril_style_ar_hit:
-                            priority += 120
-
-                        if meeting_style_hit:
-                            priority += 120
-
-                        if any(x in full_url_lower for x in ["annual-general-meeting", "general-meeting", "agm"]):
-                            priority += 110
-
-                        if path_hit:
-                            priority += 70
-
-                        if keyword_hit:
-                            priority += 50
-
-                        if year_hit:
-                            priority += 30
-
-                        # Prefer detail-looking URLs
-                        if full_url_lower.endswith("/") and full_url_lower.count("/") >= 4:
-                            priority += 10
-
-                        # Penalize broad category/navigation pages
-                        if any(
-                            x in full_url_lower
-                            for x in [
-                                "/our-company/",
-                                "/our-business/",
-                                "/investors/",
-                                "/sustainability/",
-                                "/news",
-                                "/careers",
-                                "/contact"
-                            ]
-                        ):
-                            priority -= 40
-
-                        detail_links.append({
-                            "url": full_url_without_fragment,
-                            "title": title_hint,
-                            "priority": priority
-                        })
-
-            detail_links.sort(key=lambda x: x.get("priority", 0), reverse=True)
-
-            print(f"Report detail pages discovered: {len(detail_links)}")
-
-            for detail in detail_links[:10]:
-                print(f"Report detail candidate: {detail.get('url')} priority={detail.get('priority')}")
-
-        except Exception as e:
-            print(f"Report detail link collection error: {e}")
-
-        return detail_links[:15]
-
-    def click_download_controls_on_detail_page(page, title_hint=""):
-        """
-        On a report detail/viewer page, click download-like controls/icons
-        and capture the final PDF/download URL.
-        """
-
-        try:
-            scan_all_rendered_content(page)
-            try:
-                detail_html = page.content()
-                detail_soup = BeautifulSoup(detail_html, "html.parser")
-
-                for tag in detail_soup.find_all(True):
-                    for attr in ["href", "src", "data-href", "data-url", "data-download", "data-file"]:
-                        value = tag.get(attr)
-
-                        if not value:
-                            continue
-
-                        possible_url = urljoin(page.url or source_url, value)
-
-                        if is_click_document_candidate(possible_url):
-                            text_title = normalize_text(tag.get_text(" ", strip=True))
-                            final_title = text_title or title_hint
-
-                            add_doc_from_url(possible_url, final_title)
-
-            except Exception as detail_scan_error:
-                print(f"Detail page direct document scan error: {detail_scan_error}")
-            download_selector = (
-                "a[download], "
-                "a[href*='.pdf'], "
-                "a[href*='.ashx'], "
-                "a[href*='/media/'], "
-                "a[href*='/download'], "
-                "a[href*='/downloads/'], "
-                "a[href*='/files/'], "
-                "button[aria-label*='download' i], "
-                "a[aria-label*='download' i], "
-                "button[title*='download' i], "
-                "a[title*='download' i], "
-                "[class*='download'], "
-                "[class*='Download']"
-            )
-
-            download_controls = page.locator(download_selector)
-
-            count = min(download_controls.count(), 15)
-
-            print(f"Download controls found on detail page: {count}")
-
-            for i in range(count):
-                try:
-                    element = download_controls.nth(i)
-
-                    before_url = page.url
-                    captured_url = ""
-
-                    try:
-                        element.scroll_into_view_if_needed(timeout=3000)
-                    except Exception:
-                        pass
-
-                    try:
-                        href_value = element.get_attribute("href", timeout=1000)
-
-                        if href_value:
-                            possible_url = urljoin(page.url or source_url, href_value)
-
-                            if is_click_document_candidate(possible_url):
-                                captured_url = possible_url
-
-                    except Exception:
-                        pass
-
-                    if not captured_url:
-                        try:
-                            with page.expect_popup(timeout=2500) as popup_info:
-                                element.click(timeout=4000, force=True)
-
-                            popup = popup_info.value
-                            popup.wait_for_load_state("domcontentloaded", timeout=10000)
-                            captured_url = popup.url
-                            popup.close()
-
-                        except Exception:
-                            pass
-
-                    if not captured_url:
-                        try:
-                            with page.expect_download(timeout=2500) as download_info:
-                                element.click(timeout=4000, force=True)
-
-                            download = download_info.value
-                            captured_url = download.url
-
-                        except Exception:
-                            pass
-
-                    if not captured_url:
-                        try:
-                            element.click(timeout=4000, force=True)
-                            page.wait_for_timeout(1500)
-
-                            if page.url != before_url:
-                                captured_url = page.url
-
-                                try:
-                                    page.goto(before_url, wait_until="domcontentloaded", timeout=60000)
-                                    page.wait_for_timeout(1000)
-                                except Exception:
-                                    pass
-
-                        except Exception:
-                            pass
-
-                    if captured_url:
-                        add_doc_from_url(captured_url, title_hint)
-
-                    scan_all_rendered_content(page)
-
-                except Exception:
-                    continue
-
-        except Exception as e:
-            print(f"Download control click error on detail page: {e}")
-
-    def visit_report_detail_pages(page):
-        """
-        Visit report detail pages discovered from the main page,
-        then click download controls/icons on each detail page.
-        """
-
-        try:
-            detail_links = collect_report_detail_links(page)
-
-            if not detail_links:
-                return
-
-            original_url = page.url or source_url
-
-            for detail in detail_links:
-                detail_url = detail.get("url", "")
-                title_hint = detail.get("title", "")
-
-                if not detail_url:
-                    continue
-
-                try:
-                    print(f"Visiting report detail page: {detail_url}")
-
-                    page.goto(detail_url, wait_until="domcontentloaded", timeout=60000)
-                    page.wait_for_timeout(2500)
-
-                    click_download_controls_on_detail_page(page, title_hint)
-
-                except Exception as detail_error:
-                    print(f"Report detail page visit error: {detail_error}")
-
-            try:
-                page.goto(original_url, wait_until="domcontentloaded", timeout=60000)
-                page.wait_for_timeout(1000)
-            except Exception:
-                pass
-
-        except Exception as e:
-            print(f"Report detail page phase error: {e}")
-
     def interact_with_hash_fragments(page):
         hash_fragments = get_hash_fragments(source_url)
 
@@ -1936,7 +1417,11 @@ def browser_click_fallback(source_url, existing_keys):
         """
         Click report-like cards/tiles that may open PDFs or trigger downloads.
 
-        Keywords are loaded from report_keywords.csv.
+        This is generic and helps pages where documents are shown as cards:
+        - Integrated Annual Report 2024
+        - Sustainability Report 2023
+        - ESG Report 2022
+        - Climate Report 2021
         """
 
         try:
@@ -1946,7 +1431,7 @@ def browser_click_fallback(source_url, existing_keys):
 
             report_cards = page.locator(report_card_selector).filter(
                 has_text=re.compile(
-                    REPORT_CARD_KEYWORD_REGEX + r"|20\d{2}",
+                    r"(integrated\s+annual\s+report|annual\s+report|sustainability\s+report|esg\s+report|climate\s+report|cdp|databook|20\d{2})",
                     re.IGNORECASE
                 )
             )
@@ -2095,8 +1580,6 @@ def browser_click_fallback(source_url, existing_keys):
 
             interact_with_hash_fragments(page)
 
-            visit_report_detail_pages(page)
-
             click_report_card_controls(page)
 
             try:
@@ -2227,7 +1710,7 @@ def browser_click_fallback(source_url, existing_keys):
     return fallback_docs
 
 
-def process_source_url(source_url, retry_attempt=False, force_browser_fallback=False):
+def process_source_url(source_url, retry_attempt=False):
     """
     Process one source URL.
 
@@ -2249,7 +1732,7 @@ def process_source_url(source_url, retry_attempt=False, force_browser_fallback=F
 
             docs_captured_for_url = 0
 
-            if should_use_browser_fallback(source_url, force_browser_fallback):
+            if should_use_browser_fallback(source_url):
                 print("Request failed. Trying browser fallback...")
 
                 seen = set()
@@ -2270,10 +1753,7 @@ def process_source_url(source_url, retry_attempt=False, force_browser_fallback=F
             if docs_captured_for_url == 0:
                 if not retry_attempt and RETRY_FAILED_URLS:
                     print("Queued for retry: request failed")
-                    retry_queue.append({
-                        "source_url": source_url,
-                        "force_browser_fallback": force_browser_fallback
-                    })
+                    retry_queue.append(source_url)
                 else:
                     add_issue(
                         source_url=source_url,
@@ -2282,6 +1762,7 @@ def process_source_url(source_url, retry_attempt=False, force_browser_fallback=F
                         documents_captured=0,
                         error_message="Request failed / timeout and browser fallback captured 0 documents"
                     )
+
             return docs_captured_for_url
 
         print("Status:", response.status_code)
@@ -2291,7 +1772,7 @@ def process_source_url(source_url, retry_attempt=False, force_browser_fallback=F
 
             docs_captured_for_url = 0
 
-            if should_use_browser_fallback(source_url, force_browser_fallback):
+            if should_use_browser_fallback(source_url):
                 print("Non-200 status detected. Trying browser fallback...")
 
                 seen = set()
@@ -2312,10 +1793,7 @@ def process_source_url(source_url, retry_attempt=False, force_browser_fallback=F
             if docs_captured_for_url == 0:
                 if not retry_attempt and RETRY_FAILED_URLS:
                     print("Queued for retry: non-200 status")
-                    retry_queue.append({
-                    "source_url": source_url,
-                    "force_browser_fallback": force_browser_fallback
-                     })
+                    retry_queue.append(source_url)
                 else:
                     add_issue(
                         source_url=source_url,
@@ -2364,7 +1842,7 @@ def process_source_url(source_url, retry_attempt=False, force_browser_fallback=F
         if needs_report_card_fallback:
             print("Report-card page detected. Browser fallback may be needed for card-based documents.")
 
-        if (docs_captured_for_url == 0 or needs_hash_fallback or needs_report_card_fallback or force_browser_fallback) and should_use_browser_fallback(source_url, force_browser_fallback):
+        if (docs_captured_for_url == 0 or needs_hash_fallback or needs_report_card_fallback) and should_use_browser_fallback(source_url):
             fallback_docs = browser_click_fallback(source_url, seen)
 
             for doc in fallback_docs:
@@ -2382,10 +1860,7 @@ def process_source_url(source_url, retry_attempt=False, force_browser_fallback=F
         if docs_captured_for_url == 0:
             if not retry_attempt and RETRY_FAILED_URLS:
                 print("Queued for retry: zero documents captured")
-                retry_queue.append({
-                "source_url": source_url,
-                "force_browser_fallback": force_browser_fallback
-                 })
+                retry_queue.append(source_url)
             else:
                 add_issue(
                     source_url=source_url,
@@ -2402,7 +1877,7 @@ def process_source_url(source_url, retry_attempt=False, force_browser_fallback=F
 
         docs_captured_for_url = 0
 
-        if should_use_browser_fallback(source_url, force_browser_fallback):
+        if should_use_browser_fallback(source_url):
             print("Request error detected. Trying browser fallback...")
 
             seen = set()
@@ -2423,10 +1898,7 @@ def process_source_url(source_url, retry_attempt=False, force_browser_fallback=F
         if docs_captured_for_url == 0:
             if not retry_attempt and RETRY_FAILED_URLS:
                 print("Queued for retry: exception")
-                retry_queue.append({
-                "source_url": source_url,
-                "force_browser_fallback": force_browser_fallback
-                 })
+                retry_queue.append(source_url)
             else:
                 add_issue(
                     source_url=source_url,
@@ -2457,23 +1929,12 @@ with open(TARGET_URL_FILE, newline="", encoding="utf-8") as file:
     reader = csv.DictReader(file)
 
     for row in reader:
-        raw_source_url = row["source_url"]
-
-        if not raw_source_url:
-            continue
-
-        parsed_source = parse_source_url(raw_source_url)
-
-        source_url = parsed_source["source_url"]
-        force_browser_fallback = parsed_source["force_browser_fallback"]
+        source_url = row["source_url"]
 
         if not source_url:
             continue
 
         target_source_urls.append(source_url)
-
-        if force_browser_fallback:
-            print(f"Force browser fallback enabled for URL: {source_url}")
 
         if total_urls_processed > 0 and SLEEP_SECONDS > 0:
             print(f"Sleeping {SLEEP_SECONDS} seconds before next URL...")
@@ -2481,43 +1942,29 @@ with open(TARGET_URL_FILE, newline="", encoding="utf-8") as file:
 
         total_urls_processed += 1
 
-        process_source_url(
-            source_url,
-            retry_attempt=False,
-            force_browser_fallback=force_browser_fallback
-        )
+        process_source_url(source_url, retry_attempt=False)
 
 
 # RETRY FAILED URLS ONCE AFTER FIRST PASS
 
 if RETRY_FAILED_URLS and retry_queue:
-    unique_retry_items = []
+    unique_retry_urls = []
     seen_retry_urls = set()
 
-    for retry_item in retry_queue:
-        retry_url = retry_item["source_url"]
-
+    for retry_url in retry_queue:
         if retry_url not in seen_retry_urls:
             seen_retry_urls.add(retry_url)
-            unique_retry_items.append(retry_item)
+            unique_retry_urls.append(retry_url)
 
-    print(f"\nRetry queue found: {len(unique_retry_items)} URLs")
+    print(f"\nRetry queue found: {len(unique_retry_urls)} URLs")
     print(f"Waiting {RETRY_SLEEP_SECONDS} seconds before retry pass...")
 
     if RETRY_SLEEP_SECONDS > 0:
         time.sleep(RETRY_SLEEP_SECONDS)
 
-    for retry_item in unique_retry_items:
-        retry_url = retry_item["source_url"]
-        retry_force_browser_fallback = retry_item.get("force_browser_fallback", False)
-
+    for retry_url in unique_retry_urls:
         print(f"\nRETRYING: {retry_url}")
-
-        process_source_url(
-            retry_url,
-            retry_attempt=True,
-            force_browser_fallback=retry_force_browser_fallback
-        )
+        process_source_url(retry_url, retry_attempt=True)
 
 
 # Previous output preservation disabled intentionally.
@@ -2724,7 +2171,6 @@ print("✅ document_title_source added")
 print("✅ PDF links are checked before navigation filters")
 print("✅ Global duplicate document URL prevention enabled")
 print("✅ Retry queue enabled")
-print("✅ Fallback/ URL prefix support enabled")
 print("✅ Previous output preservation disabled")
 print("✅ output.csv represents current run capture only")
 print("✅ known_documents.csv history enabled")
@@ -2733,8 +2179,6 @@ print("✅ Image/icon files excluded from document capture")
 print("✅ Iframe scraping enabled")
 print("✅ Hash-aware fallback enabled")
 print("✅ Report-card fallback enabled")
-print(f"✅ Report keywords file: {REPORT_KEYWORDS_FILE}")
-print(f"✅ Report-card keywords loaded: {len(REPORT_CARD_KEYWORDS)}")
 print("✅ Browser fallback scans frames/iframes")
 print("✅ Browser fallback clicks generic expandable UI")
 print("✅ Browser fallback captures document network responses")
