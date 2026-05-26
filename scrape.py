@@ -20,10 +20,6 @@ ENABLE_BROWSER_FALLBACK = os.environ.get("ENABLE_BROWSER_FALLBACK", "false").str
 # Sleep between URLs to reduce blocking
 SLEEP_SECONDS = float(os.environ.get("SLEEP_SECONDS", "2"))
 
-# Retry failed URLs once after the first pass
-RETRY_FAILED_URLS = os.environ.get("RETRY_FAILED_URLS", "true").strip().lower() == "true"
-RETRY_SLEEP_SECONDS = float(os.environ.get("RETRY_SLEEP_SECONDS", "10"))
-
 if RUN_MODE in ["full", "seed"]:
     OUTPUT_FILE = "output.csv"
     RAW_FILE = "raw_links.csv"
@@ -42,7 +38,6 @@ else:
     ISSUES_FILE = "capture_issues.csv"
 
 DIFF_FILE = "diff.csv"
-KNOWN_DOCUMENTS_FILE = "known_documents.csv"
 
 # Final clean summary file
 RUN_SUMMARY_FILE = "run_summary_master.csv"
@@ -76,30 +71,12 @@ DIFF_FIELDNAMES = [
     "document_url"
 ]
 
-KNOWN_DOCUMENTS_FIELDNAMES = [
-    "first_seen_date",
-    "company",
-    "document_title",
-    "document_url",
-    "source_run_mode"
-]
-
 output_data = []
 raw_links = []
 issue_rows = []
 
-# Retry queue for failed/zero-doc URLs
-retry_queue = []
-
 # Global duplicate prevention across the whole run
 global_seen_document_urls = set()
-
-# Known document history loaded from known_documents.csv
-known_document_urls = set()
-known_source_urls = set()
-known_document_urls_before_run = set()
-known_source_urls_before_run = set()
-known_documents_to_append = []
 
 current_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -296,191 +273,6 @@ def validate_csv_header(file_path, expected_fieldnames):
 
     except StopIteration:
         return
-
-
-def load_known_documents():
-    """
-    Load permanent known document history.
-
-    known_document_urls:
-    - used to prevent old documents from appearing in diff again.
-
-    known_source_urls:
-    - used to identify newly onboarded source URLs.
-    """
-
-    loaded_document_urls = set()
-    loaded_source_urls = set()
-
-    if not os.path.exists(KNOWN_DOCUMENTS_FILE):
-        return loaded_document_urls, loaded_source_urls
-
-    validate_csv_header(KNOWN_DOCUMENTS_FILE, KNOWN_DOCUMENTS_FIELDNAMES)
-
-    try:
-        with open(KNOWN_DOCUMENTS_FILE, newline="", encoding="utf-8") as known_file:
-            reader = csv.DictReader(known_file)
-
-            for r in reader:
-                document_url = r.get("document_url", "")
-                company = r.get("company", "")
-
-                if document_url:
-                    loaded_document_urls.add(normalize_url_key(document_url))
-
-                if company:
-                    loaded_source_urls.add(company)
-
-    except Exception as e:
-        print(f"Known documents load error: {e}")
-
-    return loaded_document_urls, loaded_source_urls
-
-
-def append_known_documents():
-    """
-    Append new known documents to known_documents.csv.
-
-    This runs only for seed/full modes.
-    Test and baseline modes do not update permanent known history.
-    """
-
-    if RUN_MODE not in ["full", "seed"]:
-        return
-
-    if not known_documents_to_append:
-        return
-
-    validate_csv_header(KNOWN_DOCUMENTS_FILE, KNOWN_DOCUMENTS_FIELDNAMES)
-
-    file_exists = os.path.exists(KNOWN_DOCUMENTS_FILE)
-
-    for record in known_documents_to_append:
-        extra_keys = set(record.keys()) - set(KNOWN_DOCUMENTS_FIELDNAMES)
-        missing_keys = set(KNOWN_DOCUMENTS_FIELDNAMES) - set(record.keys())
-
-        if extra_keys or missing_keys:
-            raise ValueError(
-                f"Known documents row format mismatch. "
-                f"Extra keys: {extra_keys}. "
-                f"Missing keys: {missing_keys}. "
-                f"Record: {record}"
-            )
-
-    with open(KNOWN_DOCUMENTS_FILE, "a", newline="", encoding="utf-8") as known_file:
-        writer = csv.DictWriter(known_file, fieldnames=KNOWN_DOCUMENTS_FIELDNAMES)
-
-        if not file_exists:
-            writer.writeheader()
-
-        writer.writerows(known_documents_to_append)
-
-
-def load_previous_output_by_company():
-    """
-    Load previous output.csv before current run overwrites it.
-
-    Kept for compatibility, but current output preservation is intentionally disabled.
-    """
-
-    previous_output_by_company = {}
-
-    if not os.path.exists(OUTPUT_FILE):
-        return previous_output_by_company
-
-    try:
-        with open(OUTPUT_FILE, newline="", encoding="utf-8") as old_output_file:
-            reader = csv.DictReader(old_output_file)
-
-            for r in reader:
-                company = r.get("company", "")
-                document_url = r.get("document_url", "")
-
-                if not company or not document_url:
-                    continue
-
-                previous_output_by_company.setdefault(company, []).append({
-                    "company": company,
-                    "document_title": r.get("document_title", "Unknown Title"),
-                    "document_title_source": r.get("document_title_source", "previous_output"),
-                    "document_url": document_url
-                })
-
-    except Exception as e:
-        print(f"Previous output load error: {e}")
-
-    return previous_output_by_company
-
-
-def preserve_previous_output_documents(target_source_urls, previous_output_by_company):
-    """
-    Preserve previous output documents for target URLs.
-
-    Function kept intentionally, but current system does not call it.
-    output.csv represents only documents captured in current run.
-    known_documents.csv is the permanent history used for diff protection.
-    """
-
-    preserved_count = 0
-
-    for source_url in target_source_urls:
-        previous_docs = previous_output_by_company.get(source_url, [])
-
-        for doc in previous_docs:
-            document_url = doc.get("document_url", "")
-
-            if not document_url:
-                continue
-
-            if not mark_document_seen(document_url):
-                continue
-
-            preserved_doc = {
-                "company": doc.get("company", source_url),
-                "document_title": doc.get("document_title", "Unknown Title"),
-                "document_title_source": doc.get("document_title_source", "previous_output_reused"),
-                "document_url": document_url
-            }
-
-            output_data.append(preserved_doc)
-            preserved_count += 1
-
-    if preserved_count > 0:
-        print(f"PREVIOUS OUTPUT PRESERVED → {preserved_count} documents")
-
-    return preserved_count
-
-
-def queue_known_document_if_new(doc):
-    """
-    Add document to known_documents queue if not already known.
-
-    This is used in seed/full only.
-    """
-
-    if RUN_MODE not in ["full", "seed"]:
-        return
-
-    document_url = doc.get("document_url", "")
-
-    if not document_url:
-        return
-
-    document_key = normalize_url_key(document_url)
-
-    if document_key in known_document_urls:
-        return
-
-    known_document_urls.add(document_key)
-    known_source_urls.add(doc.get("company", ""))
-
-    known_documents_to_append.append({
-        "first_seen_date": current_date,
-        "company": doc.get("company", ""),
-        "document_title": doc.get("document_title", "Unknown Title"),
-        "document_url": document_url,
-        "source_run_mode": RUN_MODE
-    })
 
 
 def normalize_text(text):
@@ -1175,52 +967,6 @@ def extract_title_from_playwright_element(element):
     return ""
 
 
-def should_trigger_report_card_fallback(soup, docs_captured_for_url):
-    """
-    Detect pages where report documents appear as visual cards/tiles
-    and normal HTML scraping captured only a few direct links.
-
-    Generic examples:
-    - Integrated Annual Report 2024
-    - Sustainability Report 2023
-    - ESG Report 2022
-    - Climate Report 2021
-    - CDP Questionnaire 2024
-    - ESG Databook 2025
-    """
-
-    if docs_captured_for_url >= 5:
-        return False
-
-    try:
-        page_text = normalize_text(soup.get_text(" ", strip=True))
-
-        report_matches = re.findall(
-            r"\b("
-            r"integrated\s+annual\s+report|"
-            r"annual\s+report|"
-            r"sustainability\s+report|"
-            r"esg\s+report|"
-            r"climate\s+report|"
-            r"cdp\s+.*?questionnaire|"
-            r"databook"
-            r")\b.{0,60}\b20\d{2}\b",
-            page_text,
-            flags=re.IGNORECASE
-        )
-
-        unique_matches = set([x.lower().strip() for x in report_matches])
-
-        if len(unique_matches) >= 3:
-            print(f"Report-card fallback signal detected: {len(unique_matches)} report-like items")
-            return True
-
-    except Exception as e:
-        print(f"Report-card fallback detection error: {e}")
-
-    return False
-
-
 def browser_click_fallback(source_url, existing_keys):
     fallback_docs = []
 
@@ -1412,98 +1158,6 @@ def browser_click_fallback(source_url, existing_keys):
             except Exception as e:
                 print(f"Hash interaction error for {text_fragment}: {e}")
 
-    def click_report_card_controls(page):
-        """
-        Click report-like cards/tiles that may open PDFs or trigger downloads.
-
-        This is generic and helps pages where documents are shown as cards:
-        - Integrated Annual Report 2024
-        - Sustainability Report 2023
-        - ESG Report 2022
-        - Climate Report 2021
-        """
-
-        try:
-            report_card_selector = (
-                "a, button, [role='button'], article, section, .card, div, span"
-            )
-
-            report_cards = page.locator(report_card_selector).filter(
-                has_text=re.compile(
-                    r"(integrated\s+annual\s+report|annual\s+report|sustainability\s+report|esg\s+report|climate\s+report|cdp|databook|20\d{2})",
-                    re.IGNORECASE
-                )
-            )
-
-            count = min(report_cards.count(), 25)
-
-            print(f"Report-card fallback controls found: {count}")
-
-            for i in range(count):
-                try:
-                    element = report_cards.nth(i)
-
-                    title = extract_title_from_playwright_element(element)
-
-                    before_url = page.url
-                    captured_url = ""
-
-                    try:
-                        element.scroll_into_view_if_needed(timeout=3000)
-                    except Exception:
-                        pass
-
-                    try:
-                        with page.expect_popup(timeout=2500) as popup_info:
-                            element.click(timeout=4000, force=True)
-
-                        popup = popup_info.value
-                        popup.wait_for_load_state("domcontentloaded", timeout=10000)
-                        captured_url = popup.url
-                        popup.close()
-
-                    except Exception:
-                        pass
-
-                    if not captured_url:
-                        try:
-                            with page.expect_download(timeout=2500) as download_info:
-                                element.click(timeout=4000, force=True)
-
-                            download = download_info.value
-                            captured_url = download.url
-
-                        except Exception:
-                            pass
-
-                    if not captured_url:
-                        try:
-                            element.click(timeout=4000, force=True)
-                            page.wait_for_timeout(1500)
-
-                            if page.url != before_url:
-                                captured_url = page.url
-
-                                try:
-                                    page.goto(source_url, wait_until="domcontentloaded", timeout=60000)
-                                    page.wait_for_timeout(1000)
-                                except Exception:
-                                    pass
-
-                        except Exception:
-                            pass
-
-                    if captured_url:
-                        add_doc_from_url(captured_url, title)
-
-                    scan_all_rendered_content(page)
-
-                except Exception:
-                    continue
-
-        except Exception as e:
-            print(f"Report-card click phase error: {e}")
-
     def is_expandable_element(element):
         try:
             return element.evaluate(
@@ -1578,8 +1232,6 @@ def browser_click_fallback(source_url, existing_keys):
             scan_all_rendered_content(page)
 
             interact_with_hash_fragments(page)
-
-            click_report_card_controls(page)
 
             try:
                 expander_selector = (
@@ -1709,215 +1361,7 @@ def browser_click_fallback(source_url, existing_keys):
     return fallback_docs
 
 
-def process_source_url(source_url, retry_attempt=False):
-    """
-    Process one source URL.
-
-    retry_attempt=False means first pass.
-    retry_attempt=True means retry pass.
-
-    Returns number of documents captured for this source URL.
-    """
-
-    print(f"\nChecking: {source_url}")
-
-    start_doc_count = len(output_data)
-
-    try:
-        response = fetch_url(source_url)
-
-        if response is None:
-            print("Failed to fetch page")
-
-            docs_captured_for_url = 0
-
-            if should_use_browser_fallback(source_url):
-                print("Request failed. Trying browser fallback...")
-
-                seen = set()
-                fallback_docs = browser_click_fallback(source_url, seen)
-
-                for doc in fallback_docs:
-                    output_data.append(doc)
-
-                    raw_links.append({
-                        "company": doc["company"],
-                        "text": doc["document_title"],
-                        "title_source": doc.get("document_title_source", "browser_fallback"),
-                        "url": doc["document_url"]
-                    })
-
-                docs_captured_for_url = len(fallback_docs)
-
-            if docs_captured_for_url == 0:
-                if not retry_attempt and RETRY_FAILED_URLS:
-                    print("Queued for retry: request failed")
-                    retry_queue.append(source_url)
-                else:
-                    add_issue(
-                        source_url=source_url,
-                        issue_type="FETCH_ERROR_AFTER_RETRY" if retry_attempt else "FETCH_ERROR",
-                        status_code="",
-                        documents_captured=0,
-                        error_message="Request failed / timeout and browser fallback captured 0 documents"
-                    )
-
-            return docs_captured_for_url
-
-        print("Status:", response.status_code)
-
-        if response.status_code != 200:
-            print("Failed to fetch page")
-
-            docs_captured_for_url = 0
-
-            if should_use_browser_fallback(source_url):
-                print("Non-200 status detected. Trying browser fallback...")
-
-                seen = set()
-                fallback_docs = browser_click_fallback(source_url, seen)
-
-                for doc in fallback_docs:
-                    output_data.append(doc)
-
-                    raw_links.append({
-                        "company": doc["company"],
-                        "text": doc["document_title"],
-                        "title_source": doc.get("document_title_source", "browser_fallback"),
-                        "url": doc["document_url"]
-                    })
-
-                docs_captured_for_url = len(fallback_docs)
-
-            if docs_captured_for_url == 0:
-                if not retry_attempt and RETRY_FAILED_URLS:
-                    print("Queued for retry: non-200 status")
-                    retry_queue.append(source_url)
-                else:
-                    add_issue(
-                        source_url=source_url,
-                        issue_type="FETCH_FAILED_STATUS_AFTER_RETRY" if retry_attempt else "FETCH_FAILED_STATUS",
-                        status_code=response.status_code,
-                        documents_captured=0,
-                        error_message="Non-200 status code and browser fallback captured 0 documents"
-                    )
-
-            return docs_captured_for_url
-
-        soup = BeautifulSoup(response.text, "html.parser")
-
-        seen = set()
-
-        extract_links_from_soup(
-            soup=soup,
-            base_url=source_url,
-            source_url=source_url,
-            seen=seen,
-            label="RETRY KEPT" if retry_attempt else "KEPT"
-        )
-
-        iframe_soups = get_iframe_soups(source_url, soup)
-
-        for iframe_item in iframe_soups:
-            iframe_url = iframe_item["iframe_url"]
-            iframe_soup = iframe_item["soup"]
-
-            extract_links_from_soup(
-                soup=iframe_soup,
-                base_url=iframe_url,
-                source_url=source_url,
-                seen=seen,
-                label="RETRY IFRAME KEPT" if retry_attempt else "IFRAME KEPT"
-            )
-
-        docs_captured_for_url = len(output_data) - start_doc_count
-
-        needs_hash_fallback = source_url_has_hash(source_url)
-        needs_report_card_fallback = should_trigger_report_card_fallback(soup, docs_captured_for_url)
-
-        if needs_hash_fallback:
-            print("Hash URL detected. Browser fallback may be needed for section-specific documents.")
-
-        if needs_report_card_fallback:
-            print("Report-card page detected. Browser fallback may be needed for card-based documents.")
-
-        if (docs_captured_for_url == 0 or needs_hash_fallback or needs_report_card_fallback) and should_use_browser_fallback(source_url):
-            fallback_docs = browser_click_fallback(source_url, seen)
-
-            for doc in fallback_docs:
-                output_data.append(doc)
-
-                raw_links.append({
-                    "company": doc["company"],
-                    "text": doc["document_title"],
-                    "title_source": doc.get("document_title_source", "browser_fallback"),
-                    "url": doc["document_url"]
-                })
-
-            docs_captured_for_url = len(output_data) - start_doc_count
-
-        if docs_captured_for_url == 0:
-            if not retry_attempt and RETRY_FAILED_URLS:
-                print("Queued for retry: zero documents captured")
-                retry_queue.append(source_url)
-            else:
-                add_issue(
-                    source_url=source_url,
-                    issue_type="SUCCESS_ZERO_DOCS_AFTER_RETRY" if retry_attempt else "SUCCESS_ZERO_DOCS",
-                    status_code=response.status_code,
-                    documents_captured=0,
-                    error_message="Page opened successfully but no document links captured"
-                )
-
-        return docs_captured_for_url
-
-    except Exception as e:
-        print("Error:", e)
-
-        docs_captured_for_url = 0
-
-        if should_use_browser_fallback(source_url):
-            print("Request error detected. Trying browser fallback...")
-
-            seen = set()
-            fallback_docs = browser_click_fallback(source_url, seen)
-
-            for doc in fallback_docs:
-                output_data.append(doc)
-
-                raw_links.append({
-                    "company": doc["company"],
-                    "text": doc["document_title"],
-                    "title_source": doc.get("document_title_source", "browser_fallback"),
-                    "url": doc["document_url"]
-                })
-
-            docs_captured_for_url = len(fallback_docs)
-
-        if docs_captured_for_url == 0:
-            if not retry_attempt and RETRY_FAILED_URLS:
-                print("Queued for retry: exception")
-                retry_queue.append(source_url)
-            else:
-                add_issue(
-                    source_url=source_url,
-                    issue_type="FETCH_ERROR_AFTER_RETRY" if retry_attempt else "FETCH_ERROR",
-                    status_code="",
-                    documents_captured=0,
-                    error_message=str(e)
-                )
-
-        return docs_captured_for_url
-
-
 # MAIN SCRAPER
-
-known_document_urls, known_source_urls = load_known_documents()
-known_document_urls_before_run = set(known_document_urls)
-known_source_urls_before_run = set(known_source_urls)
-
-previous_output_by_company = load_previous_output_by_company()
-target_source_urls = []
 
 total_urls_processed = 0
 
@@ -1933,48 +1377,192 @@ with open(TARGET_URL_FILE, newline="", encoding="utf-8") as file:
         if not source_url:
             continue
 
-        target_source_urls.append(source_url)
-
         if total_urls_processed > 0 and SLEEP_SECONDS > 0:
             print(f"Sleeping {SLEEP_SECONDS} seconds before next URL...")
             time.sleep(SLEEP_SECONDS)
 
         total_urls_processed += 1
 
-        process_source_url(source_url, retry_attempt=False)
+        print(f"\nChecking: {source_url}")
 
+        start_doc_count = len(output_data)
 
-# RETRY FAILED URLS ONCE AFTER FIRST PASS
+        try:
+            response = fetch_url(source_url)
 
-if RETRY_FAILED_URLS and retry_queue:
-    unique_retry_urls = []
-    seen_retry_urls = set()
+            if response is None:
+                print("Failed to fetch page")
 
-    for retry_url in retry_queue:
-        if retry_url not in seen_retry_urls:
-            seen_retry_urls.add(retry_url)
-            unique_retry_urls.append(retry_url)
+                docs_captured_for_url = 0
 
-    print(f"\nRetry queue found: {len(unique_retry_urls)} URLs")
-    print(f"Waiting {RETRY_SLEEP_SECONDS} seconds before retry pass...")
+                if should_use_browser_fallback(source_url):
+                    print("Request failed. Trying browser fallback...")
 
-    if RETRY_SLEEP_SECONDS > 0:
-        time.sleep(RETRY_SLEEP_SECONDS)
+                    seen = set()
+                    fallback_docs = browser_click_fallback(source_url, seen)
 
-    for retry_url in unique_retry_urls:
-        print(f"\nRETRYING: {retry_url}")
-        process_source_url(retry_url, retry_attempt=True)
+                    for doc in fallback_docs:
+                        output_data.append(doc)
 
+                        raw_links.append({
+                            "company": doc["company"],
+                            "text": doc["document_title"],
+                            "title_source": doc.get("document_title_source", "browser_fallback"),
+                            "url": doc["document_url"]
+                        })
 
-# Previous output preservation disabled intentionally.
-# output.csv now represents only documents captured in the current run.
-# known_documents.csv remains the permanent history used for diff protection.
-# preserve_previous_output_documents(target_source_urls, previous_output_by_company)
+                    docs_captured_for_url = len(fallback_docs)
+
+                if docs_captured_for_url == 0:
+                    add_issue(
+                        source_url=source_url,
+                        issue_type="FETCH_ERROR",
+                        status_code="",
+                        documents_captured=0,
+                        error_message="Request failed / timeout and browser fallback captured 0 documents"
+                    )
+
+                continue
+
+            print("Status:", response.status_code)
+
+            if response.status_code != 200:
+                print("Failed to fetch page")
+
+                docs_captured_for_url = 0
+
+                if should_use_browser_fallback(source_url):
+                    print("Non-200 status detected. Trying browser fallback...")
+
+                    seen = set()
+                    fallback_docs = browser_click_fallback(source_url, seen)
+
+                    for doc in fallback_docs:
+                        output_data.append(doc)
+
+                        raw_links.append({
+                            "company": doc["company"],
+                            "text": doc["document_title"],
+                            "title_source": doc.get("document_title_source", "browser_fallback"),
+                            "url": doc["document_url"]
+                        })
+
+                    docs_captured_for_url = len(fallback_docs)
+
+                if docs_captured_for_url == 0:
+                    add_issue(
+                        source_url=source_url,
+                        issue_type="FETCH_FAILED_STATUS",
+                        status_code=response.status_code,
+                        documents_captured=0,
+                        error_message="Non-200 status code and browser fallback captured 0 documents"
+                    )
+
+                continue
+
+            soup = BeautifulSoup(response.text, "html.parser")
+
+            seen = set()
+
+            extract_links_from_soup(
+                soup=soup,
+                base_url=source_url,
+                source_url=source_url,
+                seen=seen,
+                label="KEPT"
+            )
+
+            iframe_soups = get_iframe_soups(source_url, soup)
+
+            for iframe_item in iframe_soups:
+                iframe_url = iframe_item["iframe_url"]
+                iframe_soup = iframe_item["soup"]
+
+                extract_links_from_soup(
+                    soup=iframe_soup,
+                    base_url=iframe_url,
+                    source_url=source_url,
+                    seen=seen,
+                    label="IFRAME KEPT"
+                )
+
+            docs_captured_for_url = len(output_data) - start_doc_count
+
+            needs_hash_fallback = source_url_has_hash(source_url)
+
+            if needs_hash_fallback:
+                print("Hash URL detected. Browser fallback may be needed for section-specific documents.")
+
+            if (docs_captured_for_url == 0 or needs_hash_fallback) and should_use_browser_fallback(source_url):
+                fallback_docs = browser_click_fallback(source_url, seen)
+
+                for doc in fallback_docs:
+                    output_data.append(doc)
+
+                    raw_links.append({
+                        "company": doc["company"],
+                        "text": doc["document_title"],
+                        "title_source": doc.get("document_title_source", "browser_fallback"),
+                        "url": doc["document_url"]
+                    })
+
+                docs_captured_for_url = len(output_data) - start_doc_count
+
+            if docs_captured_for_url == 0:
+                add_issue(
+                    source_url=source_url,
+                    issue_type="SUCCESS_ZERO_DOCS",
+                    status_code=response.status_code,
+                    documents_captured=0,
+                    error_message="Page opened successfully but no document links captured"
+                )
+
+        except Exception as e:
+            print("Error:", e)
+
+            docs_captured_for_url = 0
+
+            if should_use_browser_fallback(source_url):
+                print("Request error detected. Trying browser fallback...")
+
+                seen = set()
+                fallback_docs = browser_click_fallback(source_url, seen)
+
+                for doc in fallback_docs:
+                    output_data.append(doc)
+
+                    raw_links.append({
+                        "company": doc["company"],
+                        "text": doc["document_title"],
+                        "title_source": doc.get("document_title_source", "browser_fallback"),
+                        "url": doc["document_url"]
+                    })
+
+                docs_captured_for_url = len(fallback_docs)
+
+            if docs_captured_for_url == 0:
+                add_issue(
+                    source_url=source_url,
+                    issue_type="FETCH_ERROR",
+                    status_code="",
+                    documents_captured=0,
+                    error_message=str(e)
+                )
 
 
 # DIFF SYSTEM
 
+old_output_urls = set()
 existing_diff_urls = set()
+
+if RUN_MODE == "full" and os.path.exists(OUTPUT_FILE):
+    with open(OUTPUT_FILE, newline="", encoding="utf-8") as old_file:
+        reader = csv.DictReader(old_file)
+
+        for r in reader:
+            if "document_url" in r and r["document_url"]:
+                old_output_urls.add(normalize_url_key(r["document_url"]))
+
 
 if RUN_MODE == "full" and os.path.exists(DIFF_FILE):
     validate_csv_header(DIFF_FILE, DIFF_FIELDNAMES)
@@ -1991,35 +1579,15 @@ new_records = []
 
 if RUN_MODE == "full":
     for r in output_data:
-        document_url = r.get("document_url", "")
-        source_url = r.get("company", "")
+        current_url_key = normalize_url_key(r["document_url"])
 
-        if not document_url or not source_url:
-            continue
-
-        current_url_key = normalize_url_key(document_url)
-
-        source_was_known_before_run = source_url in known_source_urls_before_run
-        document_was_known_before_run = current_url_key in known_document_urls_before_run
-        already_in_diff = current_url_key in existing_diff_urls
-
-        # Add to diff only when:
-        # 1. source URL was already known before this run
-        # 2. document URL was not known before this run
-        # 3. document URL is not already in diff.csv
-        if source_was_known_before_run and not document_was_known_before_run and not already_in_diff:
+        if current_url_key not in old_output_urls and current_url_key not in existing_diff_urls:
             new_records.append({
                 "date": current_date,
-                "company": source_url,
-                "document_title": r.get("document_title", "Unknown Title"),
-                "document_url": document_url
+                "company": r["company"],
+                "document_title": r["document_title"],
+                "document_url": r["document_url"]
             })
-
-# Update known document queue for seed/full.
-# New source URLs are baselined into known_documents.csv but not added to diff.csv.
-if RUN_MODE in ["full", "seed"]:
-    for r in output_data:
-        queue_known_document_if_new(r)
 
 
 # SAVE output file
@@ -2077,10 +1645,6 @@ if RUN_MODE == "full":
             writer.writeheader()
 
         writer.writerows(new_records)
-
-
-# APPEND known_documents.csv for seed/full runs
-append_known_documents()
 
 
 # SAVE capture issues file
@@ -2169,36 +1733,25 @@ print("✅ Generic title/action text rejected")
 print("✅ document_title_source added")
 print("✅ PDF links are checked before navigation filters")
 print("✅ Global duplicate document URL prevention enabled")
-print("✅ Retry queue enabled")
-print("✅ Previous output preservation disabled")
-print("✅ output.csv represents current run capture only")
-print("✅ known_documents.csv history enabled")
-print("✅ New source URL onboarding does not pollute diff.csv")
 print("✅ Image/icon files excluded from document capture")
 print("✅ Iframe scraping enabled")
 print("✅ Hash-aware fallback enabled")
-print("✅ Report-card fallback enabled")
 print("✅ Browser fallback scans frames/iframes")
 print("✅ Browser fallback clicks generic expandable UI")
 print("✅ Browser fallback captures document network responses")
 print("✅ Browser-like headers and retry fetch enabled for EQT only")
 print("✅ diff.csv format locked")
 print("✅ run_summary_master.csv format locked")
-print("✅ known_documents.csv format locked")
 print(f"✅ Sleep seconds between URLs: {SLEEP_SECONDS}")
-print(f"✅ Retry failed URLs: {RETRY_FAILED_URLS}")
-print(f"✅ Retry sleep seconds: {RETRY_SLEEP_SECONDS}")
 print(f"✅ Run mode: {RUN_MODE}")
 print(f"✅ URL file: {TARGET_URL_FILE}")
 print(f"✅ Output file: {OUTPUT_FILE}")
 print(f"✅ Raw file: {RAW_FILE}")
 print(f"✅ Issues file: {ISSUES_FILE}")
 print(f"✅ Summary file: {RUN_SUMMARY_FILE}")
-print(f"✅ Known documents file: {KNOWN_DOCUMENTS_FILE}")
 print(f"✅ URLs processed: {total_urls_processed}")
 print(f"✅ Documents captured: {len(output_data)}")
 print(f"✅ New diff records: {len(new_records)}")
-print(f"✅ Known documents appended: {len(known_documents_to_append)}")
 print(f"✅ Issues: {len(issue_rows)}")
 print(f"✅ Browser fallback enabled: {ENABLE_BROWSER_FALLBACK}")
 print(f"✅ Run {current_run_number}: {len(output_data)} documents captured")
