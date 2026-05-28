@@ -1,1 +1,2 @@
 date,run_mode,url_file,source_url,issue_type,status_code,documents_captured,error_message
+2026-05-28 15:34:41,test,test_urls.csv,https://www.bumiresources.com/en/sustainability#reports,SUCCESS_ZERO_DOCS_AFTER_RETRY,200,0,Page opened successfully but no document links captured
