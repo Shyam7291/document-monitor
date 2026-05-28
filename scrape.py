@@ -1467,10 +1467,10 @@ def browser_click_fallback(source_url, existing_keys):
         and the PDF is available only after clicking/opening documents on that detail page.
 
         This version:
-        - skips header/nav/footer/menu links
-        - skips same-page anchors
-        - prioritizes AGM/general meeting/detail pages
+        - skips pure same-page anchors
+        - avoids over-skipping useful links because of broad nav/header parent classes
         - prioritizes RIL-style annual report pages
+        - prioritizes AGM/general meeting/detail pages
         """
 
         detail_links = []
@@ -1490,44 +1490,6 @@ def browser_click_fallback(source_url, existing_keys):
 
                 # Skip pure same-page anchors
                 if href.startswith("#"):
-                    continue
-
-                # Skip links inside header/nav/footer/menu/cookie/search areas
-                skip_area = False
-
-                for parent in link.parents:
-                    parent_name = getattr(parent, "name", "") or ""
-
-                    try:
-                        parent_id = " ".join(parent.get("id", "").lower().split())
-                    except Exception:
-                        parent_id = ""
-
-                    try:
-                        parent_class = " ".join(parent.get("class", [])).lower()
-                    except Exception:
-                        parent_class = ""
-
-                    combined_parent = f"{parent_name} {parent_id} {parent_class}"
-
-                    if any(
-                        bad_area in combined_parent
-                        for bad_area in [
-                            "header",
-                            "nav",
-                            "footer",
-                            "menu",
-                            "cookie",
-                            "search",
-                            "breadcrumb",
-                            "language",
-                            "social"
-                        ]
-                    ):
-                        skip_area = True
-                        break
-
-                if skip_area:
                     continue
 
                 full_url = urljoin(page.url or source_url, href)
@@ -1627,7 +1589,61 @@ def browser_click_fallback(source_url, existing_keys):
 
                 same_domain = parsed_full.netloc == parsed_source.netloc
 
-                if same_domain and (keyword_hit or path_hit or ril_style_ar_hit or meeting_style_hit or (year_hit and keyword_hit)):
+                if not same_domain:
+                    continue
+
+                # Safe skip for obvious header/nav/footer links.
+                # Important: do NOT skip RIL-style or meeting-style links even if parent contains nav/menu text.
+                if not ril_style_ar_hit and not meeting_style_hit:
+                    skip_area = False
+
+                    closest_bad_parent = link.find_parent(["header", "nav", "footer"])
+
+                    if closest_bad_parent:
+                        skip_area = True
+
+                    if not skip_area:
+                        for parent in link.parents:
+                            try:
+                                parent_id = parent.get("id", "")
+                            except Exception:
+                                parent_id = ""
+
+                            try:
+                                parent_class_list = parent.get("class", [])
+                            except Exception:
+                                parent_class_list = []
+
+                            if isinstance(parent_class_list, str):
+                                parent_class_list = parent_class_list.split()
+
+                            parent_tokens = set()
+
+                            if parent_id:
+                                parent_tokens.add(parent_id.lower())
+
+                            for cls in parent_class_list:
+                                parent_tokens.add(str(cls).lower())
+
+                            # Use token-level check, not broad substring check.
+                            bad_tokens = {
+                                "header",
+                                "footer",
+                                "cookie",
+                                "search",
+                                "breadcrumb",
+                                "language",
+                                "social"
+                            }
+
+                            if parent_tokens.intersection(bad_tokens):
+                                skip_area = True
+                                break
+
+                    if skip_area:
+                        continue
+
+                if keyword_hit or path_hit or ril_style_ar_hit or meeting_style_hit or (year_hit and keyword_hit):
                     key = normalize_url_key(full_url_without_fragment)
 
                     if key not in seen_detail_urls:
@@ -1643,13 +1659,13 @@ def browser_click_fallback(source_url, existing_keys):
                         priority = 0
 
                         if ril_style_ar_hit:
-                            priority += 120
+                            priority += 150
 
                         if meeting_style_hit:
-                            priority += 120
+                            priority += 140
 
                         if any(x in full_url_lower for x in ["annual-general-meeting", "general-meeting", "agm"]):
-                            priority += 110
+                            priority += 120
 
                         if path_hit:
                             priority += 70
@@ -1664,7 +1680,7 @@ def browser_click_fallback(source_url, existing_keys):
                         if full_url_lower.endswith("/") and full_url_lower.count("/") >= 4:
                             priority += 10
 
-                        # Penalize broad category/navigation pages
+                        # Penalize broad category/navigation pages, but do not kill them completely
                         if any(
                             x in full_url_lower
                             for x in [
