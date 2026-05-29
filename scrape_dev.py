@@ -1708,8 +1708,9 @@ def browser_click_fallback(source_url, existing_keys):
         documents from an iframe such as:
         https://ir2.chartnexus.com/protasco/investor-relations/general-meeting-2026.php
 
-        The outer year URL may show Cloudflare/challenge frames, but the iframe
-        URL itself follows a clean year pattern.
+        Important:
+        - Do not visit outer /agm/YYYY/ pages here.
+        - Visit only content iframe URLs such as general-meeting-YYYY.php.
         """
 
         try:
@@ -1736,9 +1737,15 @@ def browser_click_fallback(source_url, existing_keys):
                     if "cloudflare.com" in frame_url_lower:
                         continue
 
-                    if not re.search(r"20\d{2}", frame_url_lower):
+                    # Skip outer AGM pages like:
+                    # https://www.protasco.com.my/agm/2026/
+                    # This function should only handle embedded content frames.
+                    if "/agm/" in frame_url_lower and "general-meeting" not in frame_url_lower:
                         continue
 
+                    # Only process useful content iframe URLs.
+                    # Example:
+                    # https://ir2.chartnexus.com/protasco/investor-relations/general-meeting-2026.php
                     if not any(
                         marker in frame_url_lower
                         for marker in [
@@ -1750,6 +1757,9 @@ def browser_click_fallback(source_url, existing_keys):
                             "results"
                         ]
                     ):
+                        continue
+
+                    if not re.search(r"20\d{2}", frame_url_lower):
                         continue
 
                     year_match = re.search(r"20\d{2}", frame_url_lower)
@@ -1767,6 +1777,15 @@ def browser_click_fallback(source_url, existing_keys):
                             count=1,
                             flags=re.IGNORECASE
                         )
+
+                        generated_frame_url_lower = generated_frame_url.lower()
+
+                        # Keep only content frame style URLs.
+                        if "/agm/" in generated_frame_url_lower and "general-meeting" not in generated_frame_url_lower:
+                            continue
+
+                        if "cloudflare.com" in generated_frame_url_lower:
+                            continue
 
                         key = normalize_url_key(generated_frame_url)
 
