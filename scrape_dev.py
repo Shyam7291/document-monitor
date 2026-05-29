@@ -1700,6 +1700,126 @@ def browser_click_fallback(source_url, existing_keys):
 
         except Exception as e:
             print(f"Year dropdown phase error: {e}")
+    def visit_year_iframe_pages(page):
+        """
+        Visit year-based iframe/content pages directly.
+
+        This handles pages like Protasco where the visible AGM page embeds
+        documents from an iframe such as:
+        https://ir2.chartnexus.com/protasco/investor-relations/general-meeting-2026.php
+
+        The outer year URL may show Cloudflare/challenge frames, but the iframe
+        URL itself follows a clean year pattern.
+        """
+
+        try:
+            iframe_year_links = []
+            seen_iframe_urls = set()
+
+            try:
+                frames = page.frames
+            except Exception:
+                frames = []
+
+            for frame in frames:
+                try:
+                    frame_url = frame.url or ""
+
+                    if not frame_url:
+                        continue
+
+                    frame_url_lower = frame_url.lower()
+
+                    if "about:blank" in frame_url_lower:
+                        continue
+
+                    if "cloudflare.com" in frame_url_lower:
+                        continue
+
+                    if not re.search(r"20\d{2}", frame_url_lower):
+                        continue
+
+                    if not any(
+                        marker in frame_url_lower
+                        for marker in [
+                            "general-meeting",
+                            "annual-general-meeting",
+                            "agm",
+                            "annual-report",
+                            "reports",
+                            "results"
+                        ]
+                    ):
+                        continue
+
+                    year_match = re.search(r"20\d{2}", frame_url_lower)
+
+                    if not year_match:
+                        continue
+
+                    current_year = int(year_match.group(0))
+
+                    for year in range(current_year, current_year - 11, -1):
+                        generated_frame_url = re.sub(
+                            r"20\d{2}",
+                            str(year),
+                            frame_url,
+                            count=1,
+                            flags=re.IGNORECASE
+                        )
+
+                        key = normalize_url_key(generated_frame_url)
+
+                        if key in seen_iframe_urls:
+                            continue
+
+                        seen_iframe_urls.add(key)
+
+                        iframe_year_links.append({
+                            "url": generated_frame_url,
+                            "title": f"Year iframe {year}"
+                        })
+
+                except Exception:
+                    continue
+
+            print(f"Year iframe URLs discovered: {len(iframe_year_links)}")
+
+            for item in iframe_year_links[:10]:
+                print(f"Year iframe candidate: {item.get('url')}")
+
+            if not iframe_year_links:
+                return
+
+            original_url = page.url or source_url
+
+            for item in iframe_year_links[:12]:
+                iframe_url = item.get("url", "")
+                title_hint = item.get("title", "")
+
+                if not iframe_url:
+                    continue
+
+                try:
+                    print(f"Visiting year iframe page: {iframe_url}")
+
+                    page.goto(iframe_url, wait_until="domcontentloaded", timeout=60000)
+                    page.wait_for_timeout(2500)
+
+                    scan_all_rendered_content(page)
+                    click_download_controls_on_detail_page(page, title_hint)
+
+                except Exception as iframe_error:
+                    print(f"Year iframe page visit error: {iframe_error}")
+
+            try:
+                page.goto(original_url, wait_until="domcontentloaded", timeout=60000)
+                page.wait_for_timeout(1000)
+            except Exception:
+                pass
+
+        except Exception as e:
+            print(f"Year iframe phase error: {e}")        
     def collect_report_detail_links(page):
         """
         Collect report/detail page links from rendered page.
