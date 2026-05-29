@@ -1,0 +1,64 @@
+name: Run Scraper Dev Test
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_url_file:
+        description: "URL file to test"
+        required: true
+        default: "test_urls.csv"
+
+      enable_browser_fallback:
+        description: "Enable browser fallback"
+        required: true
+        default: "true"
+
+      sleep_seconds:
+        description: "Sleep seconds between URLs"
+        required: true
+        default: "2"
+
+jobs:
+  run-script:
+    runs-on: ubuntu-latest
+
+    env:
+      RUN_MODE: test
+      TARGET_URL_FILE: ${{ github.event.inputs.target_url_file }}
+      ENABLE_BROWSER_FALLBACK: ${{ github.event.inputs.enable_browser_fallback }}
+      SLEEP_SECONDS: ${{ github.event.inputs.sleep_seconds }}
+      RETRY_FAILED_URLS: "true"
+      RETRY_SLEEP_SECONDS: "10"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install requests beautifulsoup4 playwright
+          playwright install chromium
+
+      - name: Check Python syntax
+        run: python -m py_compile scrape_dev.py
+
+      - name: Run dev scraper test
+        run: python scrape_dev.py
+
+      - name: Commit and push test output files
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+
+          git add -A output_test.csv raw_links_test.csv capture_issues_test.csv run_summary_master.csv 2>/dev/null || true
+
+          git commit -m "Update dev scraper test output" || echo "No changes to commit"
+
+          git pull --rebase origin main
+
+          git push
