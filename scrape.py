@@ -2620,7 +2620,7 @@ if RETRY_FAILED_URLS and retry_queue:
 
 
 # Previous output preservation disabled intentionally.
-# output.csv now represents only documents captured in the current run.
+# output.csv represents combined latest capture for all production URL groups.
 # known_documents.csv remains the permanent history used for diff protection.
 # preserve_previous_output_documents(target_source_urls, previous_output_by_company)
 
