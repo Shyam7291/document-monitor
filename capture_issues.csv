@@ -1,3 +1,1 @@
 date,run_mode,url_file,source_url,issue_type,status_code,documents_captured,error_message
-2026-05-28 12:59:13,full,documents_p2.csv,https://www.goldfields.com/sustainability-data.php,FETCH_ERROR_AFTER_RETRY,,0,Request failed / timeout and browser fallback captured 0 documents
-2026-05-28 12:59:13,full,documents_p2.csv,https://evolutionmining.com/document-centre/#corporate-governance#reports,SUCCESS_ZERO_DOCS_AFTER_RETRY,200,0,Page opened successfully but no document links captured
