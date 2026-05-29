@@ -1677,7 +1677,6 @@ def collect_year_dropdown_urls(page):
 
         return year_links[:12]
 
-
     def visit_year_dropdown_pages(page):
         """
         Visit year-based pages discovered from dropdown/select/year-selector pages.
