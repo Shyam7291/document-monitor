@@ -2356,7 +2356,7 @@ def browser_click_fallback(source_url, existing_keys):
 
             visit_report_detail_pages(page)
 
-            click_report_card_controls(page))
+            click_report_card_controls(page)
 
             try:
                 expander_selector = (
