@@ -1458,16 +1458,10 @@ def browser_click_fallback(source_url, existing_keys):
 
         except Exception as e:
             print(f"Frame collection error: {e}")
-def collect_year_dropdown_urls(page):
+    def collect_year_dropdown_urls(page):
         """
         Collect year-based detail URLs from pages where documents are controlled
         by a year dropdown or year selector.
-
-        Examples:
-        - /agm/2026/
-        - /annual-report/2026/
-        - /reports/2026/
-        - /general-meeting-2026/
         """
 
         year_links = []
@@ -1510,7 +1504,6 @@ def collect_year_dropdown_urls(page):
 
             current_url_has_year = bool(re.search(r"20\d{2}", current_url_lower))
 
-            # Do not run this handler on completely unrelated pages.
             if not context_hit and not generic_context_hit and not current_url_has_year:
                 return year_links
 
@@ -1554,11 +1547,6 @@ def collect_year_dropdown_urls(page):
                 })
 
             def replace_year_in_current_url(year_value):
-                """
-                Replace the year in current URL only when current URL already has a year.
-                This is safe for URLs like /agm/2026/ or /reports/2026/.
-                """
-
                 if not re.search(r"20\d{2}", current_url):
                     return ""
 
@@ -1570,8 +1558,6 @@ def collect_year_dropdown_urls(page):
                     flags=re.IGNORECASE
                 )
 
-            # 1. If current URL already contains a year, generate nearby previous years.
-            # Example: /agm/2026/ -> /agm/2025/, /agm/2024/
             if current_url_has_year and any(
                 marker in current_url_lower
                 for marker in [
@@ -1590,12 +1576,10 @@ def collect_year_dropdown_urls(page):
                 if year_match:
                     current_year = int(year_match.group(0))
 
-                    # Controlled limit: current year and previous 10 years
                     for year in range(current_year, current_year - 11, -1):
                         generated_url = replace_year_in_current_url(year)
                         add_year_url(generated_url, f"Year {year}")
 
-            # 2. Scan rendered HTML for dropdown options, data-url, href, value, onclick, etc.
             try:
                 html_content = page.content()
                 soup = BeautifulSoup(html_content, "html.parser")
@@ -1633,7 +1617,6 @@ def collect_year_dropdown_urls(page):
                             if not possible_value_text:
                                 continue
 
-                            # Case: dropdown option value is only year, e.g. value="2025"
                             if re.fullmatch(r"20\d{2}", possible_value_text):
                                 generated_url = replace_year_in_current_url(possible_value_text)
 
@@ -1642,7 +1625,6 @@ def collect_year_dropdown_urls(page):
 
                                 continue
 
-                            # Case: option/data/href contains a year URL/path
                             if re.search(r"20\d{2}", possible_value_text):
                                 if any(
                                     marker in possible_value_text.lower()
@@ -1677,10 +1659,10 @@ def collect_year_dropdown_urls(page):
 
         return year_links[:12]
 
-        def visit_year_dropdown_pages(page):
+
+    def visit_year_dropdown_pages(page):
         """
         Visit year-based pages discovered from dropdown/select/year-selector pages.
-        This is targeted and faster than clicking random dropdown UI controls.
         """
 
         try:
