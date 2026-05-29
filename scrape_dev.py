@@ -2371,9 +2371,11 @@ def collect_year_dropdown_urls(page):
 
             interact_with_hash_fragments(page)
 
+            visit_year_dropdown_pages(page)
+
             visit_report_detail_pages(page)
 
-            click_report_card_controls(page)
+            click_report_card_controls(page))
 
             try:
                 expander_selector = (
