@@ -2454,6 +2454,89 @@ def process_source_url(source_url, retry_attempt=False, force_browser_fallback=F
 
         return docs_captured_for_url
 
+def build_output_with_previous_non_target_rows(target_source_urls, current_run_output_rows):
+    """
+    Build combined output.csv.
+
+    P1 run:
+    - removes old P1 rows from output.csv
+    - keeps old P2 rows
+    - adds fresh P1 rows
+
+    P2 run:
+    - removes old P2 rows from output.csv
+    - keeps old P1 rows
+    - adds fresh P2 rows
+    """
+
+    final_rows = []
+    seen_document_keys = set()
+
+    target_source_keys = set()
+
+    for source_url in target_source_urls:
+        if source_url:
+            target_source_keys.add(normalize_url_key(source_url))
+
+    if os.path.exists(OUTPUT_FILE):
+        try:
+            with open(OUTPUT_FILE, newline="", encoding="utf-8") as old_output_file:
+                reader = csv.DictReader(old_output_file)
+
+                for row in reader:
+                    company = row.get("company", "")
+                    document_url = row.get("document_url", "")
+
+                    if not company or not document_url:
+                        continue
+
+                    company_key = normalize_url_key(company)
+
+                    # Skip old rows from current target URL file.
+                    # They will be replaced by current run capture.
+                    if company_key in target_source_keys:
+                        continue
+
+                    document_key = normalize_url_key(document_url)
+
+                    if document_key in seen_document_keys:
+                        continue
+
+                    seen_document_keys.add(document_key)
+
+                    final_rows.append({
+                        "company": company,
+                        "document_title": row.get("document_title", "Unknown Title"),
+                        "document_title_source": row.get("document_title_source", "previous_output_preserved"),
+                        "document_url": document_url
+                    })
+
+        except Exception as e:
+            print(f"Previous non-target output preserve error: {e}")
+
+    for row in current_run_output_rows:
+        document_url = row.get("document_url", "")
+
+        if not document_url:
+            continue
+
+        document_key = normalize_url_key(document_url)
+
+        if document_key in seen_document_keys:
+            continue
+
+        seen_document_keys.add(document_key)
+
+        final_rows.append({
+            "company": row.get("company", ""),
+            "document_title": row.get("document_title", "Unknown Title"),
+            "document_title_source": row.get("document_title_source", "unknown"),
+            "document_url": document_url
+        })
+
+    print(f"OUTPUT MERGE COMPLETE → final output rows: {len(final_rows)}")
+
+    return final_rows
 
 # MAIN SCRAPER
 
