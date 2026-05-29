@@ -2676,6 +2676,14 @@ if RUN_MODE in ["full", "seed"]:
 
 
 # SAVE output file
+if RUN_MODE == "full":
+    final_output_data = build_output_with_previous_non_target_rows(
+        target_source_urls=target_source_urls,
+        current_run_output_rows=output_data
+    )
+else:
+    final_output_data = output_data
+
 with open(OUTPUT_FILE, "w", newline="", encoding="utf-8") as out_file:
     writer = csv.DictWriter(
         out_file,
@@ -2687,7 +2695,7 @@ with open(OUTPUT_FILE, "w", newline="", encoding="utf-8") as out_file:
         ]
     )
     writer.writeheader()
-    writer.writerows(output_data)
+    writer.writerows(final_output_data)
 
 
 # SAVE raw links file
