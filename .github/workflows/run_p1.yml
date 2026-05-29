@@ -1,0 +1,55 @@
+name: Run Scraper P1
+
+on:
+  schedule:
+    - cron: "30 21 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: document-monitor-production
+  cancel-in-progress: false
+
+jobs:
+  run-script:
+    runs-on: ubuntu-latest
+
+    env:
+      RUN_MODE: full
+      TARGET_URL_FILE: documents_p1.csv
+      ENABLE_BROWSER_FALLBACK: "true"
+      SLEEP_SECONDS: "5"
+      RETRY_FAILED_URLS: "true"
+      RETRY_SLEEP_SECONDS: "30"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install requests beautifulsoup4 playwright
+          playwright install chromium
+
+      - name: Check Python syntax
+        run: python -m py_compile scrape.py
+
+      - name: Run stable scraper for P1
+        run: python scrape.py
+
+      - name: Commit and push output files
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+
+          git add -A output*.csv raw_links*.csv capture_issues*.csv diff*.csv known_documents*.csv run_summary*.csv 2>/dev/null || true
+
+          git commit -m "Update scraped data P1" || echo "No changes to commit"
+
+          git pull --rebase origin main
+
+          git push
