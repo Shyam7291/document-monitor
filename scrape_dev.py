@@ -2491,10 +2491,6 @@ def browser_click_fallback(source_url, existing_keys):
 
             interact_with_hash_fragments(page)
 
-            visit_year_iframe_pages(page)
-
-            visit_year_dropdown_pages(page)
-
             visit_report_detail_pages(page)
 
             click_report_card_controls(page)
