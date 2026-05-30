@@ -29,7 +29,13 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-
+      - name: Print schedule debug time
+        run: |
+          echo "Workflow: ${{ github.workflow }}"
+          echo "Event: ${{ github.event_name }}"
+          echo "Schedule: ${{ github.event.schedule }}"
+          echo "UTC now: $(date -u '+%Y-%m-%d %H:%M:%S %Z')"
+          echo "IST now: $(TZ='Asia/Kolkata' date '+%Y-%m-%d %H:%M:%S %Z')"
       - name: Install dependencies
         run: |
           pip install requests beautifulsoup4 playwright
