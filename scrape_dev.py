@@ -1458,6 +1458,222 @@ def browser_click_fallback(source_url, existing_keys):
 
         except Exception as e:
             print(f"Frame collection error: {e}")
+    def interact_with_year_dropdowns(page):
+        """
+        Generic year dropdown handler.
+
+        This tries to interact with actual dropdowns/selectors instead of only
+        generating URLs from the year in the URL.
+
+        It handles:
+        - native <select> dropdowns
+        - custom dropdown buttons/divs that reveal year options
+        """
+
+        try:
+            print("Checking for real year dropdowns...")
+
+            years_clicked_or_selected = set()
+
+            def scan_after_year_change(year_label):
+                print(f"Scanning after year dropdown change: {year_label}")
+
+                page.wait_for_timeout(2000)
+
+                scan_all_rendered_content(page)
+
+                try:
+                    click_download_controls_on_detail_page(page, f"Year {year_label}")
+                except Exception as e:
+                    print(f"Year dropdown document click error for {year_label}: {e}")
+
+            # -------------------------
+            # 1. Native select dropdowns
+            # -------------------------
+            try:
+                select_elements = page.locator("select")
+                select_count = min(select_elements.count(), 10)
+
+                print(f"Native select dropdowns found: {select_count}")
+
+                for i in range(select_count):
+                    try:
+                        select_el = select_elements.nth(i)
+
+                        options = select_el.locator("option")
+                        option_count = min(options.count(), 30)
+
+                        year_values = []
+
+                        for j in range(option_count):
+                            try:
+                                option = options.nth(j)
+                                option_text = normalize_text(option.inner_text(timeout=1000))
+                                option_value = option.get_attribute("value", timeout=1000)
+
+                                combined = f"{option_text} {option_value or ''}"
+
+                                year_match = re.search(r"\b20\d{2}\b", combined)
+
+                                if year_match:
+                                    year_value = year_match.group(0)
+
+                                    if year_value not in year_values:
+                                        year_values.append(year_value)
+
+                            except Exception:
+                                continue
+
+                        print(f"Year options found in native select: {year_values}")
+
+                        for year_value in year_values[:15]:
+                            if year_value in years_clicked_or_selected:
+                                continue
+
+                            years_clicked_or_selected.add(year_value)
+
+                            try:
+                                print(f"Selecting native dropdown year by label: {year_value}")
+
+                                select_el.select_option(label=year_value, timeout=3000)
+                                scan_after_year_change(year_value)
+
+                            except Exception:
+                                try:
+                                    print(f"Selecting native dropdown year by value: {year_value}")
+
+                                    select_el.select_option(value=year_value, timeout=3000)
+                                    scan_after_year_change(year_value)
+
+                                except Exception as select_error:
+                                    print(f"Native year select failed for {year_value}: {select_error}")
+
+                    except Exception:
+                        continue
+
+            except Exception as e:
+                print(f"Native select dropdown phase error: {e}")
+
+            # -------------------------
+            # 2. Custom year dropdowns
+            # -------------------------
+            try:
+                dropdown_candidates = page.locator(
+                    "button, [role='button'], [aria-haspopup], "
+                    ".dropdown, .dropdown-toggle, .select, .select-selected, "
+                    "div, span, a"
+                ).filter(
+                    has_text=re.compile(r"\b20\d{2}\b", re.IGNORECASE)
+                )
+
+                dropdown_count = min(dropdown_candidates.count(), 20)
+
+                print(f"Custom year dropdown candidates found: {dropdown_count}")
+
+                for i in range(dropdown_count):
+                    try:
+                        dropdown = dropdown_candidates.nth(i)
+
+                        dropdown_text = ""
+
+                        try:
+                            dropdown_text = normalize_text(dropdown.inner_text(timeout=1000))
+                        except Exception:
+                            dropdown_text = ""
+
+                        if not re.search(r"\b20\d{2}\b", dropdown_text):
+                            continue
+
+                        # Skip very large page containers
+                        if len(dropdown_text.split()) > 20:
+                            continue
+
+                        try:
+                            dropdown.scroll_into_view_if_needed(timeout=3000)
+                        except Exception:
+                            pass
+
+                        try:
+                            print(f"Opening custom year dropdown: {dropdown_text}")
+
+                            dropdown.click(timeout=4000, force=True)
+                            page.wait_for_timeout(1000)
+
+                        except Exception as dropdown_error:
+                            print(f"Custom year dropdown open failed: {dropdown_error}")
+                            continue
+
+                        year_options = page.locator(
+                            "a, button, [role='option'], [role='menuitem'], li, div, span"
+                        ).filter(
+                            has_text=re.compile(r"\b20\d{2}\b", re.IGNORECASE)
+                        )
+
+                        option_count = min(year_options.count(), 30)
+
+                        print(f"Custom year options found after opening dropdown: {option_count}")
+
+                        for j in range(option_count):
+                            try:
+                                option = year_options.nth(j)
+
+                                option_text = normalize_text(option.inner_text(timeout=1000))
+
+                                year_match = re.search(r"\b20\d{2}\b", option_text)
+
+                                if not year_match:
+                                    continue
+
+                                year_value = year_match.group(0)
+
+                                if year_value in years_clicked_or_selected:
+                                    continue
+
+                                # Avoid clicking giant page containers
+                                if len(option_text.split()) > 15:
+                                    continue
+
+                                years_clicked_or_selected.add(year_value)
+
+                                print(f"Clicking custom dropdown year: {year_value}")
+
+                                before_url = page.url
+
+                                try:
+                                    option.scroll_into_view_if_needed(timeout=3000)
+                                except Exception:
+                                    pass
+
+                                try:
+                                    option.click(timeout=4000, force=True)
+                                    page.wait_for_timeout(2000)
+                                except Exception as option_error:
+                                    print(f"Custom year option click failed for {year_value}: {option_error}")
+                                    continue
+
+                                scan_after_year_change(year_value)
+
+                                # If click navigated away, return to previous page for next option
+                                if page.url != before_url:
+                                    try:
+                                        page.goto(before_url, wait_until="domcontentloaded", timeout=60000)
+                                        page.wait_for_timeout(1000)
+                                    except Exception:
+                                        pass
+
+                            except Exception:
+                                continue
+
+                    except Exception:
+                        continue
+
+            except Exception as e:
+                print(f"Custom year dropdown phase error: {e}")
+
+            print(f"Year dropdown interaction complete. Years handled: {len(years_clicked_or_selected)}")
+
+        except Exception as e:
+            print(f"Year dropdown interaction error: {e}")        
     def collect_year_dropdown_urls(page):
         """
         Collect year-based detail URLs from pages where documents are controlled
