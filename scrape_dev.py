@@ -1479,14 +1479,11 @@ def browser_click_fallback(source_url, existing_keys):
             def scan_after_year_change(year_label):
                 print(f"Scanning after year dropdown change: {year_label}")
 
-                page.wait_for_timeout(2000)
+                page.wait_for_timeout(2500)
 
                 scan_all_rendered_content(page)
 
-                try:
-                    click_download_controls_on_detail_page(page, f"Year {year_label}")
-                except Exception as e:
-                    print(f"Year dropdown document click error for {year_label}: {e}")
+                
 
             def get_contexts_to_scan():
                 """
