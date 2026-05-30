@@ -1618,6 +1618,85 @@ def browser_click_fallback(source_url, existing_keys):
                                         continue
 
                                 print(f"Year options found in native select in {ctx_name}: {year_options}")
+                                # If the year dropdown is inside a content iframe whose URL contains a year,
+                                # use the dropdown years to visit matching iframe URLs directly.
+                                #
+                                # This avoids cases where selecting a dropdown option navigates to an outer
+                                # page that may be blocked by Cloudflare.
+                                #
+                                # Example:
+                                # current iframe:
+                                # https://ir2.chartnexus.com/protasco/investor-relations/general-meeting-2025.php
+                                #
+                                # dropdown years:
+                                # 2026, 2025, 2024
+                                #
+                                # generated iframe URLs:
+                                # general-meeting-2026.php
+                                # general-meeting-2025.php
+                                # general-meeting-2024.php
+
+                                if ctx_name == "frame" and re.search(r"\b20\d{2}\b", ctx_url):
+                                    ctx_url_lower = ctx_url.lower()
+
+                                    if any(
+                                        marker in ctx_url_lower
+                                        for marker in [
+                                            "general-meeting",
+                                            "annual-general-meeting",
+                                            "agm",
+                                            "annual-report",
+                                            "annual-reports",
+                                            "reports",
+                                            "results",
+                                            "financial-results"
+                                        ]
+                                    ):
+                                        original_url_before_iframe_visits = page.url or source_url
+
+                                        for year_value in year_options[:15]:
+                                            if year_value in years_clicked_or_selected:
+                                                continue
+
+                                            generated_iframe_url = re.sub(
+                                                r"20\d{2}",
+                                                str(year_value),
+                                                ctx_url,
+                                                count=1,
+                                                flags=re.IGNORECASE
+                                            )
+
+                                            try:
+                                                print(f"Visiting dropdown-derived iframe URL for year {year_value}: {generated_iframe_url}")
+
+                                                page.goto(
+                                                    generated_iframe_url,
+                                                    wait_until="domcontentloaded",
+                                                    timeout=60000
+                                                )
+                                                page.wait_for_timeout(2500)
+
+                                                scan_all_rendered_content(page)
+
+                                                years_clicked_or_selected.add(year_value)
+
+                                            except Exception as iframe_year_error:
+                                                print(f"Dropdown-derived iframe visit failed for {year_value}: {iframe_year_error}")
+
+                                        try:
+                                            page.goto(
+                                                original_url_before_iframe_visits,
+                                                wait_until="domcontentloaded",
+                                                timeout=60000
+                                            )
+                                            page.wait_for_timeout(1000)
+                                        except Exception:
+                                            pass
+
+                                        # Important:
+                                        # Do not continue with normal select_option loop for this iframe,
+                                        # because selecting options navigates to outer Cloudflare-blocked pages.
+                                        continue
 
                                 for year_value in year_options[:15]:
                                     if year_value in years_clicked_or_selected:
