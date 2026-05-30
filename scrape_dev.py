@@ -1539,72 +1539,143 @@ def browser_click_fallback(source_url, existing_keys):
 
                 print(f"Checking year dropdowns in {ctx_name}: {ctx_url}")
 
-                # -------------------------
-                # 1. Native select dropdowns
-                # -------------------------
-                try:
-                    select_elements = ctx.locator("select")
-                    select_count = min(select_elements.count(), 10)
+               # -------------------------
+            # 1. Native select dropdowns
+            # -------------------------
+            try:
+                def get_fresh_context(original_context_url):
+                    """
+                    Re-find page/frame context after iframe reload.
+                    This is needed because selecting a year can detach/reload the frame.
+                    """
 
-                    print(f"Native select dropdowns found in {ctx_name}: {select_count}")
+                    try:
+                        current_contexts = get_contexts_to_scan()
 
-                    for i in range(select_count):
-                        try:
-                            select_el = select_elements.nth(i)
+                        # Prefer exact same URL first
+                        for item in current_contexts:
+                            if item.get("url", "") == original_context_url:
+                                return item.get("context")
 
-                            options = select_el.locator("option")
-                            option_count = min(options.count(), 40)
+                        # For Protasco / similar pages, prefer current general-meeting iframe
+                        if "general-meeting" in original_context_url.lower():
+                            for item in current_contexts:
+                                item_url = item.get("url", "").lower()
 
-                            year_options = []
+                                if "general-meeting" in item_url:
+                                    return item.get("context")
 
-                            for j in range(option_count):
-                                try:
-                                    option = options.nth(j)
-                                    option_text = normalize_text(option.inner_text(timeout=1000))
-                                    option_value = option.get_attribute("value", timeout=1000)
+                        # Fallback to first non-main useful frame
+                        for item in current_contexts:
+                            item_url = item.get("url", "").lower()
 
-                                    combined = f"{option_text} {option_value or ''}"
+                            if "cloudflare.com" in item_url:
+                                continue
 
-                                    year_match = re.search(r"\b20\d{2}\b", combined)
+                            if item.get("name") == "frame":
+                                return item.get("context")
 
-                                    if year_match:
-                                        year_value = year_match.group(0)
+                    except Exception:
+                        pass
 
-                                        if year_value not in year_options:
-                                            year_options.append(year_value)
+                    return page
 
-                                except Exception:
-                                    continue
 
-                            print(f"Year options found in native select in {ctx_name}: {year_options}")
+                for ctx_item in contexts_to_scan:
+                    ctx = ctx_item["context"]
+                    ctx_name = ctx_item["name"]
+                    ctx_url = ctx_item["url"]
 
-                            for year_value in year_options[:15]:
-                                if year_value in years_clicked_or_selected:
-                                    continue
+                    try:
+                        select_elements = ctx.locator("select")
+                        select_count = min(select_elements.count(), 10)
 
-                                years_clicked_or_selected.add(year_value)
+                        print(f"Native select dropdowns found in {ctx_name}: {select_count}")
 
-                                try:
-                                    print(f"Selecting native dropdown year by label in {ctx_name}: {year_value}")
+                        for i in range(select_count):
+                            try:
+                                select_el = select_elements.nth(i)
 
-                                    select_el.select_option(label=year_value, timeout=3000)
-                                    scan_after_year_change(year_value)
+                                options = select_el.locator("option")
+                                option_count = min(options.count(), 40)
 
-                                except Exception:
+                                year_options = []
+
+                                for j in range(option_count):
                                     try:
-                                        print(f"Selecting native dropdown year by value in {ctx_name}: {year_value}")
+                                        option = options.nth(j)
+                                        option_text = normalize_text(option.inner_text(timeout=1000))
+                                        option_value = option.get_attribute("value", timeout=1000)
 
-                                        select_el.select_option(value=year_value, timeout=3000)
+                                        combined = f"{option_text} {option_value or ''}"
+
+                                        year_match = re.search(r"\b20\d{2}\b", combined)
+
+                                        if year_match:
+                                            year_value = year_match.group(0)
+
+                                            if year_value not in year_options:
+                                                year_options.append(year_value)
+
+                                    except Exception:
+                                        continue
+
+                                print(f"Year options found in native select in {ctx_name}: {year_options}")
+
+                                for year_value in year_options[:15]:
+                                    if year_value in years_clicked_or_selected:
+                                        continue
+
+                                    try:
+                                        # Re-acquire frame/select before every year selection.
+                                        fresh_ctx = get_fresh_context(ctx_url)
+
+                                        fresh_selects = fresh_ctx.locator("select")
+                                        fresh_select_count = fresh_selects.count()
+
+                                        if fresh_select_count == 0:
+                                            print(f"No fresh native select found for year {year_value}")
+                                            continue
+
+                                        fresh_select_index = min(i, fresh_select_count - 1)
+                                        fresh_select = fresh_selects.nth(fresh_select_index)
+
+                                        print(f"Selecting native dropdown year by label/value in fresh context: {year_value}")
+
+                                        selection_done = False
+
+                                        try:
+                                            fresh_select.select_option(label=year_value, timeout=5000)
+                                            selection_done = True
+                                        except Exception:
+                                            try:
+                                                fresh_select.select_option(value=year_value, timeout=5000)
+                                                selection_done = True
+                                            except Exception as select_error:
+                                                print(f"Native year select failed for {year_value}: {select_error}")
+
+                                        if not selection_done:
+                                            continue
+
+                                        page.wait_for_timeout(2500)
+
                                         scan_after_year_change(year_value)
 
-                                    except Exception as select_error:
-                                        print(f"Native year select failed for {year_value}: {select_error}")
+                                        # Mark handled only after successful selection + scan
+                                        years_clicked_or_selected.add(year_value)
 
-                        except Exception:
-                            continue
+                                    except Exception as year_error:
+                                        print(f"Native year processing failed for {year_value}: {year_error}")
 
-                except Exception as e:
-                    print(f"Native select dropdown phase error in {ctx_name}: {e}")
+                            except Exception:
+                                continue
+
+                    except Exception as e:
+                        print(f"Native select dropdown phase error in {ctx_name}: {e}")
+
+            except Exception as e:
+                print(f"Native select dropdown phase error: {e}")
+
 
                 # -------------------------
                 # 2. Custom dropdowns
