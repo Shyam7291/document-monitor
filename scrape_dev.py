@@ -2490,6 +2490,7 @@ def browser_click_fallback(source_url, existing_keys):
             scan_all_rendered_content(page)
 
             interact_with_hash_fragments(page)
+            interact_with_year_dropdowns(page)
 
             visit_report_detail_pages(page)
 
