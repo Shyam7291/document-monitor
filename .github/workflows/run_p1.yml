@@ -2,7 +2,7 @@ name: Run Scraper P1
 
 on:
   schedule:
-    - cron: "30 19 * * *"
+    - cron: "30 15 * * *"
   workflow_dispatch:
 
 concurrency:
