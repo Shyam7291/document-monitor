@@ -1,8 +1,11 @@
 name: Run Scraper P2
 
 on:
-  schedule:
-    - cron: "30 21 * * *"
+  workflow_run:
+    workflows: ["Run Scraper P1"]
+    types:
+      - completed
+
   workflow_dispatch:
 
 concurrency:
