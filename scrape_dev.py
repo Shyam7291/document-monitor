@@ -3373,8 +3373,11 @@ def build_output_with_previous_non_target_rows(target_source_urls, current_run_o
 
                     final_rows.append({
                         "company": company,
-                        "document_title": row.get("document_title", "Unknown Title"),
-                        "document_title": limit_document_title_words(row.get("document_title", "Unknown Title"), max_words=20),
+                        "document_title": limit_document_title_words(
+                            row.get("document_title", "Unknown Title"),
+                            max_words=20
+                        ),
+                        "document_title_source": row.get("document_title_source", "previous_output_preserved"),
                         "document_url": document_url
                     })
 
