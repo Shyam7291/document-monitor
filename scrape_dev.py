@@ -1382,26 +1382,15 @@ def browser_click_fallback(source_url, existing_keys):
         # If title_hint is huge container/list text, prefer URL title when available.
         title_hint_word_count = len(normalize_text(title_hint).split())
 
-        if title_hint_word_count > 25 and url_title:
-            title_info = {
-                "title": url_title,
-                "source": "url_preferred_long_text",
-                "score": title_quality_score(url_title)
-            }
+        if title_hint_word_count > 20 and url_title:
+            title = url_title
+            title_source = "url_preferred_long_text"
         else:
             title_info = choose_best_title_from_text_and_url(title_hint, url_title)
-
-        title = title_info["title"]
-        title_source = title_info["source"]
+            title = title_info["title"]
+            title_source = title_info["source"]
 
         title = limit_document_title_words(title, max_words=20)
-        title_hint_word_count = len(normalize_text(title_hint).split())
-
-        if title_hint_word_count > 20 and url_title:
-            title_info = {
-                "title": url_title,
-                "source": "url_preferred_long_text",
-
 
         if not title or is_bad_title(title):
             title = "Unknown Title"
