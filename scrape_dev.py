@@ -478,7 +478,7 @@ def queue_known_document_if_new(doc):
     known_documents_to_append.append({
         "first_seen_date": current_date,
         "company": doc.get("company", ""),
-        "document_title": limit_document_title_words(doc.get("document_title", "Unknown Title"), max_words=60),
+        "document_title": limit_document_title_words(doc.get("document_title", "Unknown Title"), max_words=20),
         "document_url": document_url,
         "source_run_mode": RUN_MODE
     })
@@ -493,7 +493,7 @@ def normalize_text(text):
     text = re.sub(r"\s+", " ", text)
     return text.strip()
 
-def limit_document_title_words(title, max_words=60):
+def limit_document_title_words(title, max_words=20):
     """
     Limit document title to maximum 60 words.
 
@@ -1208,7 +1208,7 @@ def extract_links_from_soup(soup, base_url, source_url, seen, label="KEPT"):
         title_info = get_best_title_with_source(link, full_url, source_url)
         title = title_info["title"]
         title_source = title_info["source"]
-        title = limit_document_title_words(title, max_words=60)
+        title = limit_document_title_words(title, max_words=20)
         raw_links.append({
             "company": source_url,
             "text": title,
@@ -1383,7 +1383,7 @@ def browser_click_fallback(source_url, existing_keys):
         title = title_info["title"]
         title_source = title_info["source"]
         
-        title = limit_document_title_words(title, max_words=60)
+        title = limit_document_title_words(title, max_words=20)
 
         if not title or is_bad_title(title):
             title = "Unknown Title"
@@ -3367,7 +3367,7 @@ def build_output_with_previous_non_target_rows(target_source_urls, current_run_o
                     final_rows.append({
                         "company": company,
                         "document_title": row.get("document_title", "Unknown Title"),
-                        "document_title": limit_document_title_words(row.get("document_title", "Unknown Title"), max_words=60),
+                        "document_title": limit_document_title_words(row.get("document_title", "Unknown Title"), max_words=20),
                         "document_url": document_url
                     })
 
@@ -3389,7 +3389,7 @@ def build_output_with_previous_non_target_rows(target_source_urls, current_run_o
 
         final_rows.append({
             "company": row.get("company", ""),
-            "document_title": limit_document_title_words(row.get("document_title", "Unknown Title"), max_words=60),
+            "document_title": limit_document_title_words(row.get("document_title", "Unknown Title"), max_words=20),
             "document_title_source": row.get("document_title_source", "unknown"),
             "document_url": document_url
         })
@@ -3524,7 +3524,7 @@ if RUN_MODE == "full":
             new_records.append({
                 "date": current_date,
                 "company": source_url,
-                "document_title": limit_document_title_words(r.get("document_title", "Unknown Title"), max_words=60),
+                "document_title": limit_document_title_words(r.get("document_title", "Unknown Title"), max_words=20),
                 "document_url": document_url
             })
 
