@@ -1213,6 +1213,7 @@ def extract_links_from_soup(soup, base_url, source_url, seen, label="KEPT"):
             "company": source_url,
             "text": title,
             "title_source": title_source,
+            "title = limit_document_title_words(title, max
             "url": full_url
         })
 
