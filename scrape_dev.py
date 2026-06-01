@@ -3525,7 +3525,7 @@ if RUN_MODE == "full":
             new_records.append({
                 "date": current_date,
                 "company": source_url,
-                "document_title": r.get("document_title", "Unknown Title"),
+                "document_title": limit_document_title_words(r.get("document_title", "Unknown Title"), max_words=60),
                 "document_url": document_url
             })
 
