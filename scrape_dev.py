@@ -1208,12 +1208,11 @@ def extract_links_from_soup(soup, base_url, source_url, seen, label="KEPT"):
         title_info = get_best_title_with_source(link, full_url, source_url)
         title = title_info["title"]
         title_source = title_info["source"]
-
+        title = limit_document_title_words(title, max_words=60)
         raw_links.append({
             "company": source_url,
             "text": title,
             "title_source": title_source,
-            "title = limit_document_title_words(title, max
             "url": full_url
         })
 
