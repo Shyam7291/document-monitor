@@ -493,7 +493,24 @@ def normalize_text(text):
     text = re.sub(r"\s+", " ", text)
     return text.strip()
 
+def limit_document_title_words(title, max_words=60):
+    """
+    Limit document title to maximum 60 words.
 
+    This prevents long page/filter/container text from becoming document_title.
+    """
+
+    title = normalize_text(title)
+
+    if not title:
+        return ""
+
+    words = title.split()
+
+    if len(words) <= max_words:
+        return title
+
+    return " ".join(words[:max_words])
 def load_report_keywords():
     """
     Load configurable report/card keywords from report_keywords.csv.
