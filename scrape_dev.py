@@ -1383,6 +1383,8 @@ def browser_click_fallback(source_url, existing_keys):
         title_info = choose_best_title_from_text_and_url(title_hint, url_title)
         title = title_info["title"]
         title_source = title_info["source"]
+        
+        title = limit_document_title_words(title, max_words=60)
 
         if not title or is_bad_title(title):
             title = "Unknown Title"
