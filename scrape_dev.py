@@ -478,7 +478,7 @@ def queue_known_document_if_new(doc):
     known_documents_to_append.append({
         "first_seen_date": current_date,
         "company": doc.get("company", ""),
-        "document_title": doc.get("document_title", "Unknown Title"),
+        "document_title": limit_document_title_words(doc.get("document_title", "Unknown Title"), max_words=60),
         "document_url": document_url,
         "source_run_mode": RUN_MODE
     })
