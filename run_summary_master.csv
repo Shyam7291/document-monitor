@@ -54,3 +54,4 @@ run_number,date,run_mode,url_file,total_urls_processed,total_documents_captured,
 53,2026-06-02 19:00:24,full,documents_p1.csv,11,372,0,0,0,0,0,True,output.csv,raw_links.csv,capture_issues.csv
 54,2026-06-02 19:12:31,full,documents_p2.csv,66,2045,4,3,0,0,0,True,output.csv,raw_links.csv,capture_issues.csv
 55,2026-06-03 10:17:54,test,test_urls.csv,1,30,0,0,0,0,0,True,output_test.csv,raw_links_test.csv,capture_issues_test.csv
+56,2026-06-03 10:27:15,test,test_urls.csv,1,72,0,0,0,0,0,True,output_test.csv,raw_links_test.csv,capture_issues_test.csv
