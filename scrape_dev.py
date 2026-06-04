@@ -523,6 +523,138 @@ def limit_document_title_words(title, max_words=20):
         return title
 
     return " ".join(words[:max_words])
+def parse_pdf_metadata_date(raw_date):
+    """
+    Parse PDF metadata date.
+
+    Common PDF formats:
+    - D:20260420113938
+    - D:20260420113938+05'30'
+    - D:20260420113938Z
+    """
+
+    if not raw_date:
+        return None
+
+    raw_date = str(raw_date).strip()
+
+    if raw_date.startswith("D:"):
+        raw_date = raw_date[2:]
+
+    digits = re.sub(r"\D", "", raw_date)
+
+    if len(digits) >= 14:
+        try:
+            return datetime.strptime(digits[:14], "%Y%m%d%H%M%S")
+        except Exception:
+            pass
+
+    if len(digits) >= 8:
+        try:
+            return datetime.strptime(digits[:8], "%Y%m%d")
+        except Exception:
+            pass
+
+    return None
+
+
+pdf_metadata_date_cache = {}
+
+
+def get_pdf_metadata_date(document_url):
+    """
+    Download PDF and read Created/Modified metadata.
+
+    Returns datetime object if /CreationDate or /ModDate is found.
+    Returns None if metadata is missing/unreadable.
+    """
+
+    document_key = normalize_url_key(document_url)
+
+    if document_key in pdf_metadata_date_cache:
+        return pdf_metadata_date_cache[document_key]
+
+    metadata_date = None
+
+    try:
+        response = requests.get(
+            document_url,
+            timeout=45,
+            headers=HEADERS,
+            stream=True
+        )
+
+        if response.status_code != 200:
+            print(f"PDF metadata fetch failed status {response.status_code}: {document_url}")
+            pdf_metadata_date_cache[document_key] = None
+            return None
+
+        content_length = response.headers.get("Content-Length")
+
+        if content_length:
+            try:
+                if int(content_length) > PDF_METADATA_MAX_BYTES:
+                    print(f"PDF metadata skipped large file: {document_url}")
+                    pdf_metadata_date_cache[document_key] = None
+                    return None
+            except Exception:
+                pass
+
+        pdf_bytes = response.content
+
+        if len(pdf_bytes) > PDF_METADATA_MAX_BYTES:
+            print(f"PDF metadata skipped large downloaded file: {document_url}")
+            pdf_metadata_date_cache[document_key] = None
+            return None
+
+        try:
+            from PyPDF2 import PdfReader
+        except Exception as import_error:
+            print(f"PyPDF2 not available for PDF metadata: {import_error}")
+            pdf_metadata_date_cache[document_key] = None
+            return None
+
+        reader = PdfReader(BytesIO(pdf_bytes))
+        metadata = reader.metadata
+
+        if metadata:
+            created_raw = metadata.get("/CreationDate")
+            modified_raw = metadata.get("/ModDate")
+
+            created_date = parse_pdf_metadata_date(created_raw)
+            modified_date = parse_pdf_metadata_date(modified_raw)
+
+            # Prefer Created date. If missing, use Modified date.
+            metadata_date = created_date or modified_date
+
+            if metadata_date:
+                print(f"PDF metadata date found → {metadata_date.date()} | {document_url}")
+            else:
+                print(f"PDF metadata date missing/unreadable: {document_url}")
+        else:
+            print(f"PDF metadata not available: {document_url}")
+
+    except Exception as e:
+        print(f"PDF metadata read error: {e} | {document_url}")
+
+    pdf_metadata_date_cache[document_key] = metadata_date
+    return metadata_date
+
+
+def is_pdf_metadata_recent_for_diff(document_url, recency_days=60):
+    """
+    Return True only when PDF Created/Modified metadata date exists
+    and is within the recent window.
+    """
+
+    metadata_date = get_pdf_metadata_date(document_url)
+
+    if not metadata_date:
+        return False
+
+    cutoff_date = datetime.now() - timedelta(days=recency_days)
+
+    return metadata_date >= cutoff_date    
 def load_report_keywords():
     """
     Load configurable report/card keywords from report_keywords.csv.
