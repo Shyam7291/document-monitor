@@ -1,9 +1,1 @@
 date,run_mode,url_file,source_url,issue_type,status_code,documents_captured,error_message
-2026-06-03 19:20:44,full,documents_p2.csv,https://www.tatasteel.com/investors/integrated-reportannual-report/118-integrated-annual-report-2024-25/,FETCH_FAILED_STATUS_AFTER_RETRY,403,0,Non-200 status code and browser fallback captured 0 documents
-2026-06-03 19:20:44,full,documents_p2.csv,https://www.tatasteel.com/investors/integrated-reportannual-report/integrated-report-annual-accounts-2025-26-119th-year-and-related-documents/,FETCH_FAILED_STATUS_AFTER_RETRY,403,0,Non-200 status code and browser fallback captured 0 documents
-2026-06-03 19:20:44,full,documents_p2.csv,https://www.tatasteel.com/sustainability/governance/taskforce-on-nature-related-financial-disclosures-tnfd-reports/,FETCH_FAILED_STATUS_AFTER_RETRY,403,0,Non-200 status code and browser fallback captured 0 documents
-2026-06-03 19:20:44,full,documents_p2.csv,https://www.coalindia.in/esg/,FETCH_FAILED_STATUS_AFTER_RETRY,403,0,Non-200 status code and browser fallback captured 0 documents
-2026-06-03 19:20:44,full,documents_p2.csv,https://www.goldfields.com/sustainability-data.php,FETCH_ERROR_AFTER_RETRY,,0,Request failed / timeout and browser fallback captured 0 documents
-2026-06-03 19:20:44,full,documents_p2.csv,https://www.eogresources.com/sustainability/,FETCH_FAILED_STATUS_AFTER_RETRY,403,0,Non-200 status code and browser fallback captured 0 documents
-2026-06-03 19:20:44,full,documents_p2.csv,https://evolutionmining.com/document-centre/#corporate-governance#reports,SUCCESS_ZERO_DOCS_AFTER_RETRY,200,0,Page opened successfully but no document links captured
-2026-06-03 19:20:44,full,documents_p2.csv,https://polyus.com/en/sustainability/esg-data-and-reports/,FETCH_ERROR_AFTER_RETRY,,0,Request failed / timeout and browser fallback captured 0 documents
