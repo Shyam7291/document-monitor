@@ -3675,32 +3675,31 @@ if RUN_MODE == "full":
         # 2. document URL was not known before this run
         # 3. document URL is not already in diff.csv
         if source_was_known_before_run and not document_was_known_before_run and not already_in_diff:
-    document_title_for_diff = limit_document_title_words(
-        r.get("document_title", "Unknown Title"),
-        max_words=20
-    )
+            document_title_for_diff = limit_document_title_words(
+                r.get("document_title", "Unknown Title"),
+                max_words=20
+            )
 
-    add_to_diff = True
+            add_to_diff = True
 
-    if ENABLE_PDF_METADATA_DIFF_FILTER:
-        add_to_diff = is_pdf_metadata_recent_for_diff(
-            document_url=document_url,
-            recency_days=PDF_METADATA_RECENCY_DAYS
-        )
+            if ENABLE_PDF_METADATA_DIFF_FILTER:
+                add_to_diff = is_pdf_metadata_recent_for_diff(
+                    document_url=document_url,
+                    recency_days=PDF_METADATA_RECENCY_DAYS
+                )
 
-    if add_to_diff:
-        new_records.append({
-            "date": current_date,
-            "company": source_url,
-            "document_title": document_title_for_diff,
-            "document_url": document_url
-        })
-    else:
-        print(
-            f"DIFF SKIPPED BY PDF METADATA DATE → "
-            f"{document_title_for_diff} | {document_url}"
-        )
-
+            if add_to_diff:
+                new_records.append({
+                    "date": current_date,
+                    "company": source_url,
+                    "document_title": document_title_for_diff,
+                    "document_url": document_url
+                })
+            else:
+                print(
+                    f"DIFF SKIPPED BY PDF METADATA DATE → "
+                    f"{document_title_for_diff} | {document_url}"
+                )
 # Update known document queue for seed/full.
 # New source URLs are baselined into known_documents.csv but not added to diff.csv.
 if RUN_MODE in ["full", "seed"]:
