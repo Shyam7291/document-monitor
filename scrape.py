@@ -4,7 +4,8 @@ import os
 import re
 import html
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
+from io import BytesIO
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse, unquote
 
@@ -23,7 +24,18 @@ SLEEP_SECONDS = float(os.environ.get("SLEEP_SECONDS", "2"))
 # Retry failed URLs once after the first pass
 RETRY_FAILED_URLS = os.environ.get("RETRY_FAILED_URLS", "true").strip().lower() == "true"
 RETRY_SLEEP_SECONDS = float(os.environ.get("RETRY_SLEEP_SECONDS", "10"))
+# Add to diff.csv only if PDF Created/Modified metadata date is recent
+ENABLE_PDF_METADATA_DIFF_FILTER = os.environ.get(
+    "ENABLE_PDF_METADATA_DIFF_FILTER",
+    "true"
+).strip().lower() == "true"
 
+PDF_METADATA_RECENCY_DAYS = int(os.environ.get("PDF_METADATA_RECENCY_DAYS", "60"))
+
+# Avoid downloading extremely large files only for metadata
+PDF_METADATA_MAX_BYTES = int(
+    os.environ.get("PDF_METADATA_MAX_BYTES", str(100 * 1024 * 1024))
+)
 if RUN_MODE in ["full", "seed"]:
     OUTPUT_FILE = "output.csv"
     RAW_FILE = "raw_links.csv"
@@ -511,6 +523,138 @@ def limit_document_title_words(title, max_words=20):
         return title
 
     return " ".join(words[:max_words])
+def parse_pdf_metadata_date(raw_date):
+    """
+    Parse PDF metadata date.
+
+    Common PDF formats:
+    - D:20260420113938
+    - D:20260420113938+05'30'
+    - D:20260420113938Z
+    """
+
+    if not raw_date:
+        return None
+
+    raw_date = str(raw_date).strip()
+
+    if raw_date.startswith("D:"):
+        raw_date = raw_date[2:]
+
+    digits = re.sub(r"\D", "", raw_date)
+
+    if len(digits) >= 14:
+        try:
+            return datetime.strptime(digits[:14], "%Y%m%d%H%M%S")
+        except Exception:
+            pass
+
+    if len(digits) >= 8:
+        try:
+            return datetime.strptime(digits[:8], "%Y%m%d")
+        except Exception:
+            pass
+
+    return None
+
+
+pdf_metadata_date_cache = {}
+
+
+def get_pdf_metadata_date(document_url):
+    """
+    Download PDF and read Created/Modified metadata.
+
+    Returns datetime object if /CreationDate or /ModDate is found.
+    Returns None if metadata is missing/unreadable.
+    """
+
+    document_key = normalize_url_key(document_url)
+
+    if document_key in pdf_metadata_date_cache:
+        return pdf_metadata_date_cache[document_key]
+
+    metadata_date = None
+
+    try:
+        response = requests.get(
+            document_url,
+            timeout=45,
+            headers=HEADERS,
+            stream=True
+        )
+
+        if response.status_code != 200:
+            print(f"PDF metadata fetch failed status {response.status_code}: {document_url}")
+            pdf_metadata_date_cache[document_key] = None
+            return None
+
+        content_length = response.headers.get("Content-Length")
+
+        if content_length:
+            try:
+                if int(content_length) > PDF_METADATA_MAX_BYTES:
+                    print(f"PDF metadata skipped large file: {document_url}")
+                    pdf_metadata_date_cache[document_key] = None
+                    return None
+            except Exception:
+                pass
+
+        pdf_bytes = response.content
+
+        if len(pdf_bytes) > PDF_METADATA_MAX_BYTES:
+            print(f"PDF metadata skipped large downloaded file: {document_url}")
+            pdf_metadata_date_cache[document_key] = None
+            return None
+
+        try:
+            from PyPDF2 import PdfReader
+        except Exception as import_error:
+            print(f"PyPDF2 not available for PDF metadata: {import_error}")
+            pdf_metadata_date_cache[document_key] = None
+            return None
+
+        reader = PdfReader(BytesIO(pdf_bytes))
+        metadata = reader.metadata
+
+        if metadata:
+            created_raw = metadata.get("/CreationDate")
+            modified_raw = metadata.get("/ModDate")
+
+            created_date = parse_pdf_metadata_date(created_raw)
+            modified_date = parse_pdf_metadata_date(modified_raw)
+
+            # Prefer Created date. If missing, use Modified date.
+            metadata_date = created_date or modified_date
+
+            if metadata_date:
+                print(f"PDF metadata date found → {metadata_date.date()} | {document_url}")
+            else:
+                print(f"PDF metadata date missing/unreadable: {document_url}")
+        else:
+            print(f"PDF metadata not available: {document_url}")
+
+    except Exception as e:
+        print(f"PDF metadata read error: {e} | {document_url}")
+
+    pdf_metadata_date_cache[document_key] = metadata_date
+    return metadata_date
+
+
+def is_pdf_metadata_recent_for_diff(document_url, recency_days=60):
+    """
+    Return True only when PDF Created/Modified metadata date exists
+    and is within the recent window.
+    """
+
+    metadata_date = get_pdf_metadata_date(document_url)
+
+    if not metadata_date:
+        return False
+
+    cutoff_date = datetime.now() - timedelta(days=recency_days)
+
+    return metadata_date >= cutoff_date    
 def load_report_keywords():
     """
     Load configurable report/card keywords from report_keywords.csv.
@@ -3531,13 +3675,31 @@ if RUN_MODE == "full":
         # 2. document URL was not known before this run
         # 3. document URL is not already in diff.csv
         if source_was_known_before_run and not document_was_known_before_run and not already_in_diff:
-            new_records.append({
-                "date": current_date,
-                "company": source_url,
-                "document_title": limit_document_title_words(r.get("document_title", "Unknown Title"), max_words=20),
-                "document_url": document_url
-            })
+            document_title_for_diff = limit_document_title_words(
+                r.get("document_title", "Unknown Title"),
+                max_words=20
+            )
 
+            add_to_diff = True
+
+            if ENABLE_PDF_METADATA_DIFF_FILTER:
+                add_to_diff = is_pdf_metadata_recent_for_diff(
+                    document_url=document_url,
+                    recency_days=PDF_METADATA_RECENCY_DAYS
+                )
+
+            if add_to_diff:
+                new_records.append({
+                    "date": current_date,
+                    "company": source_url,
+                    "document_title": document_title_for_diff,
+                    "document_url": document_url
+                })
+            else:
+                print(
+                    f"DIFF SKIPPED BY PDF METADATA DATE → "
+                    f"{document_title_for_diff} | {document_url}"
+                )
 # Update known document queue for seed/full.
 # New source URLs are baselined into known_documents.csv but not added to diff.csv.
 if RUN_MODE in ["full", "seed"]:
@@ -3736,3 +3898,6 @@ print(f"✅ Known documents appended: {len(known_documents_to_append)}")
 print(f"✅ Issues: {len(issue_rows)}")
 print(f"✅ Browser fallback enabled: {ENABLE_BROWSER_FALLBACK}")
 print(f"✅ Run {current_run_number}: {len(output_data)} documents captured")
+print(f"✅ PDF metadata diff filter enabled: {ENABLE_PDF_METADATA_DIFF_FILTER}")
+print(f"✅ PDF metadata recency days: {PDF_METADATA_RECENCY_DAYS}")
+print(f"✅ PDF metadata max bytes: {PDF_METADATA_MAX_BYTES}")
