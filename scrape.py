@@ -478,7 +478,7 @@ def queue_known_document_if_new(doc):
     known_documents_to_append.append({
         "first_seen_date": current_date,
         "company": doc.get("company", ""),
-        "document_title": doc.get("document_title", "Unknown Title"),
+        "document_title": limit_document_title_words(doc.get("document_title", "Unknown Title"), max_words=20),
         "document_url": document_url,
         "source_run_mode": RUN_MODE
     })
@@ -493,7 +493,24 @@ def normalize_text(text):
     text = re.sub(r"\s+", " ", text)
     return text.strip()
 
+def limit_document_title_words(title, max_words=20):
+    """
+    Limit document title to maximum 60 words.
 
+    This prevents long page/filter/container text from becoming document_title.
+    """
+
+    title = normalize_text(title)
+
+    if not title:
+        return ""
+
+    words = title.split()
+
+    if len(words) <= max_words:
+        return title
+
+    return " ".join(words[:max_words])
 def load_report_keywords():
     """
     Load configurable report/card keywords from report_keywords.csv.
@@ -1191,7 +1208,7 @@ def extract_links_from_soup(soup, base_url, source_url, seen, label="KEPT"):
         title_info = get_best_title_with_source(link, full_url, source_url)
         title = title_info["title"]
         title_source = title_info["source"]
-
+        title = limit_document_title_words(title, max_words=20)
         raw_links.append({
             "company": source_url,
             "text": title,
@@ -1362,9 +1379,18 @@ def browser_click_fallback(source_url, existing_keys):
 
         url_title = clean_title_from_url(full_url)
 
-        title_info = choose_best_title_from_text_and_url(title_hint, url_title)
-        title = title_info["title"]
-        title_source = title_info["source"]
+        # If title_hint is huge container/list text, prefer URL title when available.
+        title_hint_word_count = len(normalize_text(title_hint).split())
+
+        if title_hint_word_count > 20 and url_title:
+            title = url_title
+            title_source = "url_preferred_long_text"
+        else:
+            title_info = choose_best_title_from_text_and_url(title_hint, url_title)
+            title = title_info["title"]
+            title_source = title_info["source"]
+
+        title = limit_document_title_words(title, max_words=20)
 
         if not title or is_bad_title(title):
             title = "Unknown Title"
@@ -1458,7 +1484,847 @@ def browser_click_fallback(source_url, existing_keys):
 
         except Exception as e:
             print(f"Frame collection error: {e}")
+    def interact_with_year_dropdowns(page):
+        """
+        Generic year dropdown handler.
 
+        This tries to interact with actual dropdowns/selectors instead of only
+        generating URLs from the year in the URL.
+
+        It handles:
+        - native <select> dropdowns
+        - custom dropdown buttons/divs
+        - dropdowns inside iframes
+        """
+
+        try:
+            print("Checking for real year dropdowns...")
+
+            years_clicked_or_selected = set()
+
+            def scan_after_year_change(year_label):
+                print(f"Scanning after year dropdown change: {year_label}")
+
+                page.wait_for_timeout(2500)
+
+                scan_all_rendered_content(page)
+
+                
+
+            def get_contexts_to_scan():
+                """
+                Return page + useful frames.
+                Skip Cloudflare challenge frames.
+                """
+
+                contexts = []
+
+                contexts.append({
+                    "name": "main_page",
+                    "context": page,
+                    "url": page.url or source_url
+                })
+
+                try:
+                    for frame in page.frames:
+                        frame_url = frame.url or ""
+
+                        if not frame_url:
+                            continue
+
+                        frame_url_lower = frame_url.lower()
+
+                        if "about:blank" in frame_url_lower:
+                            continue
+
+                        if "cloudflare.com" in frame_url_lower:
+                            continue
+
+                        contexts.append({
+                            "name": "frame",
+                            "context": frame,
+                            "url": frame_url
+                        })
+
+                except Exception:
+                    pass
+
+                return contexts
+
+            contexts_to_scan = get_contexts_to_scan()
+
+            print(f"Year dropdown contexts to scan: {len(contexts_to_scan)}")
+
+            for ctx_item in contexts_to_scan:
+                ctx = ctx_item["context"]
+                ctx_name = ctx_item["name"]
+                ctx_url = ctx_item["url"]
+
+                print(f"Checking year dropdowns in {ctx_name}: {ctx_url}")
+
+               # -------------------------
+            # 1. Native select dropdowns
+            # -------------------------
+            try:
+                def get_fresh_context(original_context_url):
+                    """
+                    Re-find page/frame context after iframe reload.
+                    This is needed because selecting a year can detach/reload the frame.
+                    """
+
+                    try:
+                        current_contexts = get_contexts_to_scan()
+
+                        # Prefer exact same URL first
+                        for item in current_contexts:
+                            if item.get("url", "") == original_context_url:
+                                return item.get("context")
+
+                        # For Protasco / similar pages, prefer current general-meeting iframe
+                        if "general-meeting" in original_context_url.lower():
+                            for item in current_contexts:
+                                item_url = item.get("url", "").lower()
+
+                                if "general-meeting" in item_url:
+                                    return item.get("context")
+
+                        # Fallback to first non-main useful frame
+                        for item in current_contexts:
+                            item_url = item.get("url", "").lower()
+
+                            if "cloudflare.com" in item_url:
+                                continue
+
+                            if item.get("name") == "frame":
+                                return item.get("context")
+
+                    except Exception:
+                        pass
+
+                    return page
+
+
+                for ctx_item in contexts_to_scan:
+                    ctx = ctx_item["context"]
+                    ctx_name = ctx_item["name"]
+                    ctx_url = ctx_item["url"]
+
+                    try:
+                        select_elements = ctx.locator("select")
+                        select_count = min(select_elements.count(), 10)
+
+                        print(f"Native select dropdowns found in {ctx_name}: {select_count}")
+
+                        for i in range(select_count):
+                            try:
+                                select_el = select_elements.nth(i)
+
+                                options = select_el.locator("option")
+                                option_count = min(options.count(), 40)
+
+                                year_options = []
+
+                                for j in range(option_count):
+                                    try:
+                                        option = options.nth(j)
+                                        option_text = normalize_text(option.inner_text(timeout=1000))
+                                        option_value = option.get_attribute("value", timeout=1000)
+
+                                        combined = f"{option_text} {option_value or ''}"
+
+                                        year_match = re.search(r"\b20\d{2}\b", combined)
+
+                                        if year_match:
+                                            year_value = year_match.group(0)
+
+                                            if year_value not in year_options:
+                                                year_options.append(year_value)
+
+                                    except Exception:
+                                        continue
+
+                                print(f"Year options found in native select in {ctx_name}: {year_options}")
+                                # If the year dropdown is inside a content iframe whose URL contains a year,
+                                # use the dropdown years to visit matching iframe URLs directly.
+                                #
+                                # This avoids cases where selecting a dropdown option navigates to an outer
+                                # page that may be blocked by Cloudflare.
+                                #
+                                # Example:
+                                # current iframe:
+                                # https://ir2.chartnexus.com/protasco/investor-relations/general-meeting-2025.php
+                                #
+                                # dropdown years:
+                                # 2026, 2025, 2024
+                                #
+                                # generated iframe URLs:
+                                # general-meeting-2026.php
+                                # general-meeting-2025.php
+                                # general-meeting-2024.php
+
+                                if ctx_name == "frame" and re.search(r"\b20\d{2}\b", ctx_url):
+                                    ctx_url_lower = ctx_url.lower()
+
+                                    if any(
+                                        marker in ctx_url_lower
+                                        for marker in [
+                                            "general-meeting",
+                                            "annual-general-meeting",
+                                            "agm",
+                                            "annual-report",
+                                            "annual-reports",
+                                            "reports",
+                                            "results",
+                                            "financial-results"
+                                        ]
+                                    ):
+                                        original_url_before_iframe_visits = page.url or source_url
+
+                                        for year_value in year_options[:15]:
+                                            if year_value in years_clicked_or_selected:
+                                                continue
+
+                                            generated_iframe_url = re.sub(
+                                                r"20\d{2}",
+                                                str(year_value),
+                                                ctx_url,
+                                                count=1,
+                                                flags=re.IGNORECASE
+                                            )
+
+                                            try:
+                                                print(f"Visiting dropdown-derived iframe URL for year {year_value}: {generated_iframe_url}")
+
+                                                page.goto(
+                                                    generated_iframe_url,
+                                                    wait_until="domcontentloaded",
+                                                    timeout=60000
+                                                )
+                                                page.wait_for_timeout(2500)
+
+                                                scan_all_rendered_content(page)
+
+                                                years_clicked_or_selected.add(year_value)
+
+                                            except Exception as iframe_year_error:
+                                                print(f"Dropdown-derived iframe visit failed for {year_value}: {iframe_year_error}")
+
+                                        try:
+                                            page.goto(
+                                                original_url_before_iframe_visits,
+                                                wait_until="domcontentloaded",
+                                                timeout=60000
+                                            )
+                                            page.wait_for_timeout(1000)
+                                        except Exception:
+                                            pass
+
+                                        # Important:
+                                        # Do not continue with normal select_option loop for this iframe,
+                                        # because selecting options navigates to outer Cloudflare-blocked pages.
+                                        continue
+
+                                for year_value in year_options[:15]:
+                                    if year_value in years_clicked_or_selected:
+                                        continue
+
+                                    try:
+                                        # Re-acquire frame/select before every year selection.
+                                        fresh_ctx = get_fresh_context(ctx_url)
+
+                                        fresh_selects = fresh_ctx.locator("select")
+                                        fresh_select_count = fresh_selects.count()
+
+                                        if fresh_select_count == 0:
+                                            print(f"No fresh native select found for year {year_value}")
+                                            continue
+
+                                        fresh_select_index = min(i, fresh_select_count - 1)
+                                        fresh_select = fresh_selects.nth(fresh_select_index)
+
+                                        print(f"Selecting native dropdown year by label/value in fresh context: {year_value}")
+
+                                        selection_done = False
+
+                                        try:
+                                            fresh_select.select_option(label=year_value, timeout=5000)
+                                            selection_done = True
+                                        except Exception:
+                                            try:
+                                                fresh_select.select_option(value=year_value, timeout=5000)
+                                                selection_done = True
+                                            except Exception as select_error:
+                                                print(f"Native year select failed for {year_value}: {select_error}")
+
+                                        if not selection_done:
+                                            continue
+
+                                        page.wait_for_timeout(2500)
+
+                                        scan_after_year_change(year_value)
+
+                                        # Mark handled only after successful selection + scan
+                                        years_clicked_or_selected.add(year_value)
+
+                                    except Exception as year_error:
+                                        print(f"Native year processing failed for {year_value}: {year_error}")
+
+                            except Exception:
+                                continue
+
+                    except Exception as e:
+                        print(f"Native select dropdown phase error in {ctx_name}: {e}")
+
+            except Exception as e:
+                print(f"Native select dropdown phase error: {e}")
+
+
+                # -------------------------
+                # 2. Custom dropdowns
+                # -------------------------
+                try:
+                    # First try specific dropdown-like controls.
+                    dropdown_candidates = ctx.locator(
+                        "button, [role='button'], [aria-haspopup], "
+                        "[class*='dropdown'], [class*='select'], [class*='year'], "
+                        "[id*='dropdown'], [id*='select'], [id*='year'], "
+                        "a, div, span"
+                    )
+
+                    dropdown_count = min(dropdown_candidates.count(), 60)
+
+                    print(f"Custom dropdown/control candidates found in {ctx_name}: {dropdown_count}")
+
+                    for i in range(dropdown_count):
+                        try:
+                            dropdown = dropdown_candidates.nth(i)
+
+                            dropdown_text = ""
+
+                            try:
+                                dropdown_text = normalize_text(dropdown.inner_text(timeout=1000))
+                            except Exception:
+                                dropdown_text = ""
+
+                            dropdown_id = ""
+                            dropdown_class = ""
+                            dropdown_role = ""
+                            dropdown_aria = ""
+
+                            try:
+                                dropdown_id = dropdown.get_attribute("id", timeout=500) or ""
+                            except Exception:
+                                pass
+
+                            try:
+                                dropdown_class = dropdown.get_attribute("class", timeout=500) or ""
+                            except Exception:
+                                pass
+
+                            try:
+                                dropdown_role = dropdown.get_attribute("role", timeout=500) or ""
+                            except Exception:
+                                pass
+
+                            try:
+                                dropdown_aria = dropdown.get_attribute("aria-haspopup", timeout=500) or ""
+                            except Exception:
+                                pass
+
+                            combined_meta = normalize_text(
+                                f"{dropdown_text} {dropdown_id} {dropdown_class} {dropdown_role} {dropdown_aria}"
+                            ).lower()
+
+                            # Candidate must look dropdown/year/select-like OR contain a year.
+                            looks_like_dropdown = any(
+                                marker in combined_meta
+                                for marker in [
+                                    "dropdown",
+                                    "select",
+                                    "year",
+                                    "chosen",
+                                    "current",
+                                    "filter"
+                                ]
+                            )
+
+                            has_year_text = bool(re.search(r"\b20\d{2}\b", combined_meta))
+
+                            if not looks_like_dropdown and not has_year_text:
+                                continue
+
+                            # Avoid huge containers
+                            if len(dropdown_text.split()) > 30:
+                                continue
+
+                            try:
+                                dropdown.scroll_into_view_if_needed(timeout=3000)
+                            except Exception:
+                                pass
+
+                            try:
+                                print(f"Opening custom year dropdown/control in {ctx_name}: {dropdown_text or combined_meta[:80]}")
+
+                                dropdown.click(timeout=4000, force=True)
+                                page.wait_for_timeout(1000)
+
+                            except Exception:
+                                continue
+
+                            # After opening dropdown, find year options in same context first.
+                            year_options = ctx.locator(
+                                "a, button, [role='option'], [role='menuitem'], "
+                                "li, div, span"
+                            ).filter(
+                                has_text=re.compile(r"\b20\d{2}\b", re.IGNORECASE)
+                            )
+
+                            option_count = min(year_options.count(), 50)
+
+                            print(f"Custom year options found after opening in {ctx_name}: {option_count}")
+
+                            for j in range(option_count):
+                                try:
+                                    option = year_options.nth(j)
+
+                                    option_text = normalize_text(option.inner_text(timeout=1000))
+
+                                    year_match = re.search(r"\b20\d{2}\b", option_text)
+
+                                    if not year_match:
+                                        continue
+
+                                    year_value = year_match.group(0)
+
+                                    if year_value in years_clicked_or_selected:
+                                        continue
+
+                                    # Avoid giant page containers
+                                    if len(option_text.split()) > 20:
+                                        continue
+
+                                    years_clicked_or_selected.add(year_value)
+
+                                    print(f"Clicking custom dropdown year in {ctx_name}: {year_value}")
+
+                                    before_url = page.url
+
+                                    try:
+                                        option.scroll_into_view_if_needed(timeout=3000)
+                                    except Exception:
+                                        pass
+
+                                    try:
+                                        option.click(timeout=4000, force=True)
+                                        page.wait_for_timeout(2000)
+                                    except Exception as option_error:
+                                        print(f"Custom year option click failed for {year_value}: {option_error}")
+                                        continue
+
+                                    scan_after_year_change(year_value)
+
+                                    # If clicking changed main page URL, return to previous URL
+                                    if page.url != before_url:
+                                        try:
+                                            page.goto(before_url, wait_until="domcontentloaded", timeout=60000)
+                                            page.wait_for_timeout(1000)
+                                        except Exception:
+                                            pass
+
+                                except Exception:
+                                    continue
+
+                        except Exception:
+                            continue
+
+                except Exception as e:
+                    print(f"Custom year dropdown phase error in {ctx_name}: {e}")
+
+            print(f"Year dropdown interaction complete. Years handled: {len(years_clicked_or_selected)}")
+
+        except Exception as e:
+            print(f"Year dropdown interaction error: {e}")        
+    def collect_year_dropdown_urls(page):
+        """
+        Collect year-based detail URLs from pages where documents are controlled
+        by a year dropdown or year selector.
+        """
+
+        year_links = []
+        seen_year_urls = set()
+
+        try:
+            current_url = page.url or source_url
+            current_url_lower = current_url.lower()
+            parsed_source = urlparse(source_url)
+
+            try:
+                page_text = normalize_text(page.locator("body").inner_text(timeout=3000))
+            except Exception:
+                page_text = ""
+
+            page_text_lower = page_text.lower()
+
+            context_hit = False
+
+            try:
+                context_hit = bool(
+                    re.search(REPORT_CARD_KEYWORD_REGEX, page_text, flags=re.IGNORECASE)
+                )
+            except Exception:
+                context_hit = False
+
+            generic_context_hit = any(
+                word in page_text_lower or word in current_url_lower
+                for word in [
+                    "agm",
+                    "annual general meeting",
+                    "general meeting",
+                    "annual report",
+                    "financial results",
+                    "quarterly results",
+                    "results",
+                    "reports"
+                ]
+            )
+
+            current_url_has_year = bool(re.search(r"20\d{2}", current_url_lower))
+
+            if not context_hit and not generic_context_hit and not current_url_has_year:
+                return year_links
+
+            def add_year_url(candidate_url, title_hint=""):
+                if not candidate_url:
+                    return
+
+                candidate_url = str(candidate_url).strip()
+
+                if not candidate_url:
+                    return
+
+                full_url = urljoin(current_url, candidate_url)
+                parsed_full = urlparse(full_url)
+
+                if parsed_full.netloc != parsed_source.netloc:
+                    return
+
+                full_url = parsed_full._replace(fragment="").geturl()
+                full_url_lower = full_url.lower()
+
+                if is_image_or_asset_url(full_url_lower):
+                    return
+
+                if is_document_link(full_url_lower):
+                    return
+
+                if not re.search(r"20\d{2}", full_url_lower):
+                    return
+
+                key = normalize_url_key(full_url)
+
+                if key in seen_year_urls:
+                    return
+
+                seen_year_urls.add(key)
+
+                year_links.append({
+                    "url": full_url,
+                    "title": title_hint or clean_title_from_url(full_url) or "Year dropdown page"
+                })
+
+            def replace_year_in_current_url(year_value):
+                if not re.search(r"20\d{2}", current_url):
+                    return ""
+
+                return re.sub(
+                    r"20\d{2}",
+                    str(year_value),
+                    current_url,
+                    count=1,
+                    flags=re.IGNORECASE
+                )
+
+            if current_url_has_year and any(
+                marker in current_url_lower
+                for marker in [
+                    "/agm/",
+                    "general-meeting",
+                    "annual-general-meeting",
+                    "annual-report",
+                    "annual-reports",
+                    "/reports/",
+                    "/results/",
+                    "financial-results"
+                ]
+            ):
+                year_match = re.search(r"20\d{2}", current_url_lower)
+
+                if year_match:
+                    current_year = int(year_match.group(0))
+
+                    for year in range(current_year, current_year - 11, -1):
+                        generated_url = replace_year_in_current_url(year)
+                        add_year_url(generated_url, f"Year {year}")
+
+            try:
+                html_content = page.content()
+                soup = BeautifulSoup(html_content, "html.parser")
+
+                for tag in soup.find_all(True):
+                    tag_text = normalize_text(tag.get_text(" ", strip=True))
+
+                    for attr in [
+                        "href",
+                        "value",
+                        "data-url",
+                        "data-href",
+                        "data-link",
+                        "data-target",
+                        "data-year",
+                        "onclick"
+                    ]:
+                        value = tag.get(attr)
+
+                        if not value:
+                            continue
+
+                        possible_values = [value]
+
+                        if attr == "onclick":
+                            possible_values += re.findall(
+                                r"""[^'"]*(?:20\d{2}|/agm/|annual-report|annual-reports|general-meeting|annual-general-meeting|financial-results|/reports/|/results/)[^'"]*""",
+                                value,
+                                flags=re.IGNORECASE
+                            )
+
+                        for possible_value in possible_values:
+                            possible_value_text = str(possible_value).strip()
+
+                            if not possible_value_text:
+                                continue
+
+                            if re.fullmatch(r"20\d{2}", possible_value_text):
+                                generated_url = replace_year_in_current_url(possible_value_text)
+
+                                if generated_url:
+                                    add_year_url(generated_url, f"Year {possible_value_text}")
+
+                                continue
+
+                            if re.search(r"20\d{2}", possible_value_text):
+                                if any(
+                                    marker in possible_value_text.lower()
+                                    for marker in [
+                                        "agm",
+                                        "general-meeting",
+                                        "annual-general-meeting",
+                                        "annual-report",
+                                        "annual-reports",
+                                        "reports",
+                                        "results",
+                                        "financial-results"
+                                    ]
+                                ):
+                                    add_year_url(possible_value_text, tag_text)
+
+            except Exception as scan_error:
+                print(f"Year dropdown HTML scan error: {scan_error}")
+
+            year_links.sort(
+                key=lambda x: x.get("url", ""),
+                reverse=True
+            )
+
+            print(f"Year dropdown URLs discovered: {len(year_links)}")
+
+            for item in year_links[:10]:
+                print(f"Year dropdown candidate: {item.get('url')}")
+
+        except Exception as e:
+            print(f"Year dropdown URL collection error: {e}")
+
+        return year_links[:12]
+
+
+    def visit_year_dropdown_pages(page):
+        """
+        Visit year-based pages discovered from dropdown/select/year-selector pages.
+        """
+
+        try:
+            year_links = collect_year_dropdown_urls(page)
+
+            if not year_links:
+                return
+
+            original_url = page.url or source_url
+
+            for item in year_links:
+                year_url = item.get("url", "")
+                title_hint = item.get("title", "")
+
+                if not year_url:
+                    continue
+
+                try:
+                    print(f"Visiting year dropdown page: {year_url}")
+
+                    page.goto(year_url, wait_until="domcontentloaded", timeout=60000)
+                    page.wait_for_timeout(2500)
+
+                    scan_all_rendered_content(page)
+                    click_download_controls_on_detail_page(page, title_hint)
+
+                except Exception as year_error:
+                    print(f"Year dropdown page visit error: {year_error}")
+
+            try:
+                page.goto(original_url, wait_until="domcontentloaded", timeout=60000)
+                page.wait_for_timeout(1000)
+            except Exception:
+                pass
+
+        except Exception as e:
+            print(f"Year dropdown phase error: {e}")
+    def visit_year_iframe_pages(page):
+        """
+        Visit year-based iframe/content pages directly.
+
+        This handles pages like Protasco where the visible AGM page embeds
+        documents from an iframe such as:
+        https://ir2.chartnexus.com/protasco/investor-relations/general-meeting-2026.php
+
+        Important:
+        - Do not visit outer /agm/YYYY/ pages here.
+        - Visit only content iframe URLs such as general-meeting-YYYY.php.
+        """
+
+        try:
+            iframe_year_links = []
+            seen_iframe_urls = set()
+
+            try:
+                frames = page.frames
+            except Exception:
+                frames = []
+
+            for frame in frames:
+                try:
+                    frame_url = frame.url or ""
+
+                    if not frame_url:
+                        continue
+
+                    frame_url_lower = frame_url.lower()
+
+                    if "about:blank" in frame_url_lower:
+                        continue
+
+                    if "cloudflare.com" in frame_url_lower:
+                        continue
+
+                    # Skip outer AGM pages like:
+                    # https://www.protasco.com.my/agm/2026/
+                    # This function should only handle embedded content frames.
+                    if "/agm/" in frame_url_lower and "general-meeting" not in frame_url_lower:
+                        continue
+
+                    # Only process useful content iframe URLs.
+                    # Example:
+                    # https://ir2.chartnexus.com/protasco/investor-relations/general-meeting-2026.php
+                    if not any(
+                        marker in frame_url_lower
+                        for marker in [
+                            "general-meeting",
+                            "annual-general-meeting",
+                            "agm",
+                            "annual-report",
+                            "reports",
+                            "results"
+                        ]
+                    ):
+                        continue
+
+                    if not re.search(r"20\d{2}", frame_url_lower):
+                        continue
+
+                    year_match = re.search(r"20\d{2}", frame_url_lower)
+
+                    if not year_match:
+                        continue
+
+                    current_year = int(year_match.group(0))
+
+                    for year in range(current_year, current_year - 11, -1):
+                        generated_frame_url = re.sub(
+                            r"20\d{2}",
+                            str(year),
+                            frame_url,
+                            count=1,
+                            flags=re.IGNORECASE
+                        )
+
+                        generated_frame_url_lower = generated_frame_url.lower()
+
+                        # Keep only content frame style URLs.
+                        if "/agm/" in generated_frame_url_lower and "general-meeting" not in generated_frame_url_lower:
+                            continue
+
+                        if "cloudflare.com" in generated_frame_url_lower:
+                            continue
+
+                        key = normalize_url_key(generated_frame_url)
+
+                        if key in seen_iframe_urls:
+                            continue
+
+                        seen_iframe_urls.add(key)
+
+                        iframe_year_links.append({
+                            "url": generated_frame_url,
+                            "title": f"Year iframe {year}"
+                        })
+
+                except Exception:
+                    continue
+
+            print(f"Year iframe URLs discovered: {len(iframe_year_links)}")
+
+            for item in iframe_year_links[:10]:
+                print(f"Year iframe candidate: {item.get('url')}")
+
+            if not iframe_year_links:
+                return
+
+            original_url = page.url or source_url
+
+            for item in iframe_year_links[:12]:
+                iframe_url = item.get("url", "")
+                title_hint = item.get("title", "")
+
+                if not iframe_url:
+                    continue
+
+                try:
+                    print(f"Visiting year iframe page: {iframe_url}")
+
+                    page.goto(iframe_url, wait_until="domcontentloaded", timeout=60000)
+                    page.wait_for_timeout(2500)
+
+                    scan_all_rendered_content(page)
+                    click_download_controls_on_detail_page(page, title_hint)
+
+                except Exception as iframe_error:
+                    print(f"Year iframe page visit error: {iframe_error}")
+
+            try:
+                page.goto(original_url, wait_until="domcontentloaded", timeout=60000)
+                page.wait_for_timeout(1000)
+            except Exception:
+                pass
+
+        except Exception as e:
+            print(f"Year iframe phase error: {e}")        
     def collect_report_detail_links(page):
         """
         Collect report/detail page links from rendered page.
@@ -2110,6 +2976,7 @@ def browser_click_fallback(source_url, existing_keys):
             scan_all_rendered_content(page)
 
             interact_with_hash_fragments(page)
+            interact_with_year_dropdowns(page)
 
             visit_report_detail_pages(page)
 
@@ -2506,7 +3373,10 @@ def build_output_with_previous_non_target_rows(target_source_urls, current_run_o
 
                     final_rows.append({
                         "company": company,
-                        "document_title": row.get("document_title", "Unknown Title"),
+                        "document_title": limit_document_title_words(
+                            row.get("document_title", "Unknown Title"),
+                            max_words=20
+                        ),
                         "document_title_source": row.get("document_title_source", "previous_output_preserved"),
                         "document_url": document_url
                     })
@@ -2529,7 +3399,7 @@ def build_output_with_previous_non_target_rows(target_source_urls, current_run_o
 
         final_rows.append({
             "company": row.get("company", ""),
-            "document_title": row.get("document_title", "Unknown Title"),
+            "document_title": limit_document_title_words(row.get("document_title", "Unknown Title"), max_words=20),
             "document_title_source": row.get("document_title_source", "unknown"),
             "document_url": document_url
         })
@@ -2664,7 +3534,7 @@ if RUN_MODE == "full":
             new_records.append({
                 "date": current_date,
                 "company": source_url,
-                "document_title": r.get("document_title", "Unknown Title"),
+                "document_title": limit_document_title_words(r.get("document_title", "Unknown Title"), max_words=20),
                 "document_url": document_url
             })
 
