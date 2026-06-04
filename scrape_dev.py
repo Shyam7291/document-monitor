@@ -24,7 +24,18 @@ SLEEP_SECONDS = float(os.environ.get("SLEEP_SECONDS", "2"))
 # Retry failed URLs once after the first pass
 RETRY_FAILED_URLS = os.environ.get("RETRY_FAILED_URLS", "true").strip().lower() == "true"
 RETRY_SLEEP_SECONDS = float(os.environ.get("RETRY_SLEEP_SECONDS", "10"))
+# Add to diff.csv only if PDF Created/Modified metadata date is recent
+ENABLE_PDF_METADATA_DIFF_FILTER = os.environ.get(
+    "ENABLE_PDF_METADATA_DIFF_FILTER",
+    "true"
+).strip().lower() == "true"
 
+PDF_METADATA_RECENCY_DAYS = int(os.environ.get("PDF_METADATA_RECENCY_DAYS", "60"))
+
+# Avoid downloading extremely large files only for metadata
+PDF_METADATA_MAX_BYTES = int(
+    os.environ.get("PDF_METADATA_MAX_BYTES", str(100 * 1024 * 1024))
+)
 if RUN_MODE in ["full", "seed"]:
     OUTPUT_FILE = "output.csv"
     RAW_FILE = "raw_links.csv"
