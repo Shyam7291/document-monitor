@@ -24,7 +24,9 @@ jobs:
       SLEEP_SECONDS: "5"
       RETRY_FAILED_URLS: "true"
       RETRY_SLEEP_SECONDS: "30"
-
+      ENABLE_PDF_METADATA_DIFF_FILTER: "true"
+      PDF_METADATA_RECENCY_DAYS: "60"
+      PDF_METADATA_MAX_BYTES: "104857600"
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
