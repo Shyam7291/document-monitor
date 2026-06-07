@@ -55,9 +55,9 @@ else:
 OUTPUT_FILE = os.environ.get("OUTPUT_FILE", OUTPUT_FILE).strip()
 RAW_FILE = os.environ.get("RAW_FILE", RAW_FILE).strip()
 ISSUES_FILE = os.environ.get("ISSUES_FILE", ISSUES_FILE).strip()
-DIFF_FILE = "diff.csv"
-KNOWN_DOCUMENTS_FILE = "known_documents.csv"
-REPORT_KEYWORDS_FILE = "report_keywords.csv"
+DIFF_FILE = os.environ.get("DIFF_FILE", "diff.csv").strip()
+KNOWN_DOCUMENTS_FILE = os.environ.get("KNOWN_DOCUMENTS_FILE", "known_documents.csv").strip()
+REPORT_KEYWORDS_FILE = os.environ.get("REPORT_KEYWORDS_FILE", "report_keywords.csv").strip()
 
 # Final clean summary file
 RUN_SUMMARY_FILE = "run_summary_master.csv"
