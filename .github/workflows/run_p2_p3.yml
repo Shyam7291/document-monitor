@@ -49,7 +49,7 @@ jobs:
       DIFF_FILE: ${{ matrix.diff_file }}
       KNOWN_DOCUMENTS_FILE: ${{ matrix.known_file }}
 
-      ENABLE_BROWSER_FALLBACK: "false"
+      ENABLE_BROWSER_FALLBACK: "true"
       SLEEP_SECONDS: "5"
       RETRY_FAILED_URLS: "true"
       RETRY_SLEEP_SECONDS: "30"
