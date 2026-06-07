@@ -52,7 +52,9 @@ else:
     OUTPUT_FILE = "output.csv"
     RAW_FILE = "raw_links.csv"
     ISSUES_FILE = "capture_issues.csv"
-
+OUTPUT_FILE = os.environ.get("OUTPUT_FILE", OUTPUT_FILE).strip()
+RAW_FILE = os.environ.get("RAW_FILE", RAW_FILE).strip()
+ISSUES_FILE = os.environ.get("ISSUES_FILE", ISSUES_FILE).strip()
 DIFF_FILE = "diff.csv"
 KNOWN_DOCUMENTS_FILE = "known_documents.csv"
 REPORT_KEYWORDS_FILE = "report_keywords.csv"
