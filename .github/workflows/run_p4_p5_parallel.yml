@@ -293,7 +293,7 @@ strategy:
           raw_rows = dedupe_rows(raw_rows, key_field="url")
           raw_preview_rows = raw_rows[:1000]
 
-          write_csv("p4_p5/raw_links_p4_p5_preview.csv", RAW_FIELDS, raw_preview_rows)
+          write_csv(RAW_FIELDS, raw_preview_rows)
 
           print(f"Final P4/P5 output rows: {len(output_rows)}")
           print(f"Final P4/P5 known rows: {len(known_rows)}")
