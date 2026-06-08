@@ -15,35 +15,52 @@ concurrency:
 jobs:
   scrape-shards:
     runs-on: ubuntu-latest
+strategy:
+   fail-fast: false
+   max-parallel: 3
+   matrix:
+    include:
+      - shard: "01"
+        target_url_file: p4_p5/documents_p4_p5_01.csv
+        output_file: output_p4_p5_01_work.csv
+        issues_file: capture_issues_p4_p5_01_work.csv
+        diff_file: diff_p4_p5_01_work.csv
+        known_file: known_documents_p4_p5_01_work.csv
 
-    strategy:
-      fail-fast: false
-      max-parallel: 3
-      matrix:
-        include:
-          - shard: "01"
-            target_url_file: p4_p5/documents_p4_p5_01.csv
-            output_file: output_p4_p5_01_work.csv
-            raw_file: raw_links_p4_p5_01_work.csv
-            issues_file: capture_issues_p4_p5_01_work.csv
-            diff_file: diff_p4_p5_01_work.csv
-            known_file: known_documents_p4_p5_01_work.csv
+      - shard: "02"
+        target_url_file: p4_p5/documents_p4_p5_02.csv
+        output_file: output_p4_p5_02_work.csv
+        issues_file: capture_issues_p4_p5_02_work.csv
+        diff_file: diff_p4_p5_02_work.csv
+        known_file: known_documents_p4_p5_02_work.csv
 
-          - shard: "02"
-            target_url_file: p4_p5/documents_p4_p5_02.csv
-            output_file: output_p4_p5_02_work.csv
-            raw_file: raw_links_p4_p5_02_work.csv
-            issues_file: capture_issues_p4_p5_02_work.csv
-            diff_file: diff_p4_p5_02_work.csv
-            known_file: known_documents_p4_p5_02_work.csv
+      - shard: "03"
+        target_url_file: p4_p5/documents_p4_p5_03.csv
+        output_file: output_p4_p5_03_work.csv
+        issues_file: capture_issues_p4_p5_03_work.csv
+        diff_file: diff_p4_p5_03_work.csv
+        known_file: known_documents_p4_p5_03_work.csv
 
-          - shard: "03"
-            target_url_file: p4_p5/documents_p4_p5_03.csv
-            output_file: output_p4_p5_03_work.csv
-            raw_file: raw_links_p4_p5_03_work.csv
-            issues_file: capture_issues_p4_p5_03_work.csv
-            diff_file: diff_p4_p5_03_work.csv
-            known_file: known_documents_p4_p5_03_work.csv
+      - shard: "04"
+        target_url_file: p4_p5/documents_p4_p5_04.csv
+        output_file: output_p4_p5_04_work.csv
+        issues_file: capture_issues_p4_p5_04_work.csv
+        diff_file: diff_p4_p5_04_work.csv
+        known_file: known_documents_p4_p5_04_work.csv
+
+      - shard: "05"
+        target_url_file: p4_p5/documents_p4_p5_05.csv
+        output_file: output_p4_p5_05_work.csv
+        issues_file: capture_issues_p4_p5_05_work.csv
+        diff_file: diff_p4_p5_05_work.csv
+        known_file: known_documents_p4_p5_05_work.csv
+
+      - shard: "06"
+        target_url_file: p4_p5/documents_p4_p5_06.csv
+        output_file: output_p4_p5_06_work.csv
+        issues_file: capture_issues_p4_p5_06_work.csv
+        diff_file: diff_p4_p5_06_work.csv
+        known_file: known_documents_p4_p5_06_work.csv
 
     env:
       RUN_MODE: ${{ github.event.inputs.run_mode }}
