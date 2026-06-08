@@ -67,7 +67,6 @@ strategy:
       TARGET_URL_FILE: ${{ matrix.target_url_file }}
 
       OUTPUT_FILE: ${{ matrix.output_file }}
-      RAW_FILE: ${{ matrix.raw_file }}
       ISSUES_FILE: ${{ matrix.issues_file }}
       DIFF_FILE: ${{ matrix.diff_file }}
       KNOWN_DOCUMENTS_FILE: ${{ matrix.known_file }}
