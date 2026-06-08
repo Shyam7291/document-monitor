@@ -120,7 +120,6 @@ strategy:
           name: p4-p5-shard-${{ matrix.shard }}
           path: |
             ${{ matrix.output_file }}
-            ${{ matrix.raw_file }}
             ${{ matrix.issues_file }}
             ${{ matrix.diff_file }}
             ${{ matrix.known_file }}
