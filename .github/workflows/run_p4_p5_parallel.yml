@@ -126,6 +126,7 @@ jobs:
             ${{ matrix.known_file }}
 
   merge-results:
+    if: ${{ always() }}
     needs: scrape-shards
     runs-on: ubuntu-latest
 
