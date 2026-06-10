@@ -6,7 +6,7 @@ on:
       run_mode:
         description: "Run mode: seed or full"
         required: true
-        default: "seed"
+        default: "full"
 
 concurrency:
   group: document-monitor-p4-p5
