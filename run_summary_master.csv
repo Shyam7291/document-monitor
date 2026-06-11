@@ -72,3 +72,4 @@ run_number,date,run_mode,url_file,total_urls_processed,total_documents_captured,
 71,2026-06-08 18:11:19,full,documents_p1.csv,11,367,0,1,0,0,0,True,output.csv,raw_links.csv,capture_issues.csv
 72,2026-06-09 17:33:44,full,documents_p1.csv,11,369,0,0,0,0,0,True,output.csv,raw_links.csv,capture_issues.csv
 73,2026-06-10 18:14:01,full,documents_p1.csv,11,367,0,1,0,0,0,True,output.csv,raw_links.csv,capture_issues.csv
+74,2026-06-11 18:36:00,full,documents_p1.csv,11,370,0,0,0,0,0,True,output.csv,raw_links.csv,capture_issues.csv
