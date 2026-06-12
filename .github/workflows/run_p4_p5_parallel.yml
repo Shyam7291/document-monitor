@@ -283,7 +283,119 @@ jobs:
           print(f"Final P4/P5 diff rows: {len(diff_rows)}")
           print(f"Final P4/P5 issues rows: {len(issue_rows)}")
           PY
+      - name: Merge P4 P5 shard results
+        run: |
+          mkdir -p p4_p5
 
+          python - <<'PY'
+          ...
+          PY
+
+      - name: Find rows containing Alibaba secret-like patterns
+        run: |
+          python - <<'PY'
+          import csv
+          import re
+          import sys
+          from pathlib import Path
+
+          files_to_check = [
+              Path("p4_p5/output_p4_p5.csv"),
+              Path("p4_p5/known_documents_p4_p5.csv"),
+              Path("p4_p5/capture_issues_p4_p5.csv"),
+              Path("diff_p4_p5.csv"),
+          ]
+
+          patterns = [
+              ("Alibaba AccessKey ID", re.compile(r"LTAI[0-9A-Za-z]{12,}")),
+              ("Alibaba OSSAccessKeyId parameter", re.compile(r"(?i)OSSAccessKeyId=")),
+              ("Alibaba AccessKeyId parameter", re.compile(r"(?i)AccessKeyId=")),
+              ("Alibaba AccessKeySecret parameter", re.compile(r"(?i)AccessKeySecret=")),
+              ("Alibaba Security Token parameter", re.compile(r"(?i)(x-oss-security-token|security-token)=")),
+              ("Signed URL Signature parameter", re.compile(r"(?i)Signature=")),
+          ]
+
+          def redact_value(text):
+              if not text:
+                  return ""
+
+              text = str(text)
+
+              text = re.sub(
+                  r"LTAI[0-9A-Za-z]{12,}",
+                  "[REDACTED_ALIBABA_ACCESS_KEY_ID]",
+                  text
+              )
+
+              text = re.sub(
+                  r"(?i)(OSSAccessKeyId|AccessKeyId|AccessKeySecret|Signature|x-oss-security-token|security-token)=([^,&\s]+)",
+                  r"\1=[REDACTED]",
+                  text
+              )
+
+              return text
+
+          found_any = False
+
+          for file_path in files_to_check:
+              if not file_path.exists():
+                  continue
+
+              with open(file_path, newline="", encoding="utf-8", errors="replace") as f:
+                  reader = csv.DictReader(f)
+
+                  for row_number, row in enumerate(reader, start=2):
+                      combined_text = " | ".join(str(value) for value in row.values())
+
+                      matched_patterns = []
+
+                      for label, pattern in patterns:
+                          if pattern.search(combined_text):
+                              matched_patterns.append(label)
+
+                      if matched_patterns:
+                          found_any = True
+
+                          print("SECRET-LIKE PATTERN FOUND")
+                          print(f"File: {file_path}")
+                          print(f"Row number: {row_number}")
+                          print(f"Matched pattern(s): {', '.join(matched_patterns)}")
+                          print(f"Company/source URL: {row.get('company') or row.get('source_url') or ''}")
+                          print(f"Document title: {row.get('document_title') or row.get('text') or ''}")
+
+                          document_url = row.get("document_url") or row.get("url") or ""
+                          if document_url:
+                              print(f"Document URL redacted: {redact_value(document_url)}")
+
+                          error_message = row.get("error_message") or ""
+                          if error_message:
+                              print(f"Error message redacted: {redact_value(error_message)}")
+
+                          print("---")
+
+          if found_any:
+              print("One or more secret-like patterns were found. Stop before commit/push.")
+              sys.exit(1)
+
+          print("No Alibaba secret-like patterns found in generated CSV files.")
+          PY
+
+      - name: Commit P4 P5 final files
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+
+          git add -A p4_p5/documents_p4_p5_*.csv p4_p5/output_p4_p5.csv p4_p5/known_documents_p4_p5.csv p4_p5/capture_issues_p4_p5.csv diff_p4_p5.csv 2>/dev/null || true
+
+          git commit -m "Update P4 P5 batch data" || echo "No changes to commit"
+
+          for i in 1 2 3; do
+            git pull --rebase origin main && git push && break
+
+            echo "Push/rebase failed. Retry attempt $i..."
+            git rebase --abort 2>/dev/null || true
+            sleep 10
+          done
       - name: Commit P4 P5 final files
         run: |
           git config user.name "github-actions"
