@@ -304,17 +304,7 @@ jobs:
           write_csv("diff_p4_p5.csv", DIFF_FIELDS, diff_rows)
 
           # -----------------------
-          # Merge issues
-          # -----------------------
-          issue_rows = []
-
-          for file in glob.glob("shard_outputs/**/capture_issues_p4_p5_*_work.csv", recursive=True):
-              issue_rows.extend(read_csv(file))
-
-          write_csv("p4_p5/capture_issues_p4_p5.csv", ISSUE_FIELDS, issue_rows)
-
-          # -----------------------
-          # Merge run summary
+          # Merge run summary as one P4/P5 total row
           # -----------------------
           summary_rows = read_csv("run_summary_master.csv")
 
@@ -331,10 +321,50 @@ jobs:
           for file in glob.glob("shard_outputs/**/run_summary_p4_p5_*_work.csv", recursive=True):
               new_summary_rows.extend(read_csv(file))
 
-          for row in new_summary_rows:
+          if new_summary_rows:
               previous_run_number += 1
-              row["run_number"] = str(previous_run_number)
-              summary_rows.append(row)
+
+              def safe_int(value):
+                  try:
+                      return int(value)
+                  except Exception:
+                      return 0
+
+              latest_date = max(
+                  [row.get("date", "") for row in new_summary_rows if row.get("date", "")],
+                  default=""
+              )
+
+              run_mode_values = [
+              row.get("run_mode", "")
+              for row in new_summary_rows
+              if row.get("run_mode", "")
+              ]
+
+              browser_fallback_values = [
+                  str(row.get("browser_fallback_enabled", "")).strip().lower()
+                  for row in new_summary_rows
+              ]
+
+              p4_p5_total_summary_row = {
+                  "run_number": str(previous_run_number),
+                  "date": latest_date,
+                  "run_mode": run_mode_values[0] if run_mode_values else "",
+                  "url_file": "p4_p5_total",
+                  "total_urls_processed": sum(safe_int(row.get("total_urls_processed", 0)) for row in new_summary_rows),
+                  "total_documents_captured": sum(safe_int(row.get("total_documents_captured", 0)) for row in new_summary_rows),
+                  "new_diff_records": sum(safe_int(row.get("new_diff_records", 0)) for row in new_summary_rows),
+                  "issue_count": sum(safe_int(row.get("issue_count", 0)) for row in new_summary_rows),
+                  "success_zero_docs_count": sum(safe_int(row.get("success_zero_docs_count", 0)) for row in new_summary_rows),
+                  "fetch_failed_status_count": sum(safe_int(row.get("fetch_failed_status_count", 0)) for row in new_summary_rows),
+                  "fetch_error_count": sum(safe_int(row.get("fetch_error_count", 0)) for row in new_summary_rows),
+                  "browser_fallback_enabled": "true" if "true" in browser_fallback_values else "false",
+                  "output_file": "p4_p5/output_p4_p5.csv",
+                  "raw_file": "",
+                  "issues_file": "p4_p5/capture_issues_p4_p5.csv"
+              }
+
+              summary_rows.append(p4_p5_total_summary_row)
 
           write_csv("run_summary_master.csv", SUMMARY_FIELDS, summary_rows)
 
@@ -342,7 +372,8 @@ jobs:
           print(f"Final P4/P5 known rows: {len(known_rows)}")
           print(f"Final P4/P5 diff rows: {len(diff_rows)}")
           print(f"Final P4/P5 issues rows: {len(issue_rows)}")
-          print(f"Final P4/P5 summary rows added: {len(new_summary_rows)}")
+          print(f"Final P4/P5 shard summary rows found: {len(new_summary_rows)}")
+          print("Final P4/P5 summary rows added: 1" if new_summary_rows else "Final P4/P5 summary rows added: 0")
           PY
 
       - name: Find rows containing Alibaba secret-like patterns
