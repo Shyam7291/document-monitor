@@ -302,7 +302,15 @@ jobs:
 
           diff_rows = dedupe_rows(diff_rows, key_field="document_url")
           write_csv("diff_p4_p5.csv", DIFF_FIELDS, diff_rows)
+          # -----------------------
+          # Merge issues
+          # -----------------------
+          issue_rows = []
 
+          for file in glob.glob("shard_outputs/**/capture_issues_p4_p5_*_work.csv", recursive=True):
+              issue_rows.extend(read_csv(file))
+
+          write_csv("p4_p5/capture_issues_p4_p5.csv", ISSUE_FIELDS, issue_rows)
           # -----------------------
           # Merge run summary as one P4/P5 total row
           # -----------------------
