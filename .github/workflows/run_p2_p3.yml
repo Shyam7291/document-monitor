@@ -26,30 +26,31 @@ jobs:
           - group_name: p2
             target_url_file: documents_p2.csv
             output_file: output_p2_work.csv
-            raw_file: raw_links_p2_work.csv
             issues_file: capture_issues_p2_work.csv
             diff_file: diff_p2_work.csv
             known_file: known_documents_p2_work.csv
+            summary_file: run_summary_p2_work.csv
 
           - group_name: p3
             target_url_file: documents_p3.csv
             output_file: output_p3_work.csv
-            raw_file: raw_links_p3_work.csv
             issues_file: capture_issues_p3_work.csv
             diff_file: diff_p3_work.csv
             known_file: known_documents_p3_work.csv
+            summary_file: run_summary_p3_work.csv
 
     env:
       RUN_MODE: full
       TARGET_URL_FILE: ${{ matrix.target_url_file }}
 
       OUTPUT_FILE: ${{ matrix.output_file }}
-      RAW_FILE: ${{ matrix.raw_file }}
       ISSUES_FILE: ${{ matrix.issues_file }}
       DIFF_FILE: ${{ matrix.diff_file }}
       KNOWN_DOCUMENTS_FILE: ${{ matrix.known_file }}
+      RUN_SUMMARY_FILE: ${{ matrix.summary_file }}
 
       ENABLE_BROWSER_FALLBACK: "true"
+      ENABLE_RAW_LINKS: "false"
       SLEEP_SECONDS: "5"
       RETRY_FAILED_URLS: "true"
       RETRY_SLEEP_SECONDS: "30"
@@ -94,12 +95,13 @@ jobs:
           name: scraper-${{ matrix.group_name }}
           path: |
             ${{ matrix.output_file }}
-            ${{ matrix.raw_file }}
             ${{ matrix.issues_file }}
             ${{ matrix.diff_file }}
             ${{ matrix.known_file }}
+            ${{ matrix.summary_file }}
 
   merge-results:
+    if: ${{ always() }}
     needs: scrape-groups
     runs-on: ubuntu-latest
 
@@ -123,8 +125,25 @@ jobs:
           OUTPUT_FIELDS = ["company", "document_title", "document_title_source", "document_url"]
           DIFF_FIELDS = ["date", "company", "document_title", "document_url"]
           KNOWN_FIELDS = ["first_seen_date", "company", "document_title", "document_url", "source_run_mode"]
-          RAW_FIELDS = ["company", "text", "title_source", "url"]
           ISSUE_FIELDS = ["date", "run_mode", "url_file", "source_url", "issue_type", "status_code", "documents_captured", "error_message"]
+
+          SUMMARY_FIELDS = [
+              "run_number",
+              "date",
+              "run_mode",
+              "url_file",
+              "total_urls_processed",
+              "total_documents_captured",
+              "new_diff_records",
+              "issue_count",
+              "success_zero_docs_count",
+              "fetch_failed_status_count",
+              "fetch_error_count",
+              "browser_fallback_enabled",
+              "output_file",
+              "raw_file",
+              "issues_file"
+          ]
 
           def normalize_url_key(url):
               parsed = urlparse(url or "")
@@ -212,6 +231,7 @@ jobs:
               preserved_output_rows.append(row)
 
           new_output_rows = []
+
           for file in glob.glob("shard_outputs/**/output_*_work.csv", recursive=True):
               new_output_rows.extend(read_csv(file))
 
@@ -226,11 +246,8 @@ jobs:
           # Merge known_documents.csv
           # -----------------------
           known_rows = []
-
-          # Include existing production known rows first.
           known_rows.extend(read_csv("known_documents.csv"))
 
-          # Include known rows from P2/P3 temp known files.
           for file in glob.glob("shard_outputs/**/known_documents_*_work.csv", recursive=True):
               known_rows.extend(read_csv(file))
 
@@ -250,30 +267,136 @@ jobs:
           write_csv("diff.csv", DIFF_FIELDS, diff_rows)
 
           # -----------------------
-          # Merge raw links
-          # -----------------------
-          raw_rows = []
-          for file in glob.glob("shard_outputs/**/raw_links_*_work.csv", recursive=True):
-              raw_rows.extend(read_csv(file))
-
-          # Optional: keep raw smaller by deduping on URL.
-          raw_rows = dedupe_rows(raw_rows, key_field="url")
-          write_csv("raw_links_p2_p3_latest.csv", RAW_FIELDS, raw_rows)
-
-          # -----------------------
           # Merge issues
           # -----------------------
           issue_rows = []
+
           for file in glob.glob("shard_outputs/**/capture_issues_*_work.csv", recursive=True):
               issue_rows.extend(read_csv(file))
 
           write_csv("capture_issues_p2_p3_latest.csv", ISSUE_FIELDS, issue_rows)
 
+          # -----------------------
+          # Merge run summary
+          # -----------------------
+          summary_rows = read_csv("run_summary_master.csv")
+
+          previous_run_number = 0
+
+          for row in summary_rows:
+              try:
+                  previous_run_number = max(previous_run_number, int(row.get("run_number", 0)))
+              except Exception:
+                  pass
+
+          new_summary_rows = []
+
+          for file in glob.glob("shard_outputs/**/run_summary_*_work.csv", recursive=True):
+              new_summary_rows.extend(read_csv(file))
+
+          for row in new_summary_rows:
+              previous_run_number += 1
+              row["run_number"] = str(previous_run_number)
+              summary_rows.append(row)
+
+          write_csv("run_summary_master.csv", SUMMARY_FIELDS, summary_rows)
+
           print(f"Final output rows: {len(output_rows)}")
           print(f"Final known rows: {len(known_rows)}")
           print(f"Final diff rows: {len(diff_rows)}")
-          print(f"P2/P3 raw rows: {len(raw_rows)}")
           print(f"P2/P3 issues rows: {len(issue_rows)}")
+          print(f"P2/P3 summary rows added: {len(new_summary_rows)}")
+          PY
+
+      - name: Find rows containing Alibaba secret-like patterns
+        run: |
+          python - <<'PY'
+          import csv
+          import re
+          import sys
+          from pathlib import Path
+
+          files_to_check = [
+              Path("output.csv"),
+              Path("known_documents.csv"),
+              Path("capture_issues_p2_p3_latest.csv"),
+              Path("diff.csv"),
+          ]
+
+          patterns = [
+              ("Alibaba AccessKey ID", re.compile(r"LTAI[0-9A-Za-z]{12,}")),
+              ("Alibaba OSSAccessKeyId parameter", re.compile(r"(?i)OSSAccessKeyId=")),
+              ("Alibaba AccessKeyId parameter", re.compile(r"(?i)AccessKeyId=")),
+              ("Alibaba AccessKeySecret parameter", re.compile(r"(?i)AccessKeySecret=")),
+              ("Alibaba Security Token parameter", re.compile(r"(?i)(x-oss-security-token|security-token)=")),
+              ("Signed URL Signature parameter", re.compile(r"(?i)Signature=")),
+          ]
+
+          def redact_value(text):
+              if not text:
+                  return ""
+
+              text = str(text)
+
+              text = re.sub(
+                  r"LTAI[0-9A-Za-z]{12,}",
+                  "[REDACTED_ALIBABA_ACCESS_KEY_ID]",
+                  text
+              )
+
+              text = re.sub(
+                  r"(?i)(OSSAccessKeyId|AccessKeyId|AccessKeySecret|Signature|x-oss-security-token|security-token)=([^,&\s]+)",
+                  r"\1=[REDACTED]",
+                  text
+              )
+
+              return text
+
+          found_any = False
+
+          for file_path in files_to_check:
+              if not file_path.exists():
+                  continue
+
+              with open(file_path, newline="", encoding="utf-8", errors="replace") as f:
+                  reader = csv.DictReader(f)
+
+                  for row_number, row in enumerate(reader, start=2):
+                      combined_text = " | ".join(str(value) for value in row.values())
+
+                      matched_patterns = []
+
+                      for label, pattern in patterns:
+                          if pattern.search(combined_text):
+                              matched_patterns.append(label)
+
+                      if matched_patterns:
+                          found_any = True
+
+                          print("SECRET-LIKE PATTERN FOUND")
+                          print(f"File: {file_path}")
+                          print(f"Row number: {row_number}")
+                          print(f"Matched pattern(s): {', '.join(matched_patterns)}")
+                          print(f"Company/source URL: {row.get('company') or row.get('source_url') or ''}")
+                          print(f"Document title: {row.get('document_title') or row.get('text') or ''}")
+
+                          document_url = row.get("document_url") or row.get("url") or ""
+
+                          if document_url:
+                              print(f"Document URL redacted: {redact_value(document_url)}")
+
+                          error_message = row.get("error_message") or ""
+
+                          if error_message:
+                              print(f"Error message redacted: {redact_value(error_message)}")
+
+                          print("---")
+
+          if found_any:
+              print("One or more secret-like patterns were found. Stop before commit/push.")
+              sys.exit(1)
+
+          print("No Alibaba secret-like patterns found in generated CSV files.")
           PY
 
       - name: Commit merged production files
@@ -281,10 +404,15 @@ jobs:
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
 
-          git add -A output.csv diff.csv known_documents.csv raw_links_p2_p3_latest.csv capture_issues_p2_p3_latest.csv 2>/dev/null || true
+          git add -A output.csv diff.csv known_documents.csv capture_issues_p2_p3_latest.csv run_summary_master.csv 2>/dev/null || true
 
           git commit -m "Update scraped data P2 and P3" || echo "No changes to commit"
 
-          git pull --rebase origin main
+          for i in 1 2 3; do
+            git pull --rebase origin main && git push && break
 
-          git push
+            echo "Push/rebase failed. Retry attempt $i..."
+            git rebase --abort 2>/dev/null || true
+            sleep 10
+          done
+``
