@@ -147,10 +147,7 @@ jobs:
         with:
           path: shard_outputs
 
-      - name: Merge P4 P5 shard results
-        run: |
-          mkdir -p p4_p5
-
+      
           python - <<'PY'
           import csv
           import os
