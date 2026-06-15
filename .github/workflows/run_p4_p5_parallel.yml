@@ -131,6 +131,7 @@ jobs:
             ${{ matrix.issues_file }}
             ${{ matrix.diff_file }}
             ${{ matrix.known_file }}
+            ${{ matrix.summary_file }}
 
   merge-results:
     if: ${{ always() }}
