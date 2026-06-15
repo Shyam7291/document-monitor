@@ -293,17 +293,43 @@ jobs:
           write_csv("diff_p4_p5.csv", DIFF_FIELDS, diff_rows)
 
           # Merge issues
-          issue_rows = []
+issue_rows = []
 
-          for file in glob.glob("shard_outputs/**/capture_issues_p4_p5_*_work.csv", recursive=True):
-              issue_rows.extend(read_csv(file))
+for file in glob.glob("shard_outputs/**/capture_issues_p4_p5_*_work.csv", recursive=True):
+    issue_rows.extend(read_csv(file))
 
-          write_csv("p4_p5/capture_issues_p4_p5.csv", ISSUE_FIELDS, issue_rows)
+write_csv("p4_p5/capture_issues_p4_p5.csv", ISSUE_FIELDS, issue_rows)
 
-          print(f"Final P4/P5 output rows: {len(output_rows)}")
-          print(f"Final P4/P5 known rows: {len(known_rows)}")
-          print(f"Final P4/P5 diff rows: {len(diff_rows)}")
-          print(f"Final P4/P5 issues rows: {len(issue_rows)}")
+# -----------------------
+# Merge run summary
+# -----------------------
+summary_rows = read_csv("run_summary_master.csv")
+
+previous_run_number = 0
+
+for row in summary_rows:
+    try:
+        previous_run_number = max(previous_run_number, int(row.get("run_number", 0)))
+    except Exception:
+        pass
+
+new_summary_rows = []
+
+for file in glob.glob("shard_outputs/**/run_summary_p4_p5_*_work.csv", recursive=True):
+    new_summary_rows.extend(read_csv(file))
+
+for row in new_summary_rows:
+    previous_run_number += 1
+    row["run_number"] = str(previous_run_number)
+    summary_rows.append(row)
+
+write_csv("run_summary_master.csv", SUMMARY_FIELDS, summary_rows)
+
+print(f"Final P4/P5 output rows: {len(output_rows)}")
+print(f"Final P4/P5 known rows: {len(known_rows)}")
+print(f"Final P4/P5 diff rows: {len(diff_rows)}")
+print(f"Final P4/P5 issues rows: {len(issue_rows)}")
+print(f"Final P4/P5 summary rows added: {len(new_summary_rows)}")
           PY
       - name: Merge P4 P5 shard results
         run: |
