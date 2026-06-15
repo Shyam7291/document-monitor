@@ -60,7 +60,7 @@ KNOWN_DOCUMENTS_FILE = os.environ.get("KNOWN_DOCUMENTS_FILE", "known_documents.c
 REPORT_KEYWORDS_FILE = os.environ.get("REPORT_KEYWORDS_FILE", "report_keywords.csv").strip()
 
 # Final clean summary file
-RUN_SUMMARY_FILE = "run_summary_master.csv"
+RUN_SUMMARY_FILE = os.environ.get("RUN_SUMMARY_FILE", "run_summary_master.csv").strip()
 
 # =========================
 # LOCKED CSV FORMATS
