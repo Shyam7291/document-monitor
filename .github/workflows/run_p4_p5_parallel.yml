@@ -433,7 +433,7 @@ print(f"Final P4/P5 summary rows added: {len(new_summary_rows)}")
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
 
-          git add -A p4_p5/documents_p4_p5_*.csv p4_p5/output_p4_p5.csv p4_p5/known_documents_p4_p5.csv p4_p5/capture_issues_p4_p5.csv diff_p4_p5.csv 2>/dev/null || true
+          git add -A p4_p5/documents_p4_p5_*.csv p4_p5/output_p4_p5.csv p4_p5/known_documents_p4_p5.csv p4_p5/capture_issues_p4_p5.csv diff_p4_p5.csv run_summary_master.csv 2>/dev/null || true
 
           git commit -m "Update P4 P5 batch data" || echo "No changes to commit"
 
