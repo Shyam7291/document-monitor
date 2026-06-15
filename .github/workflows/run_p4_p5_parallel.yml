@@ -158,6 +158,23 @@ jobs:
           DIFF_FIELDS = ["date", "company", "document_title", "document_url"]
           KNOWN_FIELDS = ["first_seen_date", "company", "document_title", "document_url", "source_run_mode"]
           ISSUE_FIELDS = ["date", "run_mode", "url_file", "source_url", "issue_type", "status_code", "documents_captured", "error_message"]
+          SUMMARY_FIELDS = [
+   "run_number",
+    "date",
+    "run_mode",
+    "url_file",
+    "total_urls_processed",
+    "total_documents_captured",
+    "new_diff_records",
+    "issue_count",
+    "success_zero_docs_count",
+    "fetch_failed_status_count",
+    "fetch_error_count",
+    "browser_fallback_enabled",
+    "output_file",
+    "raw_file",
+    "issues_file"
+]
 
           def normalize_url_key(url):
               parsed = urlparse(url or "")
