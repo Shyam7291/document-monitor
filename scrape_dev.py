@@ -1903,7 +1903,7 @@ def browser_click_fallback(source_url, existing_keys):
                         "div a:visible, div button:visible, div [role='button']:visible"
                     )
 
-                    count = min(controls.count(), 180)
+                    count = min(controls.count(), 100)
 
                     clicked_or_checked = 0
 
