@@ -2029,7 +2029,7 @@ def browser_click_fallback(source_url, existing_keys):
             clicked_tabs = 0
 
             # Click top likely tab rows only.
-            for row in tab_rows[:3]:
+            for row in tab_rows[:1]:
                 for item in row["items"][:10]:
                     try:
                         element = item["element"]
