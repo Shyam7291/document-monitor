@@ -2006,10 +2006,13 @@ def browser_click_fallback(source_url, existing_keys):
                             if captured_url:
                                 add_doc_from_url(captured_url, context_label)
 
-                            scan_all_rendered_content(page)
+                            
 
                         except Exception:
                             continue
+                    
+                    # Scan once after checking all document controls for this tab.
+                    scan_all_rendered_content(page)
 
                     print(f"Main-content document controls checked after '{context_label}': {clicked_or_checked}")
 
