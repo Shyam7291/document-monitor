@@ -3547,6 +3547,7 @@ def browser_click_fallback(source_url, existing_keys):
 
             interact_with_hash_fragments(page)
             interact_with_year_dropdowns(page)
+            interact_with_main_content_tab_groups(page)
 
             visit_report_detail_pages(page)
 
