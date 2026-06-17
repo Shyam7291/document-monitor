@@ -3480,11 +3480,13 @@ def browser_click_fallback(source_url, existing_keys):
                     if captured_url:
                         add_doc_from_url(captured_url, title)
 
-                    scan_all_rendered_content(page)
+                    
 
                 except Exception:
                     continue
-
+        scan_all_rendered_content(page)
+        print(f"Main-content document controls checked after '{context_label}': {clicked_or_checked}")
+        
         except Exception as e:
             print(f"Report-card click phase error: {e}")
 
