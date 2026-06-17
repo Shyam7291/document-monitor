@@ -3480,10 +3480,13 @@ def browser_click_fallback(source_url, existing_keys):
                     if captured_url:
                         add_doc_from_url(captured_url, title)
 
-                    
+                    scan_all_rendered_content(page)
 
                 except Exception:
                     continue
+
+        except Exception as e:
+            print(f"Report-card click phase error: {e}")
                
 
     def is_expandable_element(element):
