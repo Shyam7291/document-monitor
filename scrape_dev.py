@@ -1906,6 +1906,171 @@ def browser_click_fallback(source_url, existing_keys):
                     count = min(controls.count(), 100)
 
                     clicked_or_checked = 0
+            def collect_urls_near_visible_action_controls():
+                        "data-url",                        """
+                                            "data-link",
+                                            "data-file",
+                                            "data-download",
+                                            "data-src",
+                                            "onclick"
+                                        ];
+
+                                        let urls = [];
+
+                                        for (const attr of attrs) {
+                                            const value = el.getAttribute(attr);
+
+                                            if (!value) continue;
+
+                                            if (attr === "onclick") {
+                                                const matches = value.match(/[^'"]+(\\.pdf|\\.ashx|\\/download|\\/downloads\\/|\\/media\\/|\\/files\\/|\\/uploads\\/|\\/storage\\/)[^'"]*/gi);
+
+                                                if (matches) {
+                                                    urls.push(...matches);
+                                                }
+                                            } else {
+                                                urls.push(value);
+                                            }
+                                        }
+
+                                        return urls;
+                                    }
+
+                                    function titleFromArea(el) {
+                                        let cur = el;
+
+                                        for (let i = 0; i < 5 && cur; i++) {
+                                            const text = clean(cur.innerText || cur.textContent || "");
+
+                                            if (text && text.length > 8 && text.length < 180) {
+                                                return text;
+                                            }
+
+                                            cur = cur.parentElement;
+                                        }
+
+                                        return "";
+                                    }
+
+                                    const roots = Array.from(document.querySelectorAll("main, section, article, body"));
+                                    const root = roots.find(Boolean) || document.body;
+
+                                    const controls = Array.from(root.querySelectorAll(
+                                        "a, button, [role='button'], [onclick], [data-url], [data-href], [data-file], [data-download], .btn, div, span"
+                                    ));
+
+                                    let results = [];
+                                    let seen = new Set();
+
+                                    for (const el of controls) {
+                                        if (!isVisible(el)) continue;
+                                        if (!looksLikeAction(el)) continue;
+
+                                        let related = [el];
+
+                                        // parents
+                                        let cur = el.parentElement;
+                                        for (let i = 0; i < 5 && cur; i++) {
+                                            related.push(cur);
+                                            cur = cur.parentElement;
+                                        }
+
+                                        // child anchors/buttons
+                                        related.push(...Array.from(el.querySelectorAll("a, button, [onclick], [data-url], [data-href], [data-file], [data-download]")));
+
+                                        for (const rel of related) {
+                                            const urls = collectAttrUrls(rel);
+
+                                            for (const rawUrl of urls) {
+                                                if (!rawUrl) continue;
+
+                                                const key = rawUrl.trim();
+
+                                                if (!key || seen.has(key)) continue;
+
+                                                seen.add(key);
+
+                                                results.push({
+                                                    url: key,
+                                                    title: titleFromArea(el)
+                                                });
+                                            }
+                                        }
+                                    }
+
+                                    return results.slice(0, 100);
+                                }
+                                """
+                            )
+
+                            kept = 0
+
+                            for item in found_items:
+                                possible_url = item.get("url", "")
+                                title_hint = item.get("title", "") or context_label
+
+                                if not possible_url:
+                                    continue
+
+                                full_url = urljoin(page.url or source_url, possible_url)
+
+                                if is_click_document_candidate(full_url):
+                                    add_doc_from_url(full_url, title_hint)
+                                    kept += 1
+
+                            print(f"Nearby action-control URLs extracted after '{context_label}': {kept}")
+
+                        except Exception as e:
+                            print(f"Nearby action-control URL extraction error after '{context_label}': {e}")
+                        Generic extractor:
+                        Some sites keep the real document URL on a parent/card,
+                        child link, data-* attribute, or onclick JS instead of direct href.
+                        """
+
+                        try:
+                            found_items = page.evaluate(
+                                """
+                                () => {
+                                    function clean(t) {
+                                        return (t || "").replace(/\\s+/g, " ").trim();
+                                    }
+
+                                    function isVisible(el) {
+                                        if (!el) return false;
+                                        const rect = el.getBoundingClientRect();
+                                        const style = window.getComputedStyle(el);
+
+                                        return (
+                                            rect.width > 10 &&
+                                            rect.height > 10 &&
+                                            style.display !== "none" &&
+                                            style.visibility !== "hidden"
+                                        );
+                                    }
+
+                                    function looksLikeAction(el) {
+                                        const text = clean(el.innerText || el.textContent || "").toLowerCase();
+                                        const href = (el.getAttribute("href") || "").toLowerCase();
+                                        const cls = (el.className || "").toString().toLowerCase();
+
+                                        return (
+                                            text.includes("download") ||
+                                            text.includes("view") ||
+                                            text.includes("pdf") ||
+                                            href.includes(".pdf") ||
+                                            href.includes("download") ||
+                                            href.includes("/media/") ||
+                                            href.includes("/files/") ||
+                                            cls.includes("download") ||
+                                            cls.includes("pdf")
+                                        );
+                                    }
+
+                                    function collectAttrUrls(el) {
+                                        const attrs = [
+                                            "href",
+                                            "src",
+                                            "data-href",
 
                     for i in range(count):
                         try:
