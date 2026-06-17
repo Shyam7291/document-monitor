@@ -2071,7 +2071,7 @@ def browser_click_fallback(source_url, existing_keys):
                                             "href",
                                             "src",
                                             "data-href",
-
+                    collect_urls_near_visible_action_controls()
                     for i in range(count):
                         try:
                             element = controls.nth(i)
