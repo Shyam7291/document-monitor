@@ -1841,6 +1841,22 @@ def browser_click_fallback(source_url, existing_keys):
                     # Avoid rows with too many elements, usually grids/cards/nav lists.
                     if len(items) > 12:
                         continue
+                    # Skip rows that are actually document action buttons, not tabs.
+                    # Example: View, Download, View, Download
+                    action_words = {"view", "download", "pdf", "open", "read"}
+
+                    action_count = 0
+
+                    for item in items:
+                        text_lower = normalize_text(item.get("text", "")).lower()
+
+                        if text_lower in action_words:
+                            action_count += 1
+
+                    # If half or more of the row is View/Download/PDF actions,
+                    # this is not a tab/filter row.
+                    if items and action_count / len(items) >= 0.5:
+                        continue
 
                     # Prefer rows near upper/middle content area.
                     avg_y = row["avg_y"]
