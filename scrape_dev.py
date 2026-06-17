@@ -2001,7 +2001,7 @@ def browser_click_fallback(source_url, existing_keys):
                                     return results.slice(0, 100);
                                 }
                                 """
-                            )
+                            
 
                             kept = 0
 
