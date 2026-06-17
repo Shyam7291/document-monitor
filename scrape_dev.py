@@ -1893,6 +1893,10 @@ def browser_click_fallback(source_url, existing_keys):
                 """
                 After opening a tab/filter, click visible document controls in main content.
                 This avoids header/nav/footer.
+
+                It also checks nearby parent/child/data/onclick attributes because
+                some websites do not keep the real PDF/download URL directly on the
+                View/Download button.
                 """
 
                 try:
@@ -1903,11 +1907,66 @@ def browser_click_fallback(source_url, existing_keys):
                         "div a:visible, div button:visible, div [role='button']:visible"
                     )
 
-                    count = min(controls.count(), 100)
+                    count = min(controls.count(), 60)
 
                     clicked_or_checked = 0
-            def collect_urls_near_visible_action_controls():
-                        "data-url",                        """
+
+                    def collect_urls_near_visible_action_controls():
+                        """
+                        Generic extractor:
+                        Some sites keep the real document URL on a parent/card,
+                        child link, data-* attribute, or onclick JS instead of direct href.
+                        """
+
+                        try:
+                            found_items = page.evaluate(
+                                """
+                                () => {
+                                    function clean(t) {
+                                        return (t || "").replace(/\\s+/g, " ").trim();
+                                    }
+
+                                    function isVisible(el) {
+                                        if (!el) return false;
+
+                                        const rect = el.getBoundingClientRect();
+                                        const style = window.getComputedStyle(el);
+
+                                        return (
+                                            rect.width > 10 &&
+                                            rect.height > 10 &&
+                                            style.display !== "none" &&
+                                            style.visibility !== "hidden"
+                                        );
+                                    }
+
+                                    function looksLikeAction(el) {
+                                        const text = clean(el.innerText || el.textContent || "").toLowerCase();
+                                        const href = (el.getAttribute("href") || "").toLowerCase();
+                                        const cls = (el.className || "").toString().toLowerCase();
+
+                                        return (
+                                            text.includes("download") ||
+                                            text.includes("view") ||
+                                            text.includes("pdf") ||
+                                            href.includes(".pdf") ||
+                                            href.includes(".ashx") ||
+                                            href.includes("download") ||
+                                            href.includes("/media/") ||
+                                            href.includes("/files/") ||
+                                            href.includes("/uploads/") ||
+                                            href.includes("/storage/") ||
+                                            cls.includes("download") ||
+                                            cls.includes("pdf")
+                                        );
+                                    }
+
+                                    function collectAttrUrls(el) {
+                                        const attrs = [
+                                            "href",
+                                            "src",
+                                            "data-href",
+                                            "data-url",
                                             "data-link",
                                             "data-file",
                                             "data-download",
@@ -1923,7 +1982,9 @@ def browser_click_fallback(source_url, existing_keys):
                                             if (!value) continue;
 
                                             if (attr === "onclick") {
-                                                const matches = value.match(/[^'"]+(\\.pdf|\\.ashx|\\/download|\\/downloads\\/|\\/media\\/|\\/files\\/|\\/uploads\\/|\\/storage\\/)[^'"]*/gi);
+                                                const matches = value.match(
+                                                    /[^'"]+(\\.pdf|\\.ashx|\\/download|\\/downloads\\/|\\/media\\/|\\/files\\/|\\/uploads\\/|\\/storage\\/)[^'"]*/gi
+                                                );
 
                                                 if (matches) {
                                                     urls.push(...matches);
@@ -1968,15 +2029,18 @@ def browser_click_fallback(source_url, existing_keys):
 
                                         let related = [el];
 
-                                        // parents
                                         let cur = el.parentElement;
+
                                         for (let i = 0; i < 5 && cur; i++) {
                                             related.push(cur);
                                             cur = cur.parentElement;
                                         }
 
-                                        // child anchors/buttons
-                                        related.push(...Array.from(el.querySelectorAll("a, button, [onclick], [data-url], [data-href], [data-file], [data-download]")));
+                                        related.push(
+                                            ...Array.from(
+                                                el.querySelectorAll("a, button, [onclick], [data-url], [data-href], [data-file], [data-download]")
+                                            )
+                                        );
 
                                         for (const rel of related) {
                                             const urls = collectAttrUrls(rel);
@@ -2001,7 +2065,7 @@ def browser_click_fallback(source_url, existing_keys):
                                     return results.slice(0, 100);
                                 }
                                 """
-                            
+                            )
 
                             kept = 0
 
@@ -2022,56 +2086,10 @@ def browser_click_fallback(source_url, existing_keys):
 
                         except Exception as e:
                             print(f"Nearby action-control URL extraction error after '{context_label}': {e}")
-                        Generic extractor:
-                        Some sites keep the real document URL on a parent/card,
-                        child link, data-* attribute, or onclick JS instead of direct href.
-                        """
 
-                        try:
-                            found_items = page.evaluate(
-                                """
-                                () => {
-                                    function clean(t) {
-                                        return (t || "").replace(/\\s+/g, " ").trim();
-                                    }
-
-                                    function isVisible(el) {
-                                        if (!el) return false;
-                                        const rect = el.getBoundingClientRect();
-                                        const style = window.getComputedStyle(el);
-
-                                        return (
-                                            rect.width > 10 &&
-                                            rect.height > 10 &&
-                                            style.display !== "none" &&
-                                            style.visibility !== "hidden"
-                                        );
-                                    }
-
-                                    function looksLikeAction(el) {
-                                        const text = clean(el.innerText || el.textContent || "").toLowerCase();
-                                        const href = (el.getAttribute("href") || "").toLowerCase();
-                                        const cls = (el.className || "").toString().toLowerCase();
-
-                                        return (
-                                            text.includes("download") ||
-                                            text.includes("view") ||
-                                            text.includes("pdf") ||
-                                            href.includes(".pdf") ||
-                                            href.includes("download") ||
-                                            href.includes("/media/") ||
-                                            href.includes("/files/") ||
-                                            cls.includes("download") ||
-                                            cls.includes("pdf")
-                                        );
-                                    }
-
-                                    function collectAttrUrls(el) {
-                                        const attrs = [
-                                            "href",
-                                            "src",
-                                            "data-href",
+                    # First extract URLs from nearby parent/child/data/onclick attributes.
                     collect_urls_near_visible_action_controls()
+
                     for i in range(count):
                         try:
                             element = controls.nth(i)
@@ -2080,12 +2098,14 @@ def browser_click_fallback(source_url, existing_keys):
                                 continue
 
                             text = ""
+
                             try:
                                 text = normalize_text(element.inner_text(timeout=600))
                             except Exception:
                                 text = ""
 
                             href_value = ""
+
                             try:
                                 href_value = element.get_attribute("href", timeout=600) or ""
                             except Exception:
@@ -2093,8 +2113,6 @@ def browser_click_fallback(source_url, existing_keys):
 
                             combined = f"{text} {href_value}".lower()
 
-                            # Here we are not using tab names.
-                            # We only prioritize actual document action controls.
                             if not (
                                 ".pdf" in combined or
                                 ".ashx" in combined or
@@ -2150,7 +2168,7 @@ def browser_click_fallback(source_url, existing_keys):
                                 except Exception:
                                     pass
 
-                            # Same tab navigation
+                            # Same-tab navigation
                             if not captured_url:
                                 try:
                                     element.click(timeout=3500, force=True)
@@ -2171,11 +2189,9 @@ def browser_click_fallback(source_url, existing_keys):
                             if captured_url:
                                 add_doc_from_url(captured_url, context_label)
 
-                            
-
                         except Exception:
                             continue
-                    
+
                     # Scan once after checking all document controls for this tab.
                     scan_all_rendered_content(page)
 
