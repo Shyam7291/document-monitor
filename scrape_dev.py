@@ -1628,6 +1628,432 @@ def browser_click_fallback(source_url, existing_keys):
 
         except Exception as e:
             print(f"Frame collection error: {e}")
+
+    def interact_with_main_content_tab_groups(page):
+        """
+        Generic layout-based tab/filter handler.
+
+        This does not depend on specific tab text.
+        It tries to identify horizontal groups of visible clickable controls
+        inside the main content area, while avoiding header/nav/footer areas.
+
+        Useful for pages where documents are separated by tabs/filters.
+        """
+
+        try:
+            print("Checking main-content tab/filter groups...")
+
+            def is_bad_navigation_area(element):
+                """
+                Return True if element is inside header/nav/footer/menu/search/language areas.
+                """
+                try:
+                    return element.evaluate(
+                        """
+                        el => {
+                            let cur = el;
+
+                            while (cur) {
+                                const tag = (cur.tagName || "").toLowerCase();
+                                const id = (cur.id || "").toLowerCase();
+                                const cls = (cur.className || "").toString().toLowerCase();
+                                const role = (cur.getAttribute("role") || "").toLowerCase();
+
+                                if (["header", "nav", "footer"].includes(tag)) return true;
+
+                                if (
+                                    id.includes("header") ||
+                                    id.includes("footer") ||
+                                    id.includes("navbar") ||
+                                    id.includes("nav-") ||
+                                    id.includes("breadcrumb") ||
+                                    id.includes("language") ||
+                                    id.includes("search") ||
+                                    id.includes("menu")
+                                ) return true;
+
+                                if (
+                                    cls.includes("header") ||
+                                    cls.includes("footer") ||
+                                    cls.includes("navbar") ||
+                                    cls.includes("breadcrumb") ||
+                                    cls.includes("language") ||
+                                    cls.includes("search") ||
+                                    cls.includes("mega-menu") ||
+                                    cls.includes("main-menu")
+                                ) return true;
+
+                                if (role === "navigation" || role === "menubar") return true;
+
+                                cur = cur.parentElement;
+                            }
+
+                            return false;
+                        }
+                        """
+                    )
+                except Exception:
+                    return False
+
+            def get_element_box(element):
+                """
+                Return visible bounding box and text for an element.
+                """
+                try:
+                    return element.evaluate(
+                        """
+                        el => {
+                            const rect = el.getBoundingClientRect();
+                            const text = (el.innerText || el.textContent || "").replace(/\\s+/g, " ").trim();
+
+                            return {
+                                x: rect.x,
+                                y: rect.y,
+                                width: rect.width,
+                                height: rect.height,
+                                text: text,
+                                visible: !!(
+                                    rect.width > 20 &&
+                                    rect.height > 15 &&
+                                    window.getComputedStyle(el).visibility !== "hidden" &&
+                                    window.getComputedStyle(el).display !== "none"
+                                )
+                            };
+                        }
+                        """
+                    )
+                except Exception:
+                    return None
+
+            def looks_like_main_content_control(box):
+                """
+                Generic visual rules for clickable tab/filter controls.
+                """
+                if not box:
+                    return False
+
+                if not box.get("visible"):
+                    return False
+
+                text = normalize_text(box.get("text", ""))
+
+                if not text:
+                    return False
+
+                words = text.split()
+
+                # Avoid huge containers/page blocks.
+                if len(words) > 10:
+                    return False
+
+                # Avoid tiny icon-only controls.
+                if box.get("width", 0) < 40 or box.get("height", 0) < 20:
+                    return False
+
+                # Avoid very top browser/header area.
+                # Most real content tabs are below header area.
+                if box.get("y", 0) < 120:
+                    return False
+
+                # Avoid very small weak labels.
+                if len(text) < 3:
+                    return False
+
+                return True
+
+            def collect_clickable_candidates():
+                """
+                Collect visible clickable elements with box metadata.
+                """
+                candidates = []
+
+                locator = page.locator(
+                    "main a:visible, main button:visible, main [role='button']:visible, main [role='tab']:visible, "
+                    "section a:visible, section button:visible, section [role='button']:visible, section [role='tab']:visible, "
+                    "article a:visible, article button:visible, article [role='button']:visible, article [role='tab']:visible, "
+                    "div a:visible, div button:visible, div [role='button']:visible, div [role='tab']:visible"
+                )
+
+                count = min(locator.count(), 250)
+
+                for i in range(count):
+                    try:
+                        element = locator.nth(i)
+
+                        if is_bad_navigation_area(element):
+                            continue
+
+                        box = get_element_box(element)
+
+                        if not looks_like_main_content_control(box):
+                            continue
+
+                        candidates.append({
+                            "index": i,
+                            "element": element,
+                            "box": box,
+                            "text": normalize_text(box.get("text", ""))
+                        })
+
+                    except Exception:
+                        continue
+
+                return candidates
+
+            def group_candidates_by_visual_row(candidates):
+                """
+                Group candidates that appear on the same horizontal row.
+                A tab/filter group usually has multiple clickable controls on one row.
+                """
+                rows = []
+
+                for candidate in candidates:
+                    y = candidate["box"].get("y", 0)
+                    placed = False
+
+                    for row in rows:
+                        row_y = row["avg_y"]
+
+                        if abs(y - row_y) <= 18:
+                            row["items"].append(candidate)
+                            row["avg_y"] = sum(x["box"].get("y", 0) for x in row["items"]) / len(row["items"])
+                            placed = True
+                            break
+
+                    if not placed:
+                        rows.append({
+                            "avg_y": y,
+                            "items": [candidate]
+                        })
+
+                useful_rows = []
+
+                for row in rows:
+                    items = row["items"]
+
+                    # Need at least 2 controls to be a tab/filter row.
+                    if len(items) < 2:
+                        continue
+
+                    # Sort left to right.
+                    items.sort(key=lambda x: x["box"].get("x", 0))
+
+                    # Avoid rows with too many elements, usually grids/cards/nav lists.
+                    if len(items) > 12:
+                        continue
+
+                    # Prefer rows near upper/middle content area.
+                    avg_y = row["avg_y"]
+
+                    score = 0
+                    score += len(items) * 10
+
+                    if 120 <= avg_y <= 700:
+                        score += 40
+
+                    # Similar heights are a strong tab-row signal.
+                    heights = [x["box"].get("height", 0) for x in items]
+                    if heights:
+                        if max(heights) - min(heights) <= 20:
+                            score += 25
+
+                    # Similar widths also help, but not required.
+                    widths = [x["box"].get("width", 0) for x in items]
+                    if widths:
+                        if max(widths) - min(widths) <= 180:
+                            score += 10
+
+                    useful_rows.append({
+                        "items": items,
+                        "score": score,
+                        "avg_y": avg_y
+                    })
+
+                useful_rows.sort(key=lambda x: x["score"], reverse=True)
+
+                return useful_rows
+
+            def click_visible_document_controls_in_main_area(context_label):
+                """
+                After opening a tab/filter, click visible document controls in main content.
+                This avoids header/nav/footer.
+                """
+
+                try:
+                    controls = page.locator(
+                        "main a:visible, main button:visible, main [role='button']:visible, "
+                        "section a:visible, section button:visible, section [role='button']:visible, "
+                        "article a:visible, article button:visible, article [role='button']:visible, "
+                        "div a:visible, div button:visible, div [role='button']:visible"
+                    )
+
+                    count = min(controls.count(), 180)
+
+                    clicked_or_checked = 0
+
+                    for i in range(count):
+                        try:
+                            element = controls.nth(i)
+
+                            if is_bad_navigation_area(element):
+                                continue
+
+                            text = ""
+                            try:
+                                text = normalize_text(element.inner_text(timeout=600))
+                            except Exception:
+                                text = ""
+
+                            href_value = ""
+                            try:
+                                href_value = element.get_attribute("href", timeout=600) or ""
+                            except Exception:
+                                href_value = ""
+
+                            combined = f"{text} {href_value}".lower()
+
+                            # Here we are not using tab names.
+                            # We only prioritize actual document action controls.
+                            if not (
+                                ".pdf" in combined or
+                                ".ashx" in combined or
+                                "/download" in combined or
+                                "/media/" in combined or
+                                "/files/" in combined or
+                                "download" in combined or
+                                "view" in combined or
+                                "pdf" in combined
+                            ):
+                                continue
+
+                            clicked_or_checked += 1
+
+                            before_url = page.url
+                            captured_url = ""
+
+                            try:
+                                element.scroll_into_view_if_needed(timeout=2500)
+                            except Exception:
+                                pass
+
+                            # Direct href first
+                            if href_value:
+                                possible_url = urljoin(page.url or source_url, href_value)
+
+                                if is_click_document_candidate(possible_url):
+                                    captured_url = possible_url
+
+                            # Popup
+                            if not captured_url:
+                                try:
+                                    with page.expect_popup(timeout=2000) as popup_info:
+                                        element.click(timeout=3500, force=True)
+
+                                    popup = popup_info.value
+                                    popup.wait_for_load_state("domcontentloaded", timeout=8000)
+                                    captured_url = popup.url
+                                    popup.close()
+
+                                except Exception:
+                                    pass
+
+                            # Download
+                            if not captured_url:
+                                try:
+                                    with page.expect_download(timeout=2000) as download_info:
+                                        element.click(timeout=3500, force=True)
+
+                                    download = download_info.value
+                                    captured_url = download.url
+
+                                except Exception:
+                                    pass
+
+                            # Same tab navigation
+                            if not captured_url:
+                                try:
+                                    element.click(timeout=3500, force=True)
+                                    page.wait_for_timeout(1000)
+
+                                    if page.url != before_url:
+                                        captured_url = page.url
+
+                                        try:
+                                            page.goto(before_url, wait_until="domcontentloaded", timeout=60000)
+                                            page.wait_for_timeout(800)
+                                        except Exception:
+                                            pass
+
+                                except Exception:
+                                    pass
+
+                            if captured_url:
+                                add_doc_from_url(captured_url, context_label)
+
+                            scan_all_rendered_content(page)
+
+                        except Exception:
+                            continue
+
+                    print(f"Main-content document controls checked after '{context_label}': {clicked_or_checked}")
+
+                except Exception as e:
+                    print(f"Main-content document control scan error: {e}")
+
+            candidates = collect_clickable_candidates()
+            tab_rows = group_candidates_by_visual_row(candidates)
+
+            print(f"Main-content clickable candidates: {len(candidates)}")
+            print(f"Likely main-content tab/filter rows found: {len(tab_rows)}")
+
+            for row_index, row in enumerate(tab_rows[:3], start=1):
+                labels = [x["text"] for x in row["items"]]
+                print(f"Likely tab/filter row {row_index}: {labels}")
+
+            clicked_tabs = 0
+
+            # Click top likely tab rows only.
+            for row in tab_rows[:3]:
+                for item in row["items"][:10]:
+                    try:
+                        element = item["element"]
+                        label = item["text"]
+
+                        print(f"Clicking main-content tab/filter candidate: {label}")
+
+                        try:
+                            element.scroll_into_view_if_needed(timeout=2500)
+                        except Exception:
+                            pass
+
+                        before_url = page.url
+
+                        try:
+                            element.click(timeout=4000, force=True)
+                            page.wait_for_timeout(1800)
+                        except Exception as click_error:
+                            print(f"Main-content tab/filter click failed for '{label}': {click_error}")
+                            continue
+
+                        clicked_tabs += 1
+
+                        scan_all_rendered_content(page)
+                        click_visible_document_controls_in_main_area(label)
+
+                        if page.url != before_url:
+                            try:
+                                page.goto(before_url, wait_until="domcontentloaded", timeout=60000)
+                                page.wait_for_timeout(800)
+                            except Exception:
+                                pass
+
+                    except Exception:
+                        continue
+
+            print(f"Main-content tab/filter candidates clicked: {clicked_tabs}")
+
+        except Exception as e:
+            print(f"Main-content tab/filter interaction error: {e}")
     def interact_with_year_dropdowns(page):
         """
         Generic year dropdown handler.
