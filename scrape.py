@@ -3695,21 +3695,94 @@ if RUN_MODE == "full":
     for r in output_data:
         document_url = r.get("document_url", "")
         source_url = r.get("company", "")
+        document_title_for_log = r.get("document_title", "Unknown Title")
 
         if not document_url or not source_url:
             continue
 
         current_url_key = normalize_url_key(document_url)
+        source_key = normalize_url_key(source_url)
 
-        source_was_known_before_run = source_url in known_source_urls_before_run
+        source_was_known_before_run = source_key in known_source_urls_before_run
         document_was_known_before_run = current_url_key in known_document_urls_before_run
         already_in_diff = current_url_key in existing_diff_urls
 
-        # Add to diff only when:
-        # 1. source URL was already known before this run
-        # 2. document URL was not known before this run
-        # 3. document URL is not already in diff.csv
-        if source_was_known_before_run and not document_was_known_before_run and not already_in_diff:
+        if not source_was_known_before_run:
+            log_diff_decision(
+                document_title=document_title_for_log,
+                document_url=document_url,
+                source_url=source_url,
+                decision="SKIPPED",
+                reason="source_url_not_known_before_run"
+            )
+            continue
+
+        if document_was_known_before_run:
+            log_diff_decision(
+                document_title=document_title_for_log,
+                document_url=document_url,
+                source_url=source_url,
+                decision="SKIPPED",
+                reason="document_url_already_known"
+            )
+            continue
+
+        if already_in_diff:
+            log_diff_decision(
+                document_title=document_title_for_log,
+                document_url=document_url,
+                source_url=source_url,
+                decision="SKIPPED",
+                reason="document_url_already_in_diff"
+            )
+            continue
+
+        document_title_for_diff = limit_document_title_words(
+            r.get("document_title", "Unknown Title"),
+            max_words=20
+        )
+
+        add_to_diff = True
+        metadata_extra = ""
+
+        if ENABLE_PDF_METADATA_DIFF_FILTER:
+            add_to_diff = is_pdf_metadata_recent_for_diff(
+                document_url=document_url,
+                recency_days=PDF_METADATA_RECENCY_DAYS
+            )
+
+            metadata_extra = f"pdf_metadata_recent={add_to_diff}"
+
+        if add_to_diff:
+            new_records.append({
+                "date": current_date,
+                "company": source_url,
+                "document_title": document_title_for_diff,
+                "document_url": document_url
+            })
+
+            log_diff_decision(
+                document_title=document_title_for_diff,
+                document_url=document_url,
+                source_url=source_url,
+                decision="ADDED",
+                reason="source_known_doc_new_metadata_recent",
+                extra=metadata_extra
+            )
+        else:
+            log_diff_decision(
+                document_title=document_title_for_diff,
+                document_url=document_url,
+                source_url=source_url,
+                decision="SKIPPED",
+                reason="pdf_metadata_not_recent_or_unreadable",
+                extra=metadata_extra
+            )
+
+            print(
+                f"DIFF SKIPPED BY PDF METADATA DATE → "
+                f"{document_title_for_diff} | {document_url}"
+            )
             document_title_for_diff = limit_document_title_words(
                 r.get("document_title", "Unknown Title"),
                 max_words=20
