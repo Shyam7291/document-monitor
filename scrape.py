@@ -626,8 +626,21 @@ def get_pdf_metadata_date(document_url):
             created_date = parse_pdf_metadata_date(created_raw)
             modified_date = parse_pdf_metadata_date(modified_raw)
 
-            # Prefer Created date. If missing, use Modified date.
-            metadata_date = created_date or modified_date
+            available_metadata_dates = [
+                d for d in [created_date, modified_date]
+                if d is not None
+            ]
+            if available_metadata_dates:
+                metadata_date = max(available_metadata_dates)
+            else:
+                metadata_date = None
+                print(
+                    f"PDF metadata raw dates → "
+                    f"Created={created_raw}, Modified={modified_raw}, "
+                    f"Selected={metadata_date.date() if metadata_date else None} | {document_url}"
+                )
+
+
 
             if metadata_date:
                 print(f"PDF metadata date found → {metadata_date.date()} | {document_url}")
