@@ -495,9 +495,9 @@ def queue_known_document_if_new(doc):
     company_key = normalize_url_key(doc.get("company", ""))
     
     if company_key:
-    known_source_urls.add(company_key)
-
-    known_documents_to_append.append({
+        known_source_urls.add(company_key)
+        
+        known_documents_to_append.append({
         "first_seen_date": current_date,
         "company": doc.get("company", ""),
         "document_title": limit_document_title_words(doc.get("document_title", "Unknown Title"), max_words=20),
