@@ -511,6 +511,22 @@ def normalize_text(text):
     text = re.sub(r"\s+", " ", text)
     return text.strip()
 
+def log_diff_decision(document_title, document_url, source_url, decision, reason, extra=""):
+    """
+    Print clear reason why a captured document was added/skipped from diff.
+    """
+
+    if not ENABLE_DIFF_DECISION_LOGS:
+        return
+
+    print(
+        f"DIFF DECISION → {decision} | "
+        f"reason={reason} | "
+        f"title={limit_document_title_words(document_title or 'Unknown Title', max_words=20)} | "
+        f"source={source_url} | "
+        f"doc={document_url}"
+        + (f" | {extra}" if extra else "")
+    )
 def limit_document_title_words(title, max_words=20):
     """
     Limit document title to maximum 60 words.
