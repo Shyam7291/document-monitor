@@ -348,7 +348,8 @@ def load_known_documents():
                     loaded_document_urls.add(normalize_url_key(document_url))
 
                 if company:
-                    loaded_source_urls.add(company)
+                    loaded_source_urls.add(normalize_url_key(company))
+
 
     except Exception as e:
         print(f"Known documents load error: {e}")
