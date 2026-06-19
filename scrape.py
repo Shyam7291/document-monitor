@@ -493,6 +493,7 @@ def queue_known_document_if_new(doc):
 
     known_document_urls.add(document_key)
     company_key = normalize_url_key(doc.get("company", ""))
+    
     if company_key:
     known_source_urls.add(company_key)
 
