@@ -36,6 +36,10 @@ PDF_METADATA_RECENCY_DAYS = int(os.environ.get("PDF_METADATA_RECENCY_DAYS", "60"
 PDF_METADATA_MAX_BYTES = int(
     os.environ.get("PDF_METADATA_MAX_BYTES", str(100 * 1024 * 1024))
 )
+ENABLE_DIFF_DECISION_LOGS = os.environ.get(
+    "ENABLE_DIFF_DECISION_LOGS",
+    "true"
+).strip().lower() == "true"
 if RUN_MODE in ["full", "seed"]:
     OUTPUT_FILE = "output.csv"
     RAW_FILE = "raw_links.csv"
