@@ -79,6 +79,8 @@ jobs:
       KNOWN_DOCUMENTS_FILE: ${{ matrix.known_file }}
       RUN_SUMMARY_FILE: ${{ matrix.summary_file }}
 
+      ENABLE_DIFF_DECISION_LOGS: "true"
+
       ENABLE_BROWSER_FALLBACK: "false"
       SLEEP_SECONDS: "3"
       RETRY_FAILED_URLS: "true"
@@ -87,6 +89,7 @@ jobs:
       ENABLE_PDF_METADATA_DIFF_FILTER: "true"
       PDF_METADATA_RECENCY_DAYS: "60"
       PDF_METADATA_MAX_BYTES: "104857600"
+
 
     steps:
       - name: Checkout repository
