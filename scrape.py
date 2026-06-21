@@ -3512,6 +3512,13 @@ def process_source_url(source_url, retry_attempt=False, force_browser_fallback=F
                         documents_captured=0,
                         error_message="Non-200 status code and browser fallback captured 0 documents"
                     )
+                    record_url_status(
+                        source_url=source_url,
+                        status_code=response.status_code,
+                        documents_captured=docs_captured_for_url,
+                        latest_issue="" if docs_captured_for_url > 0 else ("FETCH_FAILED_STATUS_AFTER_RETRY" if retry_attempt else "FETCH_FAILED_STATUS")
+                    )
+
 
             return docs_captured_for_url
 
