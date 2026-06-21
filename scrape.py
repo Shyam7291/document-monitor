@@ -4029,6 +4029,7 @@ if RUN_MODE == "full":
 
 # APPEND known_documents.csv for seed/full runs
 append_known_documents()
+save_url_status_file()
 
 
 # SAVE capture issues file
@@ -4146,6 +4147,8 @@ print(f"✅ Raw file: {RAW_FILE}")
 print(f"✅ Issues file: {ISSUES_FILE}")
 print(f"✅ Summary file: {RUN_SUMMARY_FILE}")
 print(f"✅ Known documents file: {KNOWN_DOCUMENTS_FILE}")
+print(f"✅ URL status file: {URL_STATUS_FILE}")
+print(f"✅ URL status rows updated: {len(url_status_updates)}")
 print(f"✅ URLs processed: {total_urls_processed}")
 print(f"✅ Documents captured: {len(output_data)}")
 print(f"✅ New diff records: {len(new_records)}")
@@ -4156,3 +4159,4 @@ print(f"✅ Run {current_run_number}: {len(output_data)} documents captured")
 print(f"✅ PDF metadata diff filter enabled: {ENABLE_PDF_METADATA_DIFF_FILTER}")
 print(f"✅ PDF metadata recency days: {PDF_METADATA_RECENCY_DAYS}")
 print(f"✅ PDF metadata max bytes: {PDF_METADATA_MAX_BYTES}")
+
