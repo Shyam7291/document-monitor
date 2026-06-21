@@ -3578,9 +3578,9 @@ def process_source_url(source_url, retry_attempt=False, force_browser_fallback=F
             if not retry_attempt and RETRY_FAILED_URLS:
                 print("Queued for retry: zero documents captured")
                 retry_queue.append({
-                "source_url": source_url,
-                "force_browser_fallback": force_browser_fallback
-                 })
+                    "source_url": source_url,
+                    "force_browser_fallback": force_browser_fallback
+                })
             else:
                 add_issue(
                     source_url=source_url,
@@ -3589,6 +3589,13 @@ def process_source_url(source_url, retry_attempt=False, force_browser_fallback=F
                     documents_captured=0,
                     error_message="Page opened successfully but no document links captured"
                 )
+
+        record_url_status(
+            source_url=source_url,
+            status_code=response.status_code,
+            documents_captured=docs_captured_for_url,
+            latest_issue="" if docs_captured_for_url > 0 else ("SUCCESS_ZERO_DOCS_AFTER_RETRY" if retry_attempt else "SUCCESS_ZERO_DOCS")
+        )
 
         return docs_captured_for_url
 
