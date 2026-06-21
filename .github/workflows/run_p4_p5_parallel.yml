@@ -89,7 +89,7 @@ jobs:
       ENABLE_DIFF_DECISION_LOGS: "true"
 
       ENABLE_BROWSER_FALLBACK: "false"
-      SLEEP_SECONDS: "3"
+      SLEEP_SECONDS: "1"
       RETRY_FAILED_URLS: "true"
       RETRY_SLEEP_SECONDS: "20"
 
