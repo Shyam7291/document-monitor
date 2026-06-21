@@ -3463,6 +3463,13 @@ def process_source_url(source_url, retry_attempt=False, force_browser_fallback=F
                         documents_captured=0,
                         error_message="Request failed / timeout and browser fallback captured 0 documents"
                     )
+                    record_url_status(
+                        source_url=source_url,
+                        status_code="REQUEST_ERROR",
+                        documents_captured=docs_captured_for_url,
+                        latest_issue="" if docs_captured_for_url > 0 else ("FETCH_ERROR_AFTER_RETRY" if retry_attempt else "FETCH_ERROR")
+                    )
+
             return docs_captured_for_url
 
         print("Status:", response.status_code)
