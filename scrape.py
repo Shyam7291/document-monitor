@@ -682,14 +682,22 @@ def get_pdf_metadata_date(document_url):
 
 def is_pdf_metadata_recent_for_diff(document_url, recency_days=60):
     """
-    Return True only when PDF Created/Modified metadata date exists
-    and is within the recent window.
+    Return True when PDF Created/Modified metadata date is recent.
+
+    Important behavior:
+    - If metadata date exists, it must be within the recent window.
+    - If metadata date is missing/unreadable, do not block diff.
+      In that case, return True so normal source/doc URL diff logic applies.
     """
 
     metadata_date = get_pdf_metadata_date(document_url)
 
     if not metadata_date:
-        return False
+        print(
+            f"PDF metadata missing/unreadable. "
+            f"Allowing diff based on source/doc URL logic → {document_url}"
+        )
+        return True
 
     cutoff_date = datetime.now() - timedelta(days=recency_days)
 
