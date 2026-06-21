@@ -113,6 +113,7 @@ URL_STATUS_FIELDNAMES = [
 output_data = []
 raw_links = []
 issue_rows = []
+url_status_updates = []
 
 # Retry queue for failed/zero-doc URLs
 retry_queue = []
