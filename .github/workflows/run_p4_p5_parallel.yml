@@ -142,6 +142,7 @@ jobs:
             ${{ matrix.diff_file }}
             ${{ matrix.known_file }}
             ${{ matrix.summary_file }}
+            ${{ matrix.status_file }}
 
   merge-results:
     if: ${{ always() }}
