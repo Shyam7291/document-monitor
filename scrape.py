@@ -1119,7 +1119,106 @@ def normalize_url_key(url):
     parsed = urlparse(url)
     return f"{parsed.scheme}://{parsed.netloc}{parsed.path}".lower()
 
+def record_url_status(source_url, status_code, documents_captured, latest_issue=""):
+    """
+    Record latest status for a source URL during this run.
 
+    last_working_date is updated later only if documents_captured > 0.
+    """
+
+    if not source_url:
+        return
+
+    source_key = normalize_url_key(source_url)
+
+    if documents_captured > 0:
+        latest_issue = ""
+
+    url_status_updates[source_key] = {
+        "url": source_url,
+        "latest_status_code": str(status_code),
+        "latest_issue": latest_issue,
+        "url_file": TARGET_URL_FILE,
+        "_documents_captured": int(documents_captured or 0)
+    }
+
+
+def save_url_status_file():
+    """
+    Save URL status tracker.
+
+    File format:
+    url,last_working_date,last_working_docs_count,latest_status_code,latest_issue,url_file
+
+    Logic:
+    - latest_status_code/latest_issue are updated every run.
+    - last_working_date/last_working_docs_count update only when docs_captured > 0.
+    """
+
+    existing_rows_by_key = {}
+
+    if os.path.exists(URL_STATUS_FILE):
+        try:
+            validate_csv_header(URL_STATUS_FILE, URL_STATUS_FIELDNAMES)
+
+            with open(URL_STATUS_FILE, newline="", encoding="utf-8") as status_file:
+                reader = csv.DictReader(status_file)
+
+                for row in reader:
+                    url = row.get("url", "")
+
+                    if not url:
+                        continue
+
+                    existing_rows_by_key[normalize_url_key(url)] = {
+                        "url": url,
+                        "last_working_date": row.get("last_working_date", ""),
+                        "last_working_docs_count": row.get("last_working_docs_count", ""),
+                        "latest_status_code": row.get("latest_status_code", ""),
+                        "latest_issue": row.get("latest_issue", ""),
+                        "url_file": row.get("url_file", "")
+                    }
+
+        except Exception as e:
+            print(f"URL status load error: {e}")
+
+    for source_key, update in url_status_updates.items():
+        existing = existing_rows_by_key.get(source_key, {
+            "url": update.get("url", ""),
+            "last_working_date": "",
+            "last_working_docs_count": "",
+            "latest_status_code": "",
+            "latest_issue": "",
+            "url_file": update.get("url_file", TARGET_URL_FILE)
+        })
+
+        docs_captured = int(update.get("_documents_captured", 0))
+
+        existing["url"] = update.get("url", existing.get("url", ""))
+        existing["latest_status_code"] = update.get("latest_status_code", "")
+        existing["latest_issue"] = update.get("latest_issue", "")
+        existing["url_file"] = update.get("url_file", TARGET_URL_FILE)
+
+        if docs_captured > 0:
+            existing["last_working_date"] = current_date
+            existing["last_working_docs_count"] = str(docs_captured)
+
+        existing_rows_by_key[source_key] = existing
+
+    final_rows = list(existing_rows_by_key.values())
+
+    final_rows.sort(
+        key=lambda r: (
+            r.get("latest_status_code", ""),
+            r.get("url_file", ""),
+            r.get("url", "")
+        )
+    )
+
+    with open(URL_STATUS_FILE, "w", newline="", encoding="utf-8") as status_file:
+        writer = csv.DictWriter(status_file, fieldnames=URL_STATUS_FIELDNAMES)
+        writer.writeheader()
+        writer.writerows(final_rows)
 def is_static_file_link(url):
     return "/static-files/" in url.lower()
 
