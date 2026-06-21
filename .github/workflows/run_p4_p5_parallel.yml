@@ -172,7 +172,14 @@ jobs:
           DIFF_FIELDS = ["date", "company", "document_title", "document_url"]
           KNOWN_FIELDS = ["first_seen_date", "company", "document_title", "document_url", "source_run_mode"]
           ISSUE_FIELDS = ["date", "run_mode", "url_file", "source_url", "issue_type", "status_code", "documents_captured", "error_message"]
-
+          URL_STATUS_FIELDS = [
+          "url",
+          "last_working_date",
+          "last_working_docs_count",
+          "latest_status_code",
+          "latest_issue"
+          ]
+          
           SUMMARY_FIELDS = [
               "run_number",
               "date",
