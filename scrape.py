@@ -102,7 +102,14 @@ KNOWN_DOCUMENTS_FIELDNAMES = [
     "document_url",
     "source_run_mode"
 ]
-
+URL_STATUS_FIELDNAMES = [
+    "url",
+    "last_working_date",
+    "last_working_docs_count",
+    "latest_status_code",
+    "latest_issue",
+    "url_file"
+]
 output_data = []
 raw_links = []
 issue_rows = []
