@@ -1,1 +1,2 @@
 date,run_mode,url_file,source_url,issue_type,status_code,documents_captured,error_message
+2026-06-25 17:30:23,full,documents_p1.csv,https://www.bookingholdings.com/sustainability/,FETCH_FAILED_STATUS_AFTER_RETRY,403,0,Non-200 status code and browser fallback captured 0 documents
