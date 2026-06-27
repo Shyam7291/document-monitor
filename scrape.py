@@ -136,6 +136,8 @@ known_source_urls = set()
 known_document_urls_before_run = set()
 known_source_urls_before_run = set()
 known_documents_to_append = []
+document_canonical_keys = {}
+document_canonical_keys_before_run = {}
 
 current_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
