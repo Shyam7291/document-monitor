@@ -4040,6 +4040,28 @@ if RUN_MODE == "full":
         document_was_known_before_run = current_url_key in known_document_urls_before_run
         already_in_diff = current_url_key in existing_diff_urls
 
+        canonical_key = canonical_document_key(document_url)
+        canonical_match = document_canonical_keys_before_run.get((source_key, canonical_key))
+
+        if canonical_match:
+            current_metadata_date = get_pdf_metadata_date(document_url)
+            previous_metadata_date = parse_canonical_metadata_date(
+                canonical_match.get("pdf_metadata_date", "")
+            )
+
+            # If canonical key was already known and metadata did not become newer,
+            # skip diff because only URL/hash/download number likely changed.
+            if current_metadata_date and previous_metadata_date and current_metadata_date <= previous_metadata_date:
+                log_diff_decision(
+                    document_title=document_title_for_log,
+                    document_url=document_url,
+                    source_url=source_url,
+                    decision="SKIPPED",
+                    reason="canonical_document_already_known_metadata_same_or_old",
+                    extra=f"canonical_key={canonical_key}, previous_metadata_date={canonical_match.get('pdf_metadata_date', '')}"
+                )
+                continue
+
         if not source_was_known_before_run:
             log_diff_decision(
                 document_title=document_title_for_log,
