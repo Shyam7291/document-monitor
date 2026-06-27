@@ -152,6 +152,7 @@ jobs:
             ${{ matrix.known_file }}
             ${{ matrix.summary_file }}
             ${{ matrix.status_file }}
+            ${{ matrix.canonical_file }}
 
   merge-results:
     if: ${{ always() }}
