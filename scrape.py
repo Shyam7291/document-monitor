@@ -1130,6 +1130,179 @@ def normalize_url_key(url):
     parsed = urlparse(url)
     return f"{parsed.scheme}://{parsed.netloc}{parsed.path}".lower()
 
+def canonical_document_key(url):
+    """
+    Build stable document identity for URLs where websites change cache/hash/download numbers.
+
+    Examples handled:
+    - /_09212b24e5fed151422edb1f6b2b6c4d/
+    - report_356.pdf
+    - report-356.pdf
+    - query parameters like ?f=20260527100716 are already ignored
+    """
+
+    parsed = urlparse(url or "")
+    path = parsed.path or ""
+
+    # Normalize random hash folder like /_09212b24e5fed151422edb1f6b2b6c4d/
+    path = re.sub(
+        r"/_[a-f0-9]{12,}/",
+        "/_ASSET_HASH/",
+        path,
+        flags=re.IGNORECASE
+    )
+
+    # Normalize trailing numeric version/download id before .pdf
+    # Example: Business_356.pdf -> Business_NUM.pdf
+    path = re.sub(
+        r"([_-])\d{3,}(?=\.pdf$)",
+        r"\1NUM",
+        path,
+        flags=re.IGNORECASE
+    )
+
+    return f"{parsed.scheme}://{parsed.netloc}{path}".lower()
+
+
+def metadata_date_to_string(metadata_date):
+    if not metadata_date:
+        return ""
+
+    try:
+        return metadata_date.strftime("%Y-%m-%d")
+    except Exception:
+        return ""
+
+
+def parse_canonical_metadata_date(raw_date):
+    if not raw_date:
+        return None
+
+    raw_date = str(raw_date).strip()
+
+    for fmt in ["%Y-%m-%d", "%Y-%m-%d %H:%M:%S"]:
+        try:
+            return datetime.strptime(raw_date, fmt)
+        except Exception:
+            pass
+
+    return None
+
+
+def load_document_canonical_keys():
+    """
+    Load canonical document identity file.
+
+    File format:
+    company,canonical_document_key,pdf_metadata_date
+    """
+
+    loaded = {}
+
+    if not os.path.exists(DOCUMENT_CANONICAL_FILE):
+        return loaded
+
+    try:
+        if os.path.getsize(DOCUMENT_CANONICAL_FILE) == 0:
+            return loaded
+    except Exception:
+        pass
+
+    try:
+        validate_csv_header(DOCUMENT_CANONICAL_FILE, DOCUMENT_CANONICAL_FIELDNAMES)
+
+        with open(DOCUMENT_CANONICAL_FILE, newline="", encoding="utf-8") as canonical_file:
+            reader = csv.DictReader(canonical_file)
+
+            for row in reader:
+                company = row.get("company", "")
+                canonical_key = row.get("canonical_document_key", "")
+
+                if not company or not canonical_key:
+                    continue
+
+                company_key = normalize_url_key(company)
+                loaded[(company_key, canonical_key)] = {
+                    "company": company,
+                    "canonical_document_key": canonical_key,
+                    "pdf_metadata_date": row.get("pdf_metadata_date", "")
+                }
+
+    except Exception as e:
+        print(f"Document canonical keys load error: {e}")
+
+    return loaded
+
+
+def queue_document_canonical_record(doc):
+    """
+    Store canonical key for all captured PDF links.
+
+    Only stores:
+    company,canonical_document_key,pdf_metadata_date
+    """
+
+    document_url = doc.get("document_url", "")
+    company = doc.get("company", "")
+
+    if not document_url or not company:
+        return
+
+    if ".pdf" not in document_url.lower():
+        return
+
+    company_key = normalize_url_key(company)
+    canonical_key = canonical_document_key(document_url)
+
+    if not company_key or not canonical_key:
+        return
+
+    metadata_date = get_pdf_metadata_date(document_url)
+    metadata_date_string = metadata_date_to_string(metadata_date)
+
+    key = (company_key, canonical_key)
+
+    existing = document_canonical_keys.get(key)
+
+    if not existing:
+        document_canonical_keys[key] = {
+            "company": company,
+            "canonical_document_key": canonical_key,
+            "pdf_metadata_date": metadata_date_string
+        }
+        return
+
+    existing_date = parse_canonical_metadata_date(existing.get("pdf_metadata_date", ""))
+
+    # Update stored metadata only if current metadata is newer.
+    if metadata_date and (not existing_date or metadata_date > existing_date):
+        existing["pdf_metadata_date"] = metadata_date_string
+
+    document_canonical_keys[key] = existing
+
+
+def save_document_canonical_keys():
+    """
+    Save canonical document keys file.
+    """
+
+    rows = list(document_canonical_keys.values())
+
+    rows.sort(
+        key=lambda r: (
+            r.get("company", ""),
+            r.get("canonical_document_key", "")
+        )
+    )
+
+    with open(DOCUMENT_CANONICAL_FILE, "w", newline="", encoding="utf-8") as canonical_file:
+        writer = csv.DictWriter(
+            canonical_file,
+            fieldnames=DOCUMENT_CANONICAL_FIELDNAMES
+        )
+        writer.writeheader()
+        writer.writerows(rows)
+
 def record_url_status(source_url, status_code, documents_captured, latest_issue=""):
     """
     Record latest status for a source URL during this run.
