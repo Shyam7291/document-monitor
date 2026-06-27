@@ -121,6 +121,9 @@ jobs:
           if [ -f p4_p5/output_p4_p5.csv ]; then
             cp p4_p5/output_p4_p5.csv "${OUTPUT_FILE}"
           fi
+          if [ -f p4_p5/document_canonical_keys_p4_p5.csv ]; then
+            cp p4_p5/document_canonical_keys_p4_p5.csv "${DOCUMENT_CANONICAL_FILE}"
+          fi
 
       - name: Set up Python
         uses: actions/setup-python@v5
