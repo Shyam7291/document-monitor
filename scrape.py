@@ -4368,5 +4368,7 @@ print(f"✅ Browser fallback enabled: {ENABLE_BROWSER_FALLBACK}")
 print(f"✅ Run {current_run_number}: {len(output_data)} documents captured")
 print(f"✅ PDF metadata diff filter enabled: {ENABLE_PDF_METADATA_DIFF_FILTER}")
 print(f"✅ PDF metadata recency days: {PDF_METADATA_RECENCY_DAYS}")
+print(f"✅ Document canonical file: {DOCUMENT_CANONICAL_FILE}")
+print(f"✅ Document canonical rows: {len(document_canonical_keys)}")
 print(f"✅ PDF metadata max bytes: {PDF_METADATA_MAX_BYTES}")
 
