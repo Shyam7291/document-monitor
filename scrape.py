@@ -4168,6 +4168,7 @@ if RUN_MODE == "full":
 if RUN_MODE in ["full", "seed"]:
     for r in output_data:
         queue_known_document_if_new(r)
+        queue_document_canonical_record(r)
 
 
 # SAVE output file
