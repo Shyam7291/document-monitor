@@ -121,6 +121,7 @@ jobs:
           if [ -f p4_p5/output_p4_p5.csv ]; then
             cp p4_p5/output_p4_p5.csv "${OUTPUT_FILE}"
           fi
+
           if [ -f p4_p5/document_canonical_keys_p4_p5.csv ]; then
             cp p4_p5/document_canonical_keys_p4_p5.csv "${DOCUMENT_CANONICAL_FILE}"
           fi
@@ -192,6 +193,12 @@ jobs:
               "url_file"
           ]
 
+          DOCUMENT_CANONICAL_FIELDS = [
+              "company",
+              "canonical_document_key",
+              "pdf_metadata_date"
+          ]
+
           SUMMARY_FIELDS = [
               "run_number",
               "date",
@@ -227,6 +234,12 @@ jobs:
           def read_csv(path):
               if not os.path.exists(path):
                   return []
+
+              try:
+                  if os.path.getsize(path) == 0:
+                      return []
+              except Exception:
+                  pass
 
               with open(path, newline="", encoding="utf-8") as f:
                   reader = csv.DictReader(f)
@@ -386,7 +399,6 @@ jobs:
                   existing["latest_issue"] = row.get("latest_issue", "")
                   existing["url_file"] = row.get("url_file", existing.get("url_file", ""))
 
-                  # Update last working only when URL captured documents in that shard run.
                   if row.get("last_working_date", ""):
                       existing["last_working_date"] = row.get("last_working_date", "")
                       existing["last_working_docs_count"] = row.get("last_working_docs_count", "")
@@ -404,6 +416,65 @@ jobs:
           )
 
           write_csv("p4_p5/url_status_p4_p5.csv", URL_STATUS_FIELDS, url_status_rows)
+
+          # -----------------------
+          # Merge document canonical keys
+          # -----------------------
+          canonical_rows_by_key = {}
+
+          for row in read_csv("p4_p5/document_canonical_keys_p4_p5.csv"):
+              company = row.get("company", "")
+              canonical_key = row.get("canonical_document_key", "")
+
+              if not company or not canonical_key:
+                  continue
+
+              key = (normalize_url_key(company), canonical_key)
+
+              canonical_rows_by_key[key] = {
+                  "company": company,
+                  "canonical_document_key": canonical_key,
+                  "pdf_metadata_date": row.get("pdf_metadata_date", "")
+              }
+
+          for file in glob.glob("shard_outputs/**/document_canonical_keys_p4_p5_*_work.csv", recursive=True):
+              for row in read_csv(file):
+                  company = row.get("company", "")
+                  canonical_key = row.get("canonical_document_key", "")
+
+                  if not company or not canonical_key:
+                      continue
+
+                  key = (normalize_url_key(company), canonical_key)
+
+                  existing = canonical_rows_by_key.get(key, {
+                      "company": company,
+                      "canonical_document_key": canonical_key,
+                      "pdf_metadata_date": ""
+                  })
+
+                  existing_date = existing.get("pdf_metadata_date", "")
+                  new_date = row.get("pdf_metadata_date", "")
+
+                  if new_date and (not existing_date or new_date > existing_date):
+                      existing["pdf_metadata_date"] = new_date
+
+                  canonical_rows_by_key[key] = existing
+
+          canonical_rows = list(canonical_rows_by_key.values())
+
+          canonical_rows.sort(
+              key=lambda r: (
+                  r.get("company", ""),
+                  r.get("canonical_document_key", "")
+              )
+          )
+
+          write_csv(
+              "p4_p5/document_canonical_keys_p4_p5.csv",
+              DOCUMENT_CANONICAL_FIELDS,
+              canonical_rows
+          )
 
           # -----------------------
           # Merge run summary as one P4/P5 total row
@@ -475,6 +546,7 @@ jobs:
           print(f"Final P4/P5 diff rows: {len(diff_rows)}")
           print(f"Final P4/P5 issues rows: {len(issue_rows)}")
           print(f"Final P4/P5 URL status rows: {len(url_status_rows)}")
+          print(f"Final P4/P5 canonical rows: {len(canonical_rows)}")
           print(f"Final P4/P5 shard summary rows found: {len(new_summary_rows)}")
           print("Final P4/P5 summary rows added: 1" if new_summary_rows else "Final P4/P5 summary rows added: 0")
           PY
@@ -492,6 +564,7 @@ jobs:
               Path("p4_p5/known_documents_p4_p5.csv"),
               Path("p4_p5/capture_issues_p4_p5.csv"),
               Path("p4_p5/url_status_p4_p5.csv"),
+              Path("p4_p5/document_canonical_keys_p4_p5.csv"),
               Path("diff_p4_p5.csv"),
           ]
 
@@ -576,7 +649,7 @@ jobs:
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
 
-          git add -A p4_p5/documents_p4_p5_*.csv p4_p5/output_p4_p5.csv p4_p5/known_documents_p4_p5.csv p4_p5/capture_issues_p4_p5.csv p4_p5/url_status_p4_p5.csv diff_p4_p5.csv run_summary_master.csv 2>/dev/null || true
+          git add -A p4_p5/documents_p4_p5_*.csv p4_p5/output_p4_p5.csv p4_p5/known_documents_p4_p5.csv p4_p5/capture_issues_p4_p5.csv p4_p5/url_status_p4_p5.csv p4_p5/document_canonical_keys_p4_p5.csv diff_p4_p5.csv run_summary_master.csv 2>/dev/null || true
 
           git commit -m "Update P4 P5 batch data" || echo "No changes to commit"
 
