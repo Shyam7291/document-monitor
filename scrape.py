@@ -114,6 +114,11 @@ URL_STATUS_FIELDNAMES = [
     "latest_issue",
     "url_file"
 ]
+DOCUMENT_CANONICAL_FIELDNAMES = [
+    "company",
+    "canonical_document_key",
+    "pdf_metadata_date"
+]
 output_data = []
 raw_links = []
 issue_rows = []
