@@ -29,6 +29,7 @@ jobs:
             known_file: known_documents_p4_p5_01_work.csv
             summary_file: run_summary_p4_p5_01_work.csv
             status_file: url_status_p4_p5_01_work.csv
+            canonical_file: document_canonical_keys_p4_p5_01_work.csv
 
           - shard: "02"
             target_url_file: p4_p5/documents_p4_p5_02.csv
@@ -38,6 +39,7 @@ jobs:
             known_file: known_documents_p4_p5_02_work.csv
             summary_file: run_summary_p4_p5_02_work.csv
             status_file: url_status_p4_p5_02_work.csv
+            canonical_file: document_canonical_keys_p4_p5_02_work.csv
 
           - shard: "03"
             target_url_file: p4_p5/documents_p4_p5_03.csv
@@ -47,6 +49,7 @@ jobs:
             known_file: known_documents_p4_p5_03_work.csv
             summary_file: run_summary_p4_p5_03_work.csv
             status_file: url_status_p4_p5_03_work.csv
+            canonical_file: document_canonical_keys_p4_p5_03_work.csv
 
           - shard: "04"
             target_url_file: p4_p5/documents_p4_p5_04.csv
@@ -56,6 +59,7 @@ jobs:
             known_file: known_documents_p4_p5_04_work.csv
             summary_file: run_summary_p4_p5_04_work.csv
             status_file: url_status_p4_p5_04_work.csv
+            canonical_file: document_canonical_keys_p4_p5_04_work.csv
 
           - shard: "05"
             target_url_file: p4_p5/documents_p4_p5_05.csv
@@ -65,6 +69,7 @@ jobs:
             known_file: known_documents_p4_p5_05_work.csv
             summary_file: run_summary_p4_p5_05_work.csv
             status_file: url_status_p4_p5_05_work.csv
+            canonical_file: document_canonical_keys_p4_p5_05_work.csv
 
           - shard: "06"
             target_url_file: p4_p5/documents_p4_p5_06.csv
@@ -74,6 +79,7 @@ jobs:
             known_file: known_documents_p4_p5_06_work.csv
             summary_file: run_summary_p4_p5_06_work.csv
             status_file: url_status_p4_p5_06_work.csv
+            canonical_file: document_canonical_keys_p4_p5_06_work.csv
 
     env:
       RUN_MODE: ${{ github.event.inputs.run_mode }}
