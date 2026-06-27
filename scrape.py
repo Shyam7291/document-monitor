@@ -3923,6 +3923,8 @@ def build_output_with_previous_non_target_rows(target_source_urls, current_run_o
 known_document_urls, known_source_urls = load_known_documents()
 known_document_urls_before_run = set(known_document_urls)
 known_source_urls_before_run = set(known_source_urls)
+document_canonical_keys = load_document_canonical_keys()
+document_canonical_keys_before_run = dict(document_canonical_keys)
 
 previous_output_by_company = load_previous_output_by_company()
 target_source_urls = []
