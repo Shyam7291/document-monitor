@@ -4238,6 +4238,7 @@ if RUN_MODE == "full":
 
 # APPEND known_documents.csv for seed/full runs
 append_known_documents()
+save_document_canonical_keys()
 save_url_status_file()
 
 
