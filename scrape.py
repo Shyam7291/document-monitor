@@ -62,6 +62,10 @@ ISSUES_FILE = os.environ.get("ISSUES_FILE", ISSUES_FILE).strip()
 DIFF_FILE = os.environ.get("DIFF_FILE", "diff.csv").strip()
 KNOWN_DOCUMENTS_FILE = os.environ.get("KNOWN_DOCUMENTS_FILE", "known_documents.csv").strip()
 REPORT_KEYWORDS_FILE = os.environ.get("REPORT_KEYWORDS_FILE", "report_keywords.csv").strip()
+DOCUMENT_CANONICAL_FILE = os.environ.get(
+    "DOCUMENT_CANONICAL_FILE",
+    "document_canonical_keys.csv"
+).strip()
 URL_STATUS_FILE = os.environ.get("URL_STATUS_FILE", "url_status.csv").strip()
 # Final clean summary file
 RUN_SUMMARY_FILE = os.environ.get("RUN_SUMMARY_FILE", "run_summary_master.csv").strip()
