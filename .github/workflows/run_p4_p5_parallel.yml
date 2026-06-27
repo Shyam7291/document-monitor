@@ -91,6 +91,7 @@ jobs:
       KNOWN_DOCUMENTS_FILE: ${{ matrix.known_file }}
       RUN_SUMMARY_FILE: ${{ matrix.summary_file }}
       URL_STATUS_FILE: ${{ matrix.status_file }}
+      DOCUMENT_CANONICAL_FILE: ${{ matrix.canonical_file }}
 
       ENABLE_DIFF_DECISION_LOGS: "true"
 
