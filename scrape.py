@@ -1236,10 +1236,14 @@ def load_document_canonical_keys():
 
 def queue_document_canonical_record(doc):
     """
-    Store canonical key for all captured PDF links.
+    Store canonical key for captured PDF links.
 
-    Only stores:
-    company,canonical_document_key,pdf_metadata_date
+    IMPORTANT:
+    Do not download/read PDF metadata here.
+    Metadata is expensive and should only be fetched during diff decision
+    for true new document candidates.
+
+    This function only uses metadata if it was already fetched and cached.
     """
 
     document_url = doc.get("document_url", "")
@@ -1257,8 +1261,15 @@ def queue_document_canonical_record(doc):
     if not company_key or not canonical_key:
         return
 
-    metadata_date = get_pdf_metadata_date(document_url)
-    metadata_date_string = metadata_date_to_string(metadata_date)
+    document_key = normalize_url_key(document_url)
+
+    metadata_date_string = ""
+
+    # Use cached metadata only. Do NOT call get_pdf_metadata_date() here.
+    if document_key in pdf_metadata_date_cache:
+        metadata_date_string = metadata_date_to_string(
+            pdf_metadata_date_cache.get(document_key)
+        )
 
     key = (company_key, canonical_key)
 
@@ -1272,10 +1283,13 @@ def queue_document_canonical_record(doc):
         }
         return
 
-    existing_date = parse_canonical_metadata_date(existing.get("pdf_metadata_date", ""))
+    existing_date = parse_canonical_metadata_date(
+        existing.get("pdf_metadata_date", "")
+    )
+    new_date = parse_canonical_metadata_date(metadata_date_string)
 
-    # Update stored metadata only if current metadata is newer.
-    if metadata_date and (not existing_date or metadata_date > existing_date):
+    # Update stored metadata only if current cached metadata is newer.
+    if new_date and (not existing_date or new_date > existing_date):
         existing["pdf_metadata_date"] = metadata_date_string
 
     document_canonical_keys[key] = existing
