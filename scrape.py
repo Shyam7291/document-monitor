@@ -4054,28 +4054,6 @@ if RUN_MODE == "full":
         document_was_known_before_run = current_url_key in known_document_urls_before_run
         already_in_diff = current_url_key in existing_diff_urls
 
-        canonical_key = canonical_document_key(document_url)
-        canonical_match = document_canonical_keys_before_run.get((source_key, canonical_key))
-
-        if canonical_match:
-            current_metadata_date = get_pdf_metadata_date(document_url)
-            previous_metadata_date = parse_canonical_metadata_date(
-                canonical_match.get("pdf_metadata_date", "")
-            )
-
-            # If canonical key was already known and metadata did not become newer,
-            # skip diff because only URL/hash/download number likely changed.
-            if current_metadata_date and previous_metadata_date and current_metadata_date <= previous_metadata_date:
-                log_diff_decision(
-                    document_title=document_title_for_log,
-                    document_url=document_url,
-                    source_url=source_url,
-                    decision="SKIPPED",
-                    reason="canonical_document_already_known_metadata_same_or_old",
-                    extra=f"canonical_key={canonical_key}, previous_metadata_date={canonical_match.get('pdf_metadata_date', '')}"
-                )
-                continue
-
         if not source_was_known_before_run:
             log_diff_decision(
                 document_title=document_title_for_log,
@@ -4111,16 +4089,55 @@ if RUN_MODE == "full":
             max_words=20
         )
 
+        canonical_key = canonical_document_key(document_url)
+        canonical_match = document_canonical_keys_before_run.get(
+            (source_key, canonical_key)
+        )
+
         add_to_diff = True
         metadata_extra = ""
 
+        current_metadata_date = None
+
         if ENABLE_PDF_METADATA_DIFF_FILTER:
-            add_to_diff = is_pdf_metadata_recent_for_diff(
-                document_url=document_url,
-                recency_days=PDF_METADATA_RECENCY_DAYS
+            current_metadata_date = get_pdf_metadata_date(document_url)
+
+            if current_metadata_date:
+                cutoff_date = datetime.now() - timedelta(days=PDF_METADATA_RECENCY_DAYS)
+                add_to_diff = current_metadata_date >= cutoff_date
+                metadata_extra = (
+                    f"pdf_metadata_date={metadata_date_to_string(current_metadata_date)}, "
+                    f"pdf_metadata_recent={add_to_diff}"
+                )
+            else:
+                # Per your requirement:
+                # If metadata is missing/unreadable, do not block diff.
+                add_to_diff = True
+                metadata_extra = "pdf_metadata_date=missing_or_unreadable, pdf_metadata_recent=allowed"
+
+        if canonical_match:
+            previous_metadata_date = parse_canonical_metadata_date(
+                canonical_match.get("pdf_metadata_date", "")
             )
 
-            metadata_extra = f"pdf_metadata_recent={add_to_diff}"
+            if current_metadata_date and previous_metadata_date:
+                if current_metadata_date <= previous_metadata_date:
+                    log_diff_decision(
+                        document_title=document_title_for_log,
+                        document_url=document_url,
+                        source_url=source_url,
+                        decision="SKIPPED",
+                        reason="canonical_document_already_known_metadata_same_or_old",
+                        extra=(
+                            f"canonical_key={canonical_key}, "
+                            f"previous_metadata_date={canonical_match.get('pdf_metadata_date', '')}, "
+                            f"current_metadata_date={metadata_date_to_string(current_metadata_date)}"
+                        )
+                    )
+                    continue
+
+            # If canonical match exists but previous metadata is blank,
+            # do not block diff. This avoids missing real updates.
 
         if add_to_diff:
             new_records.append({
@@ -4130,12 +4147,17 @@ if RUN_MODE == "full":
                 "document_url": document_url
             })
 
+            reason = "source_known_doc_new_metadata_recent"
+
+            if canonical_match:
+                reason = "canonical_document_known_but_metadata_new_or_unavailable"
+
             log_diff_decision(
                 document_title=document_title_for_diff,
                 document_url=document_url,
                 source_url=source_url,
                 decision="ADDED",
-                reason="source_known_doc_new_metadata_recent",
+                reason=reason,
                 extra=metadata_extra
             )
         else:
@@ -4144,7 +4166,7 @@ if RUN_MODE == "full":
                 document_url=document_url,
                 source_url=source_url,
                 decision="SKIPPED",
-                reason="pdf_metadata_not_recent_or_unreadable",
+                reason="pdf_metadata_not_recent",
                 extra=metadata_extra
             )
 
@@ -4152,31 +4174,6 @@ if RUN_MODE == "full":
                 f"DIFF SKIPPED BY PDF METADATA DATE → "
                 f"{document_title_for_diff} | {document_url}"
             )
-            document_title_for_diff = limit_document_title_words(
-                r.get("document_title", "Unknown Title"),
-                max_words=20
-            )
-
-            add_to_diff = True
-
-            if ENABLE_PDF_METADATA_DIFF_FILTER:
-                add_to_diff = is_pdf_metadata_recent_for_diff(
-                    document_url=document_url,
-                    recency_days=PDF_METADATA_RECENCY_DAYS
-                )
-
-            if add_to_diff:
-                new_records.append({
-                    "date": current_date,
-                    "company": source_url,
-                    "document_title": document_title_for_diff,
-                    "document_url": document_url
-                })
-            else:
-                print(
-                    f"DIFF SKIPPED BY PDF METADATA DATE → "
-                    f"{document_title_for_diff} | {document_url}"
-                )
 # Update known document queue for seed/full.
 # New source URLs are baselined into known_documents.csv but not added to diff.csv.
 if RUN_MODE in ["full", "seed"]:
