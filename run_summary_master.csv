@@ -148,3 +148,4 @@ run_number,date,run_mode,url_file,total_urls_processed,total_documents_captured,
 147,2026-06-30 17:23:33,full,documents_p1.csv,11,377,0,0,0,0,0,True,output.csv,raw_links.csv,capture_issues.csv
 148,2026-06-30 17:36:05,full,documents_p2.csv,66,2161,5,2,0,0,0,True,output_p2_work.csv,raw_links.csv,capture_issues_p2_work.csv
 149,2026-06-30 17:36:06,full,documents_p3.csv,75,4391,2,8,0,0,0,True,output_p3_work.csv,raw_links.csv,capture_issues_p3_work.csv
+150,2026-07-01 03:57:49,test,test_urls.csv,1,0,0,1,0,0,0,False,output_test.csv,raw_links_test.csv,capture_issues_test.csv
