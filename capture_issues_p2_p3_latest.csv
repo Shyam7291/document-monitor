@@ -1,9 +1,13 @@
 date,run_mode,url_file,source_url,issue_type,status_code,documents_captured,error_message
-2026-07-09 17:42:39,full,documents_p2.csv,https://www.goldfields.com/sustainability-data.php,FETCH_ERROR_AFTER_RETRY,,0,Request failed / timeout and browser fallback captured 0 documents
-2026-07-09 17:42:39,full,documents_p2.csv,https://evolutionmining.com/document-centre/#corporate-governance#reports,SUCCESS_ZERO_DOCS_AFTER_RETRY,200,0,Page opened successfully but no document links captured
-2026-07-09 17:42:38,full,documents_p3.csv,https://www.hyatt.com/world-of-care/en-US/policies-statements,FETCH_FAILED_STATUS_AFTER_RETRY,403,0,Non-200 status code and browser fallback captured 0 documents
-2026-07-09 17:42:38,full,documents_p3.csv,https://nextpower.com/sustainability,FETCH_FAILED_STATUS_AFTER_RETRY,429,0,Non-200 status code and browser fallback captured 0 documents
-2026-07-09 17:42:38,full,documents_p3.csv,https://www.epam.com/about/who-we-are/corporate-responsibility,FETCH_FAILED_STATUS_AFTER_RETRY,403,0,Non-200 status code and browser fallback captured 0 documents
-2026-07-09 17:42:38,full,documents_p3.csv,https://emerasustainability.com/,SUCCESS_ZERO_DOCS_AFTER_RETRY,200,0,Page opened successfully but no document links captured
-2026-07-09 17:42:38,full,documents_p3.csv,https://www.icicilombard.com/investor-relations,FETCH_FAILED_STATUS_AFTER_RETRY,403,0,Non-200 status code and browser fallback captured 0 documents
-2026-07-09 17:42:38,full,documents_p3.csv,https://nlmk.com/en/sustainability/,SUCCESS_ZERO_DOCS_AFTER_RETRY,200,0,Page opened successfully but no document links captured
+2026-07-10 17:31:50,full,documents_p2.csv,https://www.coalindia.in/esg/,FETCH_FAILED_STATUS_AFTER_RETRY,403,0,Non-200 status code and browser fallback captured 0 documents
+2026-07-10 17:31:50,full,documents_p2.csv,https://www.goldfields.com/sustainability-data.php,FETCH_ERROR_AFTER_RETRY,,0,Request failed / timeout and browser fallback captured 0 documents
+2026-07-10 17:31:50,full,documents_p2.csv,https://evolutionmining.com/document-centre/#corporate-governance#reports,SUCCESS_ZERO_DOCS_AFTER_RETRY,200,0,Page opened successfully but no document links captured
+2026-07-10 17:31:50,full,documents_p3.csv,https://www.alliantenergy.com/who-we-are/responsibility-report,FETCH_FAILED_STATUS_AFTER_RETRY,403,0,Non-200 status code and browser fallback captured 0 documents
+2026-07-10 17:31:50,full,documents_p3.csv,https://www.hyatt.com/world-of-care/en-US/policies-statements,FETCH_FAILED_STATUS_AFTER_RETRY,403,0,Non-200 status code and browser fallback captured 0 documents
+2026-07-10 17:31:50,full,documents_p3.csv,https://nextpower.com/sustainability,FETCH_FAILED_STATUS_AFTER_RETRY,429,0,Non-200 status code and browser fallback captured 0 documents
+2026-07-10 17:31:50,full,documents_p3.csv,https://www.epam.com/about/who-we-are/corporate-responsibility,FETCH_FAILED_STATUS_AFTER_RETRY,403,0,Non-200 status code and browser fallback captured 0 documents
+2026-07-10 17:31:50,full,documents_p3.csv,https://emerasustainability.com/,SUCCESS_ZERO_DOCS_AFTER_RETRY,200,0,Page opened successfully but no document links captured
+2026-07-10 17:31:50,full,documents_p3.csv,https://www.bollore.com/en/assemblees-generales/,FETCH_FAILED_STATUS_AFTER_RETRY,403,0,Non-200 status code and browser fallback captured 0 documents
+2026-07-10 17:31:50,full,documents_p3.csv,https://www.bollore.com/en/publications-csr/,FETCH_FAILED_STATUS_AFTER_RETRY,403,0,Non-200 status code and browser fallback captured 0 documents
+2026-07-10 17:31:50,full,documents_p3.csv,https://www.icicilombard.com/investor-relations,FETCH_FAILED_STATUS_AFTER_RETRY,403,0,Non-200 status code and browser fallback captured 0 documents
+2026-07-10 17:31:50,full,documents_p3.csv,https://nlmk.com/en/sustainability/,SUCCESS_ZERO_DOCS_AFTER_RETRY,200,0,Page opened successfully but no document links captured
