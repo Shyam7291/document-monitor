@@ -4090,12 +4090,14 @@ if RUN_MODE == "full":
         )
 
         canonical_key = canonical_document_key(document_url)
+
         canonical_match = document_canonical_keys_before_run.get(
             (source_key, canonical_key)
         )
 
         add_to_diff = True
         metadata_extra = ""
+        canonical_reason = "canonical_key_not_previously_known"
 
         current_metadata_date = None
 
@@ -4103,76 +4105,107 @@ if RUN_MODE == "full":
             current_metadata_date = get_pdf_metadata_date(document_url)
 
             if current_metadata_date:
-                cutoff_date = datetime.now() - timedelta(days=PDF_METADATA_RECENCY_DAYS)
+                cutoff_date = datetime.now() - timedelta(
+                    days=PDF_METADATA_RECENCY_DAYS
+                )
+
                 add_to_diff = current_metadata_date >= cutoff_date
+
                 metadata_extra = (
-                    f"pdf_metadata_date={metadata_date_to_string(current_metadata_date)}, "
+                    f"pdf_metadata_date="
+                    f"{metadata_date_to_string(current_metadata_date)}, "
                     f"pdf_metadata_recent={add_to_diff}"
                 )
             else:
-                # Per your requirement:
-                # If metadata is missing/unreadable, do not block diff.
+                # If metadata is unavailable and the canonical key is genuinely
+                # new, metadata should not block the normal diff decision.
                 add_to_diff = True
-                metadata_extra = "pdf_metadata_date=missing_or_unreadable, pdf_metadata_recent=allowed"
+
+                metadata_extra = (
+                    "pdf_metadata_date=missing_or_unreadable, "
+                    "pdf_metadata_recent=allowed"
+                )
 
         if canonical_match:
+            previous_metadata_raw = canonical_match.get(
+                "pdf_metadata_date",
+                ""
+            )
+
             previous_metadata_date = parse_canonical_metadata_date(
-                canonical_match.get("pdf_metadata_date", "")
-            )
-
-            if current_metadata_date and previous_metadata_date:
-                if current_metadata_date <= previous_metadata_date:
-                    log_diff_decision(
-                        document_title=document_title_for_log,
-                        document_url=document_url,
-                        source_url=source_url,
-                        decision="SKIPPED",
-                        reason="canonical_document_already_known_metadata_same_or_old",
-                        extra=(
-                            f"canonical_key={canonical_key}, "
-                            f"previous_metadata_date={canonical_match.get('pdf_metadata_date', '')}, "
-                            f"current_metadata_date={metadata_date_to_string(current_metadata_date)}"
-                        )
-                    )
-                    continue
-
-            # If canonical match exists but previous metadata is blank,
-            # do not block diff. This avoids missing real updates.
-
-        if add_to_diff:
-            new_records.append({
-                "date": current_date,
-                "company": source_url,
-                "document_title": document_title_for_diff,
-                "document_url": document_url
-            })
-
-            reason = "source_known_doc_new_metadata_recent"
-
-            if canonical_match:
-                reason = "canonical_document_known_but_metadata_new_or_unavailable"
-
-            log_diff_decision(
-                document_title=document_title_for_diff,
-                document_url=document_url,
-                source_url=source_url,
-                decision="ADDED",
-                reason=reason,
-                extra=metadata_extra
-            )
-        else:
-            log_diff_decision(
-                document_title=document_title_for_diff,
-                document_url=document_url,
-                source_url=source_url,
-                decision="SKIPPED",
-                reason="pdf_metadata_not_recent",
-                extra=metadata_extra
+                previous_metadata_raw
             )
 
             print(
-                f"DIFF SKIPPED BY PDF METADATA DATE → "
-                f"{document_title_for_diff} | {document_url}"
+                f"CANONICAL COMPARISON → "
+                f"canonical_key={canonical_key} | "
+                f"previous_metadata={previous_metadata_raw or 'MISSING'} | "
+                f"current_metadata="
+                f"{metadata_date_to_string(current_metadata_date) if current_metadata_date else 'MISSING'} | "
+                f"doc={document_url}"
+            )
+
+            # Canonical identity was already known, but its stored metadata
+            # was blank. Treat the changed URL as the same document.
+            # The canonical record can still be updated later from the cache.
+            if not previous_metadata_date:
+                log_diff_decision(
+                    document_title=document_title_for_log,
+                    document_url=document_url,
+                    source_url=source_url,
+                    decision="SKIPPED",
+                    reason="canonical_match_previous_metadata_missing",
+                    extra=(
+                        f"canonical_key={canonical_key}, "
+                        f"current_metadata="
+                        f"{metadata_date_to_string(current_metadata_date) if current_metadata_date else 'missing'}"
+                    )
+                )
+                continue
+
+            # Canonical identity and previous metadata exist, but current
+            # metadata is unreadable. Treat it as the same known document.
+            if not current_metadata_date:
+                log_diff_decision(
+                    document_title=document_title_for_log,
+                    document_url=document_url,
+                    source_url=source_url,
+                    decision="SKIPPED",
+                    reason="canonical_match_current_metadata_missing",
+                    extra=(
+                        f"canonical_key={canonical_key}, "
+                        f"previous_metadata={previous_metadata_raw}"
+                    )
+                )
+                continue
+
+            # Same or older metadata means only the document URL/hash changed.
+            if current_metadata_date <= previous_metadata_date:
+                log_diff_decision(
+                    document_title=document_title_for_log,
+                    document_url=document_url,
+                    source_url=source_url,
+                    decision="SKIPPED",
+                    reason="canonical_match_metadata_same_or_old",
+                    extra=(
+                        f"canonical_key={canonical_key}, "
+                        f"previous_metadata={previous_metadata_raw}, "
+                        f"current_metadata="
+                        f"{metadata_date_to_string(current_metadata_date)}"
+                    )
+                )
+                continue
+
+            # Canonical identity exists, but the current PDF metadata date
+            # is truly newer than the previously stored date.
+            canonical_reason = "canonical_match_metadata_newer"
+
+            print(
+                f"CANONICAL UPDATED DOCUMENT → "
+                f"previous_metadata={previous_metadata_raw} | "
+                f"current_metadata="
+                f"{metadata_date_to_string(current_metadata_date)} | "
+                f"doc={document_url}"
             )
 # Update known document queue for seed/full.
 # New source URLs are baselined into known_documents.csv but not added to diff.csv.
