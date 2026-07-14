@@ -4207,6 +4207,48 @@ if RUN_MODE == "full":
                 f"{metadata_date_to_string(current_metadata_date)} | "
                 f"doc={document_url}"
             )
+            if add_to_diff:
+            new_records.append({
+                "date": current_date,
+                "company": source_url,
+                "document_title": document_title_for_diff,
+                "document_url": document_url
+            })
+
+            if canonical_match:
+                diff_reason = canonical_reason
+            else:
+                diff_reason = "source_known_doc_new_metadata_recent_or_unavailable"
+
+            log_diff_decision(
+                document_title=document_title_for_diff,
+                document_url=document_url,
+                source_url=source_url,
+                decision="ADDED",
+                reason=diff_reason,
+                extra=(
+                    f"canonical_key={canonical_key}, "
+                    f"{metadata_extra}"
+                )
+            )
+
+        else:
+            log_diff_decision(
+                document_title=document_title_for_diff,
+                document_url=document_url,
+                source_url=source_url,
+                decision="SKIPPED",
+                reason="pdf_metadata_not_recent",
+                extra=(
+                    f"canonical_key={canonical_key}, "
+                    f"{metadata_extra}"
+                )
+            )
+
+            print(
+                f"DIFF SKIPPED BY PDF METADATA DATE → "
+                f"{document_title_for_diff} | {document_url}"
+            )
 # Update known document queue for seed/full.
 # New source URLs are baselined into known_documents.csv but not added to diff.csv.
 if RUN_MODE in ["full", "seed"]:
