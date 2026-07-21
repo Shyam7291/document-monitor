@@ -4214,7 +4214,7 @@ if RUN_MODE == "full":
 
             # Same or older metadata means that only the document
             # URL/hash/download number changed.
-            if current_metadata_date <= previous_metadata_date:
+            if current_metadata_date.date() <= previous_metadata_date.date():
                 log_diff_decision(
                     document_title=document_title_for_log,
                     document_url=document_url,
