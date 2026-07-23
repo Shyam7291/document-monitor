@@ -231,3 +231,4 @@ run_number,date,run_mode,url_file,total_urls_processed,total_documents_captured,
 230,2026-07-22 16:55:57,full,documents_p1.csv,11,374,0,1,0,0,0,True,output.csv,raw_links.csv,capture_issues.csv
 231,2026-07-22 17:09:08,full,documents_p3.csv,75,4308,0,9,0,0,0,True,output_p3_work.csv,raw_links.csv,capture_issues_p3_work.csv
 232,2026-07-22 17:09:07,full,documents_p2.csv,66,2067,0,3,0,0,0,True,output_p2_work.csv,raw_links.csv,capture_issues_p2_work.csv
+233,2026-07-23 03:42:02,full,p4_p5_total,4948,72925,61,2171,0,0,0,false,p4_p5/output_p4_p5.csv,,p4_p5/capture_issues_p4_p5.csv
