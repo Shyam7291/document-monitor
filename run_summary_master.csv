@@ -439,3 +439,4 @@ run_number,date,run_mode,url_file,total_urls_processed,total_documents_captured,
 438,2026-09-24 19:25:04,full,documents_p1.csv,11,381,0,0,0,0,0,True,output.csv,raw_links.csv,capture_issues.csv
 439,2026-09-24 19:37:35,full,documents_p2.csv,66,2116,1,4,0,0,0,True,output_p2_work.csv,raw_links.csv,capture_issues_p2_work.csv
 440,2026-09-24 19:37:30,full,documents_p3.csv,75,4165,1,8,0,0,0,True,output_p3_work.csv,raw_links.csv,capture_issues_p3_work.csv
+441,2026-09-25 03:43:19,full,p4_p5_total,4948,72143,191,2241,0,0,0,false,p4_p5/output_p4_p5.csv,,p4_p5/capture_issues_p4_p5.csv
