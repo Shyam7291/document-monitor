@@ -444,3 +444,5 @@ run_number,date,run_mode,url_file,total_urls_processed,total_documents_captured,
 443,2026-09-25 19:39:21,full,documents_p2.csv,66,2116,2,5,0,0,0,True,output_p2_work.csv,raw_links.csv,capture_issues_p2_work.csv
 444,2026-09-25 19:39:18,full,documents_p3.csv,75,4210,0,9,0,0,0,True,output_p3_work.csv,raw_links.csv,capture_issues_p3_work.csv
 445,2026-09-26 18:40:36,full,documents_p1.csv,11,382,0,0,0,0,0,True,output.csv,raw_links.csv,capture_issues.csv
+446,2026-09-26 18:52:53,full,documents_p2.csv,66,2118,0,4,0,0,0,True,output_p2_work.csv,raw_links.csv,capture_issues_p2_work.csv
+447,2026-09-26 18:52:47,full,documents_p3.csv,75,4206,0,8,0,0,0,True,output_p3_work.csv,raw_links.csv,capture_issues_p3_work.csv
