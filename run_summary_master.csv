@@ -466,3 +466,5 @@ run_number,date,run_mode,url_file,total_urls_processed,total_documents_captured,
 465,2026-10-02 20:18:01,full,documents_p2.csv,66,2118,0,4,0,0,0,True,output_p2_work.csv,raw_links.csv,capture_issues_p2_work.csv
 466,2026-10-02 20:17:59,full,documents_p3.csv,75,4155,0,10,0,0,0,True,output_p3_work.csv,raw_links.csv,capture_issues_p3_work.csv
 467,2026-10-03 18:47:00,full,documents_p1.csv,11,386,0,0,0,0,0,True,output.csv,raw_links.csv,capture_issues.csv
+468,2026-10-03 18:59:22,full,documents_p2.csv,66,2118,0,4,0,0,0,True,output_p2_work.csv,raw_links.csv,capture_issues_p2_work.csv
+469,2026-10-03 18:59:24,full,documents_p3.csv,75,4151,0,10,0,0,0,True,output_p3_work.csv,raw_links.csv,capture_issues_p3_work.csv
