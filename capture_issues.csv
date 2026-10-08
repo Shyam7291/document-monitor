@@ -1,1 +1,4 @@
 date,run_mode,url_file,source_url,issue_type,status_code,documents_captured,error_message
+2026-10-08 20:45:46,full,documents_p1.csv,https://investors.broadcom.com/financial-information/tax-information,FETCH_ERROR_AFTER_RETRY,,0,Request failed / timeout and browser fallback captured 0 documents
+2026-10-08 20:45:46,full,documents_p1.csv,https://www.aramco.com/en/sustainability/sustainability-report,FETCH_ERROR_AFTER_RETRY,,0,Request failed / timeout and browser fallback captured 0 documents
+2026-10-08 20:45:46,full,documents_p1.csv,https://www.aramco.com/en/investors/reports-and-presentations,FETCH_ERROR_AFTER_RETRY,,0,Request failed / timeout and browser fallback captured 0 documents
