@@ -5,9 +5,12 @@ import re
 import html
 import time
 from datetime import datetime, timedelta
-from io import BytesIO
 from bs4 import BeautifulSoup
-from urllib.parse import urljoin, urlparse, unquote
+from urllib.parse import urljoin, urlparse, unquote, urlsplit, urlunsplit, parse_qsl, urlencode
+import json
+import tempfile
+import shutil
+from contextlib import contextmanager
 
 # =========================
 # RUN MODE CONFIGURATION
@@ -24,10 +27,10 @@ SLEEP_SECONDS = float(os.environ.get("SLEEP_SECONDS", "2"))
 # Retry failed URLs once after the first pass
 RETRY_FAILED_URLS = os.environ.get("RETRY_FAILED_URLS", "true").strip().lower() == "true"
 RETRY_SLEEP_SECONDS = float(os.environ.get("RETRY_SLEEP_SECONDS", "10"))
-# Add to diff.csv only if PDF Created/Modified metadata date is recent
+# Legacy metadata settings retained for compatibility; ignored in header-only mode.
 ENABLE_PDF_METADATA_DIFF_FILTER = os.environ.get(
     "ENABLE_PDF_METADATA_DIFF_FILTER",
-    "true"
+    "false"
 ).strip().lower() == "true"
 
 PDF_METADATA_RECENCY_DAYS = int(os.environ.get("PDF_METADATA_RECENCY_DAYS", "60"))
@@ -197,99 +200,47 @@ IMAGE_OR_ASSET_EXTENSIONS = (
 
 
 def fetch_url(source_url):
-    """
-    Safe fetch logic.
-
-    Default:
-    - Use old simple requests.get() behavior for all normal URLs.
-
-    Special:
-    - Use browser-like headers + retry only for EQT ESG site,
-      because EQT was timing out with normal request.
-
-    Extra:
-    - If a normal site returns 403 / 406 / 429,
-      retry once with browser-like headers.
-      This helps intermittent blocking without changing behavior for normal 200 pages.
-    """
-
-    source_lower = source_url.lower()
-
-    # Special handling only for EQT ESG site
-    if "esg.eqt.com" in source_lower:
+    """Fetch bounded HTML only. Known document URLs are not GET-fetched."""
+    if is_document_link(source_url):
+        return None
+    for attempt in range(2):
         try:
-            response = requests.get(
-                source_url,
-                timeout=30,
-                headers=HEADERS
-            )
-            return response
-
-        except requests.exceptions.Timeout as e:
-            print(f"EQT timeout while fetching {source_url}: {e}")
-            print("Retrying EQT once with longer timeout...")
-
-            try:
-                response = requests.get(
-                    source_url,
-                    timeout=60,
-                    headers=HEADERS
-                )
-                return response
-
-            except Exception as retry_error:
-                print(f"EQT retry failed: {retry_error}")
+            response = requests.get(source_url, headers=HEADERS, timeout=(10, 25), stream=True)
+            if response.status_code in (403, 406, 429, 500, 502, 503, 504) and attempt == 0:
+                response.close()
+                time.sleep(min(RETRY_SLEEP_SECONDS, 5))
+                continue
+            content_type = response.headers.get('Content-Type', '').lower()
+            disposition = response.headers.get('Content-Disposition', '').lower()
+            if 'application/pdf' in content_type or 'attachment' in disposition or is_document_link(response.url):
+                response.close()
+                print('Document body not downloaded for source URL:', source_url)
                 return None
-
-        except requests.exceptions.ConnectionError as e:
-            print(f"EQT connection error while fetching {source_url}: {e}")
-            return None
-
-        except Exception as e:
-            print(f"EQT request error while fetching {source_url}: {e}")
-            return None
-
-    # Default old behavior for all other websites
-    try:
-        response = requests.get(source_url, timeout=15)
-
-        # Generic retry only when site blocks simple request
-        if response.status_code in [403, 406, 429]:
-            print(f"Status {response.status_code} detected. Retrying with browser-like headers...")
-
+            chunks = []
+            size = 0
+            limit = int(os.environ.get('HTML_MAX_BYTES', str(8 * 1024 * 1024)))
             try:
-                parsed = urlparse(source_url)
-
-                retry_headers = HEADERS.copy()
-                retry_headers["Referer"] = f"{parsed.scheme}://{parsed.netloc}/"
-
-                retry_response = requests.get(
-                    source_url,
-                    timeout=25,
-                    headers=retry_headers
-                )
-
-                print("Retry status:", retry_response.status_code)
-
-                return retry_response
-
-            except Exception as retry_error:
-                print(f"Blocked-status retry failed: {retry_error}")
+                for chunk in response.iter_content(chunk_size=65536):
+                    if not chunk:
+                        continue
+                    if not chunks and chunk.lstrip().startswith(b'%PDF-'):
+                        print('Unexpected PDF response; stopped after first bounded chunk:', source_url)
+                        return None
+                    size += len(chunk)
+                    if size > limit:
+                        print('HTML response exceeds configured limit:', source_url)
+                        return None
+                    chunks.append(chunk)
+                response._content = b''.join(chunks)
+                response._content_consumed = True
                 return response
-
-        return response
-
-    except requests.exceptions.Timeout as e:
-        print(f"Timeout while fetching {source_url}: {e}")
-        return None
-
-    except requests.exceptions.ConnectionError as e:
-        print(f"Connection error while fetching {source_url}: {e}")
-        return None
-
-    except Exception as e:
-        print(f"Request error while fetching {source_url}: {e}")
-        return None
+            finally:
+                response.close()
+        except requests.RequestException as exc:
+            print('Source fetch failed:', exc)
+            if attempt == 0:
+                time.sleep(min(RETRY_SLEEP_SECONDS, 5))
+    return None
 
 
 def add_issue(source_url, issue_type, status_code="", documents_captured=0, error_message=""):
@@ -367,7 +318,7 @@ def load_known_documents():
                     loaded_document_urls.add(normalize_url_key(document_url))
 
                 if company:
-                    loaded_source_urls.add(normalize_url_key(company))
+                    loaded_source_urls.add(normalize_source_key(company))
 
 
     except Exception as e:
@@ -392,7 +343,7 @@ def append_known_documents():
 
     validate_csv_header(KNOWN_DOCUMENTS_FILE, KNOWN_DOCUMENTS_FIELDNAMES)
 
-    file_exists = os.path.exists(KNOWN_DOCUMENTS_FILE)
+    file_exists = os.path.exists(KNOWN_DOCUMENTS_FILE) and os.path.getsize(KNOWN_DOCUMENTS_FILE) > 0
 
     for record in known_documents_to_append:
         extra_keys = set(record.keys()) - set(KNOWN_DOCUMENTS_FIELDNAMES)
@@ -406,7 +357,7 @@ def append_known_documents():
                 f"Record: {record}"
             )
 
-    with open(KNOWN_DOCUMENTS_FILE, "a", newline="", encoding="utf-8") as known_file:
+    with atomic_open(KNOWN_DOCUMENTS_FILE, "a", newline="", encoding="utf-8") as known_file:
         writer = csv.DictWriter(known_file, fieldnames=KNOWN_DOCUMENTS_FIELDNAMES)
 
         if not file_exists:
@@ -511,7 +462,7 @@ def queue_known_document_if_new(doc):
         return
 
     known_document_urls.add(document_key)
-    company_key = normalize_url_key(doc.get("company", ""))
+    company_key = normalize_source_key(doc.get("company", ""))
     
     if company_key:
         known_source_urls.add(company_key)
@@ -607,96 +558,8 @@ pdf_metadata_date_cache = {}
 
 
 def get_pdf_metadata_date(document_url):
-    """
-    Download PDF and read Created/Modified metadata.
-
-    Returns datetime object if /CreationDate or /ModDate is found.
-    Returns None if metadata is missing/unreadable.
-    """
-
-    document_key = normalize_url_key(document_url)
-
-    if document_key in pdf_metadata_date_cache:
-        return pdf_metadata_date_cache[document_key]
-
-    metadata_date = None
-
-    try:
-        response = requests.get(
-            document_url,
-            timeout=45,
-            headers=HEADERS,
-            stream=True
-        )
-
-        if response.status_code != 200:
-            print(f"PDF metadata fetch failed status {response.status_code}: {document_url}")
-            pdf_metadata_date_cache[document_key] = None
-            return None
-
-        content_length = response.headers.get("Content-Length")
-
-        if content_length:
-            try:
-                if int(content_length) > PDF_METADATA_MAX_BYTES:
-                    print(f"PDF metadata skipped large file: {document_url}")
-                    pdf_metadata_date_cache[document_key] = None
-                    return None
-            except Exception:
-                pass
-
-        pdf_bytes = response.content
-
-        if len(pdf_bytes) > PDF_METADATA_MAX_BYTES:
-            print(f"PDF metadata skipped large downloaded file: {document_url}")
-            pdf_metadata_date_cache[document_key] = None
-            return None
-
-        try:
-            from PyPDF2 import PdfReader
-        except Exception as import_error:
-            print(f"PyPDF2 not available for PDF metadata: {import_error}")
-            pdf_metadata_date_cache[document_key] = None
-            return None
-
-        reader = PdfReader(BytesIO(pdf_bytes))
-        metadata = reader.metadata
-
-        if metadata:
-            created_raw = metadata.get("/CreationDate")
-            modified_raw = metadata.get("/ModDate")
-
-            created_date = parse_pdf_metadata_date(created_raw)
-            modified_date = parse_pdf_metadata_date(modified_raw)
-
-            available_metadata_dates = [
-                d for d in [created_date, modified_date]
-                if d is not None
-            ]
-            if available_metadata_dates:
-                metadata_date = max(available_metadata_dates)
-            else:
-                metadata_date = None
-                print(
-                    f"PDF metadata raw dates → "
-                    f"Created={created_raw}, Modified={modified_raw}, "
-                    f"Selected={metadata_date.date() if metadata_date else None} | {document_url}"
-                )
-
-
-
-            if metadata_date:
-                print(f"PDF metadata date found → {metadata_date.date()} | {document_url}")
-            else:
-                print(f"PDF metadata date missing/unreadable: {document_url}")
-        else:
-            print(f"PDF metadata not available: {document_url}")
-
-    except Exception as e:
-        print(f"PDF metadata read error: {e} | {document_url}")
-
-    pdf_metadata_date_cache[document_key] = metadata_date
-    return metadata_date
+    # Compatibility shim. Header-only mode NEVER fetches embedded PDF metadata.
+    return None
 
 
 def is_pdf_metadata_recent_for_diff(document_url, recency_days=60):
@@ -919,7 +782,8 @@ def title_quality_score(title):
 
     score = 0
 
-    score += min(len(title), 80)
+    score += min(len(title), 50)
+    score -= max(0, len(title.split()) - 15) * 8
 
     useful_words = [
         "annual",
@@ -1015,7 +879,12 @@ def choose_best_title_from_candidates(candidates):
             continue
 
         score = title_quality_score(title)
-
+        if score <= 0:
+            continue
+        if 'link_text' in source or 'aria' in source:
+            score += 25
+        if 'context' in source and len(title.split()) > 20:
+            score -= 100
         if score <= 0:
             continue
 
@@ -1087,34 +956,12 @@ def collect_text_candidates_from_container(container):
 
 
 def get_title_from_html_context(link):
-    row = link.find_parent("tr")
-    if row:
-        row_candidates = collect_text_candidates_from_container(row)
-
-        if row_candidates:
-            return max(row_candidates, key=len)
-
-    li = link.find_parent("li")
-    if li:
-        li_candidates = collect_text_candidates_from_container(li)
-
-        if li_candidates:
-            return max(li_candidates, key=len)
-
-    current = link.parent
-    levels_checked = 0
-
-    while current and levels_checked < 5:
-        if current.name in ["div", "section", "article", "p"]:
-            block_candidates = collect_text_candidates_from_container(current)
-
-            if block_candidates:
-                return max(block_candidates, key=len)
-
-        current = current.parent
-        levels_checked += 1
-
-    return ""
+    for container in [link.find_parent('tr'), link.find_parent('li'), link.find_parent('article'), link.parent]:
+        if container:
+            candidates = [t for t in collect_text_candidates_from_container(container) if len(t.split()) <= 20]
+            if candidates:
+                return max(candidates, key=title_quality_score)
+    return ''
 
 
 def get_link_text_title(link):
@@ -1127,41 +974,17 @@ def get_link_text_title(link):
 
 
 def normalize_url_key(url):
-    parsed = urlparse(url)
-    return f"{parsed.scheme}://{parsed.netloc}{parsed.path}".lower()
+    p = urlsplit((url or '').strip())
+    # Keep query ordering and encoding: signed URLs may depend on both.
+    return urlunsplit((p.scheme.lower(), p.netloc.lower(), p.path, p.query, ''))
+
+def normalize_source_key(url):
+    p = urlsplit((url or '').strip())
+    return normalize_url_key(url) + ('#' + p.fragment if p.fragment else '')
 
 def canonical_document_key(url):
-    """
-    Build stable document identity for URLs where websites change cache/hash/download numbers.
-
-    Examples handled:
-    - /_09212b24e5fed151422edb1f6b2b6c4d/
-    - report_356.pdf
-    - report-356.pdf
-    - query parameters like ?f=20260527100716 are already ignored
-    """
-
-    parsed = urlparse(url or "")
-    path = parsed.path or ""
-
-    # Normalize random hash folder like /_09212b24e5fed151422edb1f6b2b6c4d/
-    path = re.sub(
-        r"/_[a-f0-9]{12,}/",
-        "/_ASSET_HASH/",
-        path,
-        flags=re.IGNORECASE
-    )
-
-    # Normalize trailing numeric version/download id before .pdf
-    # Example: Business_356.pdf -> Business_NUM.pdf
-    path = re.sub(
-        r"([_-])\d{3,}(?=\.pdf$)",
-        r"\1NUM",
-        path,
-        flags=re.IGNORECASE
-    )
-
-    return f"{parsed.scheme}://{parsed.netloc}{path}".lower()
+    # Conservative identity: never erase years, numeric IDs or hash folders.
+    return normalize_url_key(url)
 
 
 def metadata_date_to_string(metadata_date):
@@ -1221,7 +1044,7 @@ def load_document_canonical_keys():
                 if not company or not canonical_key:
                     continue
 
-                company_key = normalize_url_key(company)
+                company_key = normalize_source_key(company)
                 loaded[(company_key, canonical_key)] = {
                     "company": company,
                     "canonical_document_key": canonical_key,
@@ -1255,7 +1078,7 @@ def queue_document_canonical_record(doc):
     if ".pdf" not in document_url.lower():
         return
 
-    company_key = normalize_url_key(company)
+    company_key = normalize_source_key(company)
     canonical_key = canonical_document_key(document_url)
 
     if not company_key or not canonical_key:
@@ -1309,7 +1132,7 @@ def save_document_canonical_keys():
         )
     )
 
-    with open(DOCUMENT_CANONICAL_FILE, "w", newline="", encoding="utf-8") as canonical_file:
+    with atomic_open(DOCUMENT_CANONICAL_FILE, "w", newline="", encoding="utf-8") as canonical_file:
         writer = csv.DictWriter(
             canonical_file,
             fieldnames=DOCUMENT_CANONICAL_FIELDNAMES
@@ -1327,7 +1150,7 @@ def record_url_status(source_url, status_code, documents_captured, latest_issue=
     if not source_url:
         return
 
-    source_key = normalize_url_key(source_url)
+    source_key = normalize_source_key(source_url)
 
     if documents_captured > 0:
         latest_issue = ""
@@ -1413,7 +1236,7 @@ def save_url_status_file():
         )
     )
 
-    with open(URL_STATUS_FILE, "w", newline="", encoding="utf-8") as status_file:
+    with atomic_open(URL_STATUS_FILE, "w", newline="", encoding="utf-8") as status_file:
         writer = csv.DictWriter(status_file, fieldnames=URL_STATUS_FIELDNAMES)
         writer.writeheader()
         writer.writerows(final_rows)
@@ -1429,6 +1252,7 @@ def mark_document_seen(document_url):
     """
 
     duplicate_key = normalize_url_key(document_url)
+    source_discoveries.add(duplicate_key)
 
     if duplicate_key in global_seen_document_urls:
         return False
@@ -1440,6 +1264,7 @@ def mark_document_seen(document_url):
 def get_best_title_with_source(link, full_url, source_url):
     html_title = get_title_from_html_context(link)
     link_text = get_link_text_title(link)
+    accessible_title = normalize_text(link.get('aria-label') or link.get('title') or '')
     url_title = clean_title_from_url(full_url)
 
     candidates = []
@@ -1482,6 +1307,8 @@ def get_best_title_with_source(link, full_url, source_url):
             "score": title_quality_score(url_title)
         }
 
+    if accessible_title and not is_bad_title(accessible_title):
+        candidates.append({'title': accessible_title, 'source': 'aria_label'})
     best = choose_best_title_from_candidates(candidates)
 
     if not best["title"] or best["title"] == "Unknown Title":
@@ -1677,7 +1504,7 @@ def get_iframe_soups(source_url, soup):
             if iframe_response.status_code == 200:
                 iframe_soup = BeautifulSoup(iframe_response.text, "html.parser")
                 iframe_soups.append({
-                    "iframe_url": iframe_url,
+                    "iframe_url": iframe_response.url,
                     "soup": iframe_soup
                 })
 
@@ -1689,7 +1516,9 @@ def get_iframe_soups(source_url, soup):
 
 def extract_links_from_soup(soup, base_url, source_url, seen, label="KEPT"):
     docs_found = []
-
+    base_tag = soup.find('base', href=True)
+    if base_tag:
+        base_url = urljoin(base_url, base_tag['href'])
     links = soup.find_all("a")
 
     for link in links:
@@ -2177,7 +2006,7 @@ def browser_click_fallback(source_url, existing_keys):
                                         original_url_before_iframe_visits = page.url or source_url
 
                                         for year_value in year_options[:15]:
-                                            if year_value in years_clicked_or_selected:
+                                            if (ctx_url, i, year_value) in years_clicked_or_selected:
                                                 continue
 
                                             generated_iframe_url = re.sub(
@@ -2200,7 +2029,7 @@ def browser_click_fallback(source_url, existing_keys):
 
                                                 scan_all_rendered_content(page)
 
-                                                years_clicked_or_selected.add(year_value)
+                                                years_clicked_or_selected.add((ctx_url, i, year_value))
 
                                             except Exception as iframe_year_error:
                                                 print(f"Dropdown-derived iframe visit failed for {year_value}: {iframe_year_error}")
@@ -2221,7 +2050,7 @@ def browser_click_fallback(source_url, existing_keys):
                                         continue
 
                                 for year_value in year_options[:15]:
-                                    if year_value in years_clicked_or_selected:
+                                    if (ctx_url, i, year_value) in years_clicked_or_selected:
                                         continue
 
                                     try:
@@ -2260,7 +2089,7 @@ def browser_click_fallback(source_url, existing_keys):
                                         scan_after_year_change(year_value)
 
                                         # Mark handled only after successful selection + scan
-                                        years_clicked_or_selected.add(year_value)
+                                        years_clicked_or_selected.add((ctx_url, i, year_value))
 
                                     except Exception as year_error:
                                         print(f"Native year processing failed for {year_value}: {year_error}")
@@ -2275,6 +2104,10 @@ def browser_click_fallback(source_url, existing_keys):
                 print(f"Native select dropdown phase error: {e}")
 
 
+            for ctx_item in get_contexts_to_scan():
+                ctx = ctx_item['context']
+                ctx_name = ctx_item['name']
+                ctx_url = ctx_item['url']
                 # -------------------------
                 # 2. Custom dropdowns
                 # -------------------------
@@ -2392,14 +2225,12 @@ def browser_click_fallback(source_url, existing_keys):
 
                                     year_value = year_match.group(0)
 
-                                    if year_value in years_clicked_or_selected:
+                                    if (ctx_url, i, year_value) in years_clicked_or_selected:
                                         continue
 
                                     # Avoid giant page containers
                                     if len(option_text.split()) > 20:
                                         continue
-
-                                    years_clicked_or_selected.add(year_value)
 
                                     print(f"Clicking custom dropdown year in {ctx_name}: {year_value}")
 
@@ -2418,6 +2249,7 @@ def browser_click_fallback(source_url, existing_keys):
                                         continue
 
                                     scan_after_year_change(year_value)
+                                    years_clicked_or_selected.add((ctx_url, i, year_value))
 
                                     # If clicking changed main page URL, return to previous URL
                                     if page.url != before_url:
@@ -3439,16 +3271,32 @@ def browser_click_fallback(source_url, existing_keys):
                 user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
                            "(KHTML, like Gecko) Chrome/124.0 Safari/537.36",
                 viewport={"width": 1920, "height": 1080},
-                ignore_https_errors=True
+                accept_downloads=False,
+                ignore_https_errors=False
             )
 
+            # Block recognisable document requests before the body is transferred.
+            def route_request(route):
+                url = route.request.url
+                if is_document_link(url) or ('/download' in urlparse(url).path.lower() and route.request.resource_type == 'document' and normalize_url_key(url) != normalize_url_key(source_url)):
+                    add_doc_from_url(url, '')
+                    route.abort()
+                else:
+                    route.continue_()
+            context.route('**/*', route_request)
             page = context.new_page()
+            def cancel_download(download):
+                add_doc_from_url(download.url, '')
+                download.cancel()
+            context.on('page', lambda new_page: new_page.on('download', cancel_download))
+            page.on('download', cancel_download)
 
             def handle_response(response):
                 try:
                     response_url = response.url
 
-                    if is_click_document_candidate(response_url):
+                    content_type = response.headers.get('content-type', '').lower()
+                    if 200 <= response.status < 300 and ('application/pdf' in content_type or 'attachment' in response.headers.get('content-disposition', '').lower()):
                         add_doc_from_url(response_url, "")
                 except Exception:
                     pass
@@ -3618,6 +3466,7 @@ def process_source_url(source_url, retry_attempt=False, force_browser_fallback=F
 
     print(f"\nChecking: {source_url}")
 
+    source_discoveries.clear()
     start_doc_count = len(output_data)
 
     try:
@@ -3644,7 +3493,7 @@ def process_source_url(source_url, retry_attempt=False, force_browser_fallback=F
                         "url": doc["document_url"]
                     })
 
-                docs_captured_for_url = len(fallback_docs)
+                docs_captured_for_url = len(source_discoveries)
 
             if docs_captured_for_url == 0:
                 if not retry_attempt and RETRY_FAILED_URLS:
@@ -3668,6 +3517,8 @@ def process_source_url(source_url, retry_attempt=False, force_browser_fallback=F
                         latest_issue="" if docs_captured_for_url > 0 else ("FETCH_ERROR_AFTER_RETRY" if retry_attempt else "FETCH_ERROR")
                     )
 
+            if docs_captured_for_url > 0:
+                record_url_status(source_url, 'BROWSER_FALLBACK', docs_captured_for_url)
             return docs_captured_for_url
 
         print("Status:", response.status_code)
@@ -3693,7 +3544,7 @@ def process_source_url(source_url, retry_attempt=False, force_browser_fallback=F
                         "url": doc["document_url"]
                     })
 
-                docs_captured_for_url = len(fallback_docs)
+                docs_captured_for_url = len(source_discoveries)
 
             if docs_captured_for_url == 0:
                 if not retry_attempt and RETRY_FAILED_URLS:
@@ -3718,6 +3569,8 @@ def process_source_url(source_url, retry_attempt=False, force_browser_fallback=F
                     )
 
 
+            if docs_captured_for_url > 0:
+                record_url_status(source_url, 'BROWSER_FALLBACK', docs_captured_for_url)
             return docs_captured_for_url
 
         soup = BeautifulSoup(response.text, "html.parser")
@@ -3726,13 +3579,13 @@ def process_source_url(source_url, retry_attempt=False, force_browser_fallback=F
 
         extract_links_from_soup(
             soup=soup,
-            base_url=source_url,
+            base_url=response.url,
             source_url=source_url,
             seen=seen,
             label="RETRY KEPT" if retry_attempt else "KEPT"
         )
 
-        iframe_soups = get_iframe_soups(source_url, soup)
+        iframe_soups = get_iframe_soups(response.url, soup)
 
         for iframe_item in iframe_soups:
             iframe_url = iframe_item["iframe_url"]
@@ -3746,7 +3599,7 @@ def process_source_url(source_url, retry_attempt=False, force_browser_fallback=F
                 label="RETRY IFRAME KEPT" if retry_attempt else "IFRAME KEPT"
             )
 
-        docs_captured_for_url = len(output_data) - start_doc_count
+        docs_captured_for_url = len(source_discoveries)
 
         needs_hash_fallback = source_url_has_hash(source_url)
         needs_report_card_fallback = should_trigger_report_card_fallback(soup, docs_captured_for_url)
@@ -3770,7 +3623,7 @@ def process_source_url(source_url, retry_attempt=False, force_browser_fallback=F
                     "url": doc["document_url"]
                 })
 
-            docs_captured_for_url = len(output_data) - start_doc_count
+            docs_captured_for_url = len(source_discoveries)
 
         if docs_captured_for_url == 0:
             if not retry_attempt and RETRY_FAILED_URLS:
@@ -3818,7 +3671,7 @@ def process_source_url(source_url, retry_attempt=False, force_browser_fallback=F
                     "url": doc["document_url"]
                 })
 
-            docs_captured_for_url = len(fallback_docs)
+            docs_captured_for_url = len(source_discoveries)
 
         if docs_captured_for_url == 0:
             if not retry_attempt and RETRY_FAILED_URLS:
@@ -3843,6 +3696,8 @@ def process_source_url(source_url, retry_attempt=False, force_browser_fallback=F
                 )
 
 
+        if docs_captured_for_url > 0:
+            record_url_status(source_url, 'BROWSER_FALLBACK', docs_captured_for_url)
         return docs_captured_for_url
 
 def build_output_with_previous_non_target_rows(target_source_urls, current_run_output_rows):
@@ -3867,7 +3722,7 @@ def build_output_with_previous_non_target_rows(target_source_urls, current_run_o
 
     for source_url in target_source_urls:
         if source_url:
-            target_source_keys.add(normalize_url_key(source_url))
+            target_source_keys.add(normalize_source_key(source_url))
 
     if os.path.exists(OUTPUT_FILE):
         try:
@@ -3881,7 +3736,7 @@ def build_output_with_previous_non_target_rows(target_source_urls, current_run_o
                     if not company or not document_url:
                         continue
 
-                    company_key = normalize_url_key(company)
+                    company_key = normalize_source_key(company)
 
                     # Skip old rows from current target URL file.
                     # They will be replaced by current run capture.
@@ -3932,576 +3787,446 @@ def build_output_with_previous_non_target_rows(target_source_urls, current_run_o
 
     return final_rows
 
-# MAIN SCRAPER
 
-known_document_urls, known_source_urls = load_known_documents()
-known_document_urls_before_run = set(known_document_urls)
-known_source_urls_before_run = set(known_source_urls)
-document_canonical_keys = load_document_canonical_keys()
-document_canonical_keys_before_run = dict(document_canonical_keys)
+# Header-only mode deliberately does not read PDF bytes or compute content hashes.
+source_discoveries = set()
+header_cache = {}
+HEADER_TIMEOUT = float(os.environ.get('HEADER_TIMEOUT', '10'))
+HEADER_CHECK_INTERVAL_HOURS = float(os.environ.get('HEADER_CHECK_INTERVAL_HOURS', '0'))
+HEADER_STATE_FILE = os.environ.get('HEADER_STATE_FILE', 'document_header_state.json')
+HEADER_DECISIONS_FILE = os.environ.get('HEADER_DECISIONS_FILE',
+    'document_header_checks.csv' if RUN_MODE in ('full', 'seed') else 'document_header_checks_' + RUN_MODE + '.csv')
+if RUN_MODE not in ('full', 'seed'):
+    # Production history may be read for comparison, but is never overwritten.
+    URL_STATUS_FILE = 'url_status_' + RUN_MODE + '.csv'
+    DOCUMENT_CANONICAL_FILE = 'document_canonical_keys_' + RUN_MODE + '.csv'
+    RUN_SUMMARY_FILE = 'run_summary_' + RUN_MODE + '.csv'
 
-previous_output_by_company = load_previous_output_by_company()
-target_source_urls = []
+@contextmanager
+def atomic_open(path, mode='w', **kwargs):
+    directory = os.path.dirname(os.path.abspath(path))
+    fd, temp = tempfile.mkstemp(prefix='.scraper-', dir=directory)
+    os.close(fd)
+    try:
+        if mode == 'a' and os.path.exists(path):
+            shutil.copyfile(path, temp)
+        with open(temp, mode, **kwargs) as handle:
+            yield handle
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temp, path)
+    finally:
+        if os.path.exists(temp):
+            os.unlink(temp)
 
-total_urls_processed = 0
+def load_header_state():
+    if not os.path.exists(HEADER_STATE_FILE):
+        return {}
+    with open(HEADER_STATE_FILE, encoding='utf-8') as handle:
+        state = json.load(handle)
+    if not isinstance(state, dict):
+        raise ValueError('Header state must be a JSON object; restore a backup.')
+    for key, record in state.items():
+        if not isinstance(key, str) or not isinstance(record, dict):
+            raise ValueError('Invalid header state record; restore a backup.')
+        if any(not isinstance(value, str) for value in record.values()):
+            raise ValueError('Header state fields must be strings.')
+        if record.get('checked_at'):
+            datetime.fromisoformat(record['checked_at'])
+    return state
 
-if not os.path.exists(TARGET_URL_FILE):
-    raise FileNotFoundError(f"URL file not found: {TARGET_URL_FILE}")
+def save_header_state(state):
+    with atomic_open(HEADER_STATE_FILE, encoding='utf-8') as handle:
+        json.dump(state, handle, indent=2, sort_keys=True)
 
-with open(TARGET_URL_FILE, newline="", encoding="utf-8") as file:
-    reader = csv.DictReader(file)
+def merge_header_state(previous, check):
+    result = dict(previous)
+    for name in ('etag', 'last_modified', 'content_length', 'content_type', 'final_url'):
+        if check.get(name):
+            result[name] = check[name]
+    result['checked_at'] = check['checked_at']
+    return result
 
-    for row in reader:
-        raw_source_url = row["source_url"]
+def check_document_headers(url, previous=None):
+    previous = previous or {}
+    key = normalize_url_key(url)
+    if key in header_cache:
+        return header_cache[key]
+    result = dict(status='unknown', http_status='', etag='', last_modified='',
+        content_length='', content_type='', final_url='', checked_at=datetime.now().isoformat(), reason='')
+    try:
+        checked = previous.get('checked_at')
+        if checked and HEADER_CHECK_INTERVAL_HOURS > 0:
+            if datetime.now() - datetime.fromisoformat(checked) < timedelta(hours=HEADER_CHECK_INTERVAL_HOURS):
+                result.update(status='not_checked_cached', reason='scheduled_check_not_due')
+                header_cache[key] = result
+                return result
+        headers = HEADERS.copy()
+        headers['Accept-Encoding'] = 'identity'
+        if previous.get('etag'):
+            headers['If-None-Match'] = previous['etag']
+        elif previous.get('last_modified'):
+            headers['If-Modified-Since'] = previous['last_modified']
+        # HEAD only. Never fall back to GET, even if HEAD is unsupported.
+        with requests.head(url, headers=headers, timeout=HEADER_TIMEOUT, allow_redirects=True) as response:
+            result['http_status'] = str(response.status_code)
+            result['final_url'] = response.url
+            for name, header in [('etag','ETag'), ('last_modified','Last-Modified'),
+                                 ('content_length','Content-Length'), ('content_type','Content-Type')]:
+                result[name] = response.headers.get(header, '')
+            if response.status_code == 304 and (previous.get('etag') or previous.get('last_modified')):
+                result.update(status='unchanged_by_server', reason='conditional_head_304')
+            elif response.status_code in (405, 501):
+                result['reason'] = 'head_not_supported_no_download_attempted'
+            elif not 200 <= response.status_code < 300:
+                result.update(status='check_failed', reason='http_error_retry_next_run')
+            elif 'text/html' in result['content_type'].lower():
+                result.update(status='invalid_document', reason='html_response_not_document')
+            else:
+                # Only compare fields present in BOTH observations.
+                changed = [name for name in ('etag','last_modified','content_length')
+                    if previous.get(name) and result.get(name) and previous[name] != result[name]]
+                if changed:
+                    result.update(status='update_candidate', reason='changed_headers:' + ','.join(changed))
+                elif any(previous.get(n) and result.get(n) for n in ('etag','last_modified')):
+                    result.update(status='unchanged_by_headers', reason='validators_match_not_content_verified')
+                elif any(result.get(n) for n in ('etag','last_modified','content_length')):
+                    result.update(status='baseline_headers' if not previous else 'unknown',
+                        reason='first_header_observation' if not previous else 'insufficient_comparable_validators')
+                else:
+                    result['reason'] = 'no_usable_headers'
+    except requests.RequestException as exc:
+        result.update(status='check_failed', reason=str(exc))
+    header_cache[key] = result
+    return result
 
-        if not raw_source_url:
-            continue
+def save_header_decisions(rows):
+    fields = ['date','company','document_url','status','http_status','etag','last_modified',
+        'content_length','content_type','final_url','checked_at','reason']
+    with atomic_open(HEADER_DECISIONS_FILE, 'w', newline='', encoding='utf-8') as handle:
+        writer = csv.DictWriter(handle, fieldnames=fields)
+        writer.writeheader()
+        writer.writerows(rows)
 
-        parsed_source = parse_source_url(raw_source_url)
-
-        source_url = parsed_source["source_url"]
-        force_browser_fallback = parsed_source["force_browser_fallback"]
-
-        if not source_url:
-            continue
-
-        target_source_urls.append(source_url)
-
-        if force_browser_fallback:
-            print(f"Force browser fallback enabled for URL: {source_url}")
-
-        if total_urls_processed > 0 and SLEEP_SECONDS > 0:
-            print(f"Sleeping {SLEEP_SECONDS} seconds before next URL...")
-            time.sleep(SLEEP_SECONDS)
-
-        total_urls_processed += 1
-
-        process_source_url(
-            source_url,
-            retry_attempt=False,
-            force_browser_fallback=force_browser_fallback
-        )
-
-
-# RETRY FAILED URLS ONCE AFTER FIRST PASS
-
-if RETRY_FAILED_URLS and retry_queue:
-    unique_retry_items = []
-    seen_retry_urls = set()
-
-    for retry_item in retry_queue:
-        retry_url = retry_item["source_url"]
-
-        if retry_url not in seen_retry_urls:
-            seen_retry_urls.add(retry_url)
-            unique_retry_items.append(retry_item)
-
-    print(f"\nRetry queue found: {len(unique_retry_items)} URLs")
-    print(f"Waiting {RETRY_SLEEP_SECONDS} seconds before retry pass...")
-
-    if RETRY_SLEEP_SECONDS > 0:
-        time.sleep(RETRY_SLEEP_SECONDS)
-
-    for retry_item in unique_retry_items:
-        retry_url = retry_item["source_url"]
-        retry_force_browser_fallback = retry_item.get("force_browser_fallback", False)
-
-        print(f"\nRETRYING: {retry_url}")
-
-        process_source_url(
-            retry_url,
-            retry_attempt=True,
-            force_browser_fallback=retry_force_browser_fallback
-        )
-
-
-# Previous output preservation disabled intentionally.
-# output.csv represents combined latest capture for all production URL groups.
-# known_documents.csv remains the permanent history used for diff protection.
-# preserve_previous_output_documents(target_source_urls, previous_output_by_company)
-
-
-# DIFF SYSTEM
-
-existing_diff_urls = set()
-
-if RUN_MODE == "full" and os.path.exists(DIFF_FILE):
-    validate_csv_header(DIFF_FILE, DIFF_FIELDNAMES)
-
-    with open(DIFF_FILE, newline="", encoding="utf-8") as diff_read_file:
-        reader = csv.DictReader(diff_read_file)
-
-        for r in reader:
-            if "document_url" in r and r["document_url"]:
-                existing_diff_urls.add(normalize_url_key(r["document_url"]))
+def preflight():
+    if RUN_MODE not in ('full','seed','test','baseline'):
+        raise ValueError('Unsupported RUN_MODE: ' + RUN_MODE)
+    if HEADER_TIMEOUT <= 0 or HEADER_CHECK_INTERVAL_HOURS < 0:
+        raise ValueError('Invalid header timeout/check interval')
+    for path, fields in [(KNOWN_DOCUMENTS_FILE, KNOWN_DOCUMENTS_FIELDNAMES),
+        (DIFF_FILE, DIFF_FIELDNAMES), (DOCUMENT_CANONICAL_FILE, DOCUMENT_CANONICAL_FIELDNAMES),
+        (URL_STATUS_FILE, URL_STATUS_FIELDNAMES), (RUN_SUMMARY_FILE, RUN_SUMMARY_FIELDNAMES),
+        (OUTPUT_FILE, ['company','document_title','document_title_source','document_url'])]:
+        validate_csv_header(path, fields)
+    with open(TARGET_URL_FILE, newline='', encoding='utf-8') as handle:
+        if 'source_url' not in (csv.DictReader(handle).fieldnames or []):
+            raise ValueError('Input CSV requires source_url column')
+    load_header_state()  # Fail before scraping if persistent state is corrupt.
 
 
-new_records = []
-if RUN_MODE == "full":
+def main():
+    global known_document_urls, known_source_urls, known_document_urls_before_run, known_source_urls_before_run
+    global document_canonical_keys, document_canonical_keys_before_run
+    # MAIN SCRAPER
+    output_data.clear()
+    raw_links.clear()
+    issue_rows.clear()
+    retry_queue.clear()
+    global_seen_document_urls.clear()
+    known_documents_to_append.clear()
+    url_status_updates.clear()
+    header_cache.clear()
+    preflight()
+
+    known_document_urls, known_source_urls = load_known_documents()
+    known_document_urls_before_run = set(known_document_urls)
+    known_source_urls_before_run = set(known_source_urls)
+    document_canonical_keys = load_document_canonical_keys()
+    document_canonical_keys_before_run = dict(document_canonical_keys)
+
+    previous_output_by_company = load_previous_output_by_company()
+    target_source_urls = []
+
+    total_urls_processed = 0
+
+    if not os.path.exists(TARGET_URL_FILE):
+        raise FileNotFoundError(f"URL file not found: {TARGET_URL_FILE}")
+
+    with open(TARGET_URL_FILE, newline="", encoding="utf-8") as file:
+        reader = csv.DictReader(file)
+
+        for row in reader:
+            raw_source_url = row["source_url"]
+
+            if not raw_source_url:
+                continue
+
+            parsed_source = parse_source_url(raw_source_url)
+
+            source_url = parsed_source["source_url"]
+            force_browser_fallback = parsed_source["force_browser_fallback"]
+
+            if not source_url:
+                continue
+
+            target_source_urls.append(source_url)
+
+            if force_browser_fallback:
+                print(f"Force browser fallback enabled for URL: {source_url}")
+
+            if total_urls_processed > 0 and SLEEP_SECONDS > 0:
+                print(f"Sleeping {SLEEP_SECONDS} seconds before next URL...")
+                time.sleep(SLEEP_SECONDS)
+
+            total_urls_processed += 1
+
+            process_source_url(
+                source_url,
+                retry_attempt=False,
+                force_browser_fallback=force_browser_fallback
+            )
+
+
+    # RETRY FAILED URLS ONCE AFTER FIRST PASS
+
+    if RETRY_FAILED_URLS and retry_queue:
+        unique_retry_items = []
+        seen_retry_urls = set()
+
+        for retry_item in retry_queue:
+            retry_url = retry_item["source_url"]
+
+            if retry_url not in seen_retry_urls:
+                seen_retry_urls.add(retry_url)
+                unique_retry_items.append(retry_item)
+
+        print(f"\nRetry queue found: {len(unique_retry_items)} URLs")
+        print(f"Waiting {RETRY_SLEEP_SECONDS} seconds before retry pass...")
+
+        if RETRY_SLEEP_SECONDS > 0:
+            time.sleep(RETRY_SLEEP_SECONDS)
+
+        for retry_item in unique_retry_items:
+            retry_url = retry_item["source_url"]
+            retry_force_browser_fallback = retry_item.get("force_browser_fallback", False)
+
+            print(f"\nRETRYING: {retry_url}")
+
+            process_source_url(
+                retry_url,
+                retry_attempt=True,
+                force_browser_fallback=retry_force_browser_fallback
+            )
+
+
+    # Previous output preservation disabled intentionally.
+    # output.csv represents combined latest capture for all production URL groups.
+    # known_documents.csv remains the permanent history used for diff protection.
+    # preserve_previous_output_documents(target_source_urls, previous_output_by_company)
+
+
+    # HEADER-ONLY DIFF SYSTEM
+    new_records = []
+    header_state = load_header_state()
+    header_decisions = []
     for r in output_data:
-        document_url = r.get("document_url", "")
-        source_url = r.get("company", "")
-        document_title_for_log = r.get(
-            "document_title",
-            "Unknown Title"
-        )
-
-        if not document_url or not source_url:
+        document_url = r.get('document_url', '')
+        source_url = r.get('company', '')
+        key = normalize_url_key(document_url)
+        previous = header_state.get(key, {})
+        check = check_document_headers(document_url, previous)
+        header_decisions.append(dict(date=current_date, company=source_url,
+            document_url=document_url, **check))
+        if check['status'] not in ('check_failed', 'unknown', 'invalid_document', 'not_checked_cached'):
+            header_state[key] = merge_header_state(previous, check)
+        if RUN_MODE != 'full':
             continue
-
-        current_url_key = normalize_url_key(document_url)
-        source_key = normalize_url_key(source_url)
-
-        source_was_known_before_run = (
-            source_key in known_source_urls_before_run
-        )
-
-        document_was_known_before_run = (
-            current_url_key in known_document_urls_before_run
-        )
-
-        already_in_diff = current_url_key in existing_diff_urls
-
-        # --------------------------------
-        # Check 1: source URL history
-        # --------------------------------
-        if not source_was_known_before_run:
-            log_diff_decision(
-                document_title=document_title_for_log,
-                document_url=document_url,
-                source_url=source_url,
-                decision="SKIPPED",
-                reason="source_url_not_known_before_run"
-            )
-            continue
-
-        # --------------------------------
-        # Check 2: exact document URL
-        # --------------------------------
-        if document_was_known_before_run:
-            log_diff_decision(
-                document_title=document_title_for_log,
-                document_url=document_url,
-                source_url=source_url,
-                decision="SKIPPED",
-                reason="document_url_already_known"
-            )
-            continue
-
-        # --------------------------------
-        # Check 3: already in diff
-        # --------------------------------
-        if already_in_diff:
-            log_diff_decision(
-                document_title=document_title_for_log,
-                document_url=document_url,
-                source_url=source_url,
-                decision="SKIPPED",
-                reason="document_url_already_in_diff"
-            )
-            continue
-
-        document_title_for_diff = limit_document_title_words(
-            r.get("document_title", "Unknown Title"),
-            max_words=20
-        )
-
-        # --------------------------------
-        # Canonical identity
-        # --------------------------------
-        canonical_key = canonical_document_key(document_url)
-
-        canonical_match = document_canonical_keys_before_run.get(
-            (source_key, canonical_key)
-        )
-
-        add_to_diff = True
-        metadata_extra = ""
-        canonical_reason = "canonical_key_not_previously_known"
-        current_metadata_date = None
-
-        # --------------------------------
-        # Read metadata only for a genuine
-        # new exact document URL
-        # --------------------------------
-        if ENABLE_PDF_METADATA_DIFF_FILTER:
-            current_metadata_date = get_pdf_metadata_date(
-                document_url
-            )
-
-            if current_metadata_date:
-                cutoff_date = datetime.now() - timedelta(
-                    days=PDF_METADATA_RECENCY_DAYS
-                )
-
-                add_to_diff = (
-                    current_metadata_date >= cutoff_date
-                )
-
-                metadata_extra = (
-                    f"pdf_metadata_date="
-                    f"{metadata_date_to_string(current_metadata_date)}, "
-                    f"pdf_metadata_recent={add_to_diff}"
-                )
-            else:
-                # New canonical document:
-                # missing metadata must not block diff.
-                add_to_diff = True
-
-                metadata_extra = (
-                    "pdf_metadata_date=missing_or_unreadable, "
-                    "pdf_metadata_recent=allowed"
-                )
-
-        # --------------------------------
-        # Canonical comparison
-        # --------------------------------
-        if canonical_match:
-            previous_metadata_raw = canonical_match.get(
-                "pdf_metadata_date",
-                ""
-            )
-
-            previous_metadata_date = (
-                parse_canonical_metadata_date(
-                    previous_metadata_raw
-                )
-            )
-
-            print(
-                f"CANONICAL COMPARISON → "
-                f"canonical_key={canonical_key} | "
-                f"previous_metadata="
-                f"{previous_metadata_raw or 'MISSING'} | "
-                f"current_metadata="
-                f"{metadata_date_to_string(current_metadata_date) if current_metadata_date else 'MISSING'} | "
-                f"doc={document_url}"
-            )
-
-            # Canonical key existed before this run, but the stored
-            # metadata was blank. Treat the changed URL as the same
-            # previously known document.
-            if not previous_metadata_date:
-                log_diff_decision(
-                    document_title=document_title_for_log,
-                    document_url=document_url,
-                    source_url=source_url,
-                    decision="SKIPPED",
-                    reason="canonical_match_previous_metadata_missing",
-                    extra=(
-                        f"canonical_key={canonical_key}, "
-                        f"current_metadata="
-                        f"{metadata_date_to_string(current_metadata_date) if current_metadata_date else 'missing'}"
-                    )
-                )
-                continue
-
-            # Canonical key and previous metadata exist, but current
-            # metadata cannot be read. Treat it as the same document.
-            if not current_metadata_date:
-                log_diff_decision(
-                    document_title=document_title_for_log,
-                    document_url=document_url,
-                    source_url=source_url,
-                    decision="SKIPPED",
-                    reason="canonical_match_current_metadata_missing",
-                    extra=(
-                        f"canonical_key={canonical_key}, "
-                        f"previous_metadata={previous_metadata_raw}"
-                    )
-                )
-                continue
-
-            # Same or older metadata means that only the document
-            # URL/hash/download number changed.
-            if current_metadata_date.date() <= previous_metadata_date.date():
-                log_diff_decision(
-                    document_title=document_title_for_log,
-                    document_url=document_url,
-                    source_url=source_url,
-                    decision="SKIPPED",
-                    reason="canonical_match_metadata_same_or_old",
-                    extra=(
-                        f"canonical_key={canonical_key}, "
-                        f"previous_metadata={previous_metadata_raw}, "
-                        f"current_metadata="
-                        f"{metadata_date_to_string(current_metadata_date)}"
-                    )
-                )
-                continue
-
-            # Canonical key exists, and the current metadata is newer.
-            canonical_reason = "canonical_match_metadata_newer"
-
-            print(
-                f"CANONICAL UPDATED DOCUMENT → "
-                f"previous_metadata={previous_metadata_raw} | "
-                f"current_metadata="
-                f"{metadata_date_to_string(current_metadata_date)} | "
-                f"doc={document_url}"
-            )
-
-        # --------------------------------
-        # Final diff decision
-        # This must be outside:
-        # if canonical_match:
-        # --------------------------------
-        if add_to_diff:
-            new_records.append({
-                "date": current_date,
-                "company": source_url,
-                "document_title": document_title_for_diff,
-                "document_url": document_url
-            })
-
-            # Prevent the same document being added twice during
-            # the current run.
-            existing_diff_urls.add(current_url_key)
-
-            if canonical_match:
-                diff_reason = canonical_reason
-            else:
-                diff_reason = (
-                    "source_known_doc_new_"
-                    "metadata_recent_or_unavailable"
-                )
-
-            log_diff_decision(
-                document_title=document_title_for_diff,
-                document_url=document_url,
-                source_url=source_url,
-                decision="ADDED",
-                reason=diff_reason,
-                extra=(
-                    f"canonical_key={canonical_key}, "
-                    f"{metadata_extra}"
-                )
-            )
-
+        if normalize_source_key(source_url) not in known_source_urls_before_run:
+            reason = 'new_source_baselined'
+        elif check['status'] == 'invalid_document':
+            reason = 'invalid_document_headers'
+        elif key not in known_document_urls_before_run:
+            # Missing headers do not block a newly discovered candidate.
+            reason = 'new_document_candidate'
+            new_records.append(dict(date=current_date, company=source_url,
+                document_title=limit_document_title_words(r.get('document_title', 'Unknown Title'), 20),
+                document_url=document_url))
+        elif check['status'] == 'update_candidate':
+            reason = 'header_changed_update_candidate'
+            new_records.append(dict(date=current_date, company=source_url,
+                document_title=limit_document_title_words(r.get('document_title', 'Unknown Title'), 20),
+                document_url=document_url))
         else:
-            log_diff_decision(
-                document_title=document_title_for_diff,
-                document_url=document_url,
-                source_url=source_url,
-                decision="SKIPPED",
-                reason="pdf_metadata_not_recent",
-                extra=(
-                    f"canonical_key={canonical_key}, "
-                    f"{metadata_extra}"
+            reason = check['status']
+        log_diff_decision(r.get('document_title', ''), document_url, source_url,
+            'ADDED' if reason in ('new_document_candidate', 'header_changed_update_candidate') else 'SKIPPED', reason)
+
+    # Update known document queue for seed/full.
+    # New source URLs are baselined into known_documents.csv but not added to diff.csv.
+    if RUN_MODE in ["full", "seed"]:
+        for r in output_data:
+            if header_cache.get(normalize_url_key(r.get('document_url', '')), {}).get('status') == 'invalid_document':
+                continue
+            queue_known_document_if_new(r)
+            queue_document_canonical_record(r)
+
+
+    # SAVE output file
+    if RUN_MODE == "full":
+        final_output_data = build_output_with_previous_non_target_rows(
+            target_source_urls=target_source_urls,
+            current_run_output_rows=output_data
+        )
+    else:
+        final_output_data = output_data
+
+    with atomic_open(OUTPUT_FILE, "w", newline="", encoding="utf-8") as out_file:
+        writer = csv.DictWriter(
+            out_file,
+            fieldnames=[
+                "company",
+                "document_title",
+                "document_title_source",
+                "document_url"
+            ]
+        )
+        writer.writeheader()
+        writer.writerows(final_output_data)
+
+
+    # SAVE raw links file
+    with atomic_open(RAW_FILE, "w", newline="", encoding="utf-8") as raw_file:
+        writer = csv.DictWriter(
+            raw_file,
+            fieldnames=[
+                "company",
+                "text",
+                "title_source",
+                "url"
+            ]
+        )
+        writer.writeheader()
+        writer.writerows(raw_links)
+
+
+    # APPEND diff.csv only for full production run
+    if RUN_MODE == "full":
+        validate_csv_header(DIFF_FILE, DIFF_FIELDNAMES)
+
+        file_exists = os.path.exists(DIFF_FILE) and os.path.getsize(DIFF_FILE) > 0
+
+        for record in new_records:
+            extra_keys = set(record.keys()) - set(DIFF_FIELDNAMES)
+            missing_keys = set(DIFF_FIELDNAMES) - set(record.keys())
+
+            if extra_keys or missing_keys:
+                raise ValueError(
+                    f"Diff row format mismatch. "
+                    f"Extra keys: {extra_keys}. "
+                    f"Missing keys: {missing_keys}. "
+                    f"Record: {record}"
                 )
-            )
 
-            print(
-                f"DIFF SKIPPED BY PDF METADATA DATE → "
-                f"{document_title_for_diff} | "
-                f"{document_url}"
-            )
-# Update known document queue for seed/full.
-# New source URLs are baselined into known_documents.csv but not added to diff.csv.
-if RUN_MODE in ["full", "seed"]:
-    for r in output_data:
-        queue_known_document_if_new(r)
-        queue_document_canonical_record(r)
+        with atomic_open(DIFF_FILE, "a", newline="", encoding="utf-8") as diff_file:
+            writer = csv.DictWriter(diff_file, fieldnames=DIFF_FIELDNAMES)
+
+            if not file_exists:
+                writer.writeheader()
+
+            writer.writerows(new_records)
 
 
-# SAVE output file
-if RUN_MODE == "full":
-    final_output_data = build_output_with_previous_non_target_rows(
-        target_source_urls=target_source_urls,
-        current_run_output_rows=output_data
-    )
-else:
-    final_output_data = output_data
-
-with open(OUTPUT_FILE, "w", newline="", encoding="utf-8") as out_file:
-    writer = csv.DictWriter(
-        out_file,
-        fieldnames=[
-            "company",
-            "document_title",
-            "document_title_source",
-            "document_url"
-        ]
-    )
-    writer.writeheader()
-    writer.writerows(final_output_data)
+    # APPEND known_documents.csv for seed/full runs
+    append_known_documents()
+    if RUN_MODE in ('full', 'seed'):
+        save_document_canonical_keys()
+        save_url_status_file()
+        save_header_state(header_state)
+    save_header_decisions(header_decisions)
 
 
-# SAVE raw links file
-with open(RAW_FILE, "w", newline="", encoding="utf-8") as raw_file:
-    writer = csv.DictWriter(
-        raw_file,
-        fieldnames=[
-            "company",
-            "text",
-            "title_source",
-            "url"
-        ]
-    )
-    writer.writeheader()
-    writer.writerows(raw_links)
+    # SAVE capture issues file
+    with atomic_open(ISSUES_FILE, "w", newline="", encoding="utf-8") as issue_file:
+        writer = csv.DictWriter(
+            issue_file,
+            fieldnames=[
+                "date",
+                "run_mode",
+                "url_file",
+                "source_url",
+                "issue_type",
+                "status_code",
+                "documents_captured",
+                "error_message"
+            ]
+        )
+        writer.writeheader()
+        writer.writerows(issue_rows)
 
 
-# APPEND diff.csv only for full production run
-if RUN_MODE == "full":
-    validate_csv_header(DIFF_FILE, DIFF_FIELDNAMES)
+    # APPEND clean run_summary_master.csv
+    previous_run_number = 0
 
-    file_exists = os.path.exists(DIFF_FILE)
+    if os.path.exists(RUN_SUMMARY_FILE):
+        validate_csv_header(RUN_SUMMARY_FILE, RUN_SUMMARY_FIELDNAMES)
 
-    for record in new_records:
-        extra_keys = set(record.keys()) - set(DIFF_FIELDNAMES)
-        missing_keys = set(DIFF_FIELDNAMES) - set(record.keys())
+        try:
+            with open(RUN_SUMMARY_FILE, newline="", encoding="utf-8") as summary_read:
+                reader = csv.DictReader(summary_read)
 
-        if extra_keys or missing_keys:
-            raise ValueError(
-                f"Diff row format mismatch. "
-                f"Extra keys: {extra_keys}. "
-                f"Missing keys: {missing_keys}. "
-                f"Record: {record}"
-            )
+                for r in reader:
+                    try:
+                        previous_run_number = max(previous_run_number, int(r.get("run_number", 0)))
+                    except Exception:
+                        pass
+        except Exception:
+            previous_run_number = 0
 
-    with open(DIFF_FILE, "a", newline="", encoding="utf-8") as diff_file:
-        writer = csv.DictWriter(diff_file, fieldnames=DIFF_FIELDNAMES)
+    current_run_number = previous_run_number + 1
 
-        if not file_exists:
+    summary_file_exists = os.path.exists(RUN_SUMMARY_FILE) and os.path.getsize(RUN_SUMMARY_FILE) > 0
+
+    summary_row = {
+        "run_number": current_run_number,
+        "date": current_date,
+        "run_mode": RUN_MODE,
+        "url_file": TARGET_URL_FILE,
+        "total_urls_processed": total_urls_processed,
+        "total_documents_captured": len(output_data),
+        "new_diff_records": len(new_records),
+        "issue_count": len(issue_rows),
+        "success_zero_docs_count": sum(1 for x in issue_rows if x["issue_type"]  .startswith("SUCCESS_ZERO_DOCS")),
+        "fetch_failed_status_count": sum(1 for x in issue_rows if x["issue_type"]  .startswith("FETCH_FAILED_STATUS")),
+        "fetch_error_count": sum(1 for x in issue_rows if x["issue_type"]  .startswith("FETCH_ERROR")),
+        "browser_fallback_enabled": ENABLE_BROWSER_FALLBACK,
+        "output_file": OUTPUT_FILE,
+        "raw_file": RAW_FILE,
+        "issues_file": ISSUES_FILE
+    }
+
+    extra_keys = set(summary_row.keys()) - set(RUN_SUMMARY_FIELDNAMES)
+    missing_keys = set(RUN_SUMMARY_FIELDNAMES) - set(summary_row.keys())
+
+    if extra_keys or missing_keys:
+        raise ValueError(
+            f"Run summary row format mismatch. "
+            f"Extra keys: {extra_keys}. "
+            f"Missing keys: {missing_keys}. "
+            f"Row: {summary_row}"
+        )
+
+    with atomic_open(RUN_SUMMARY_FILE, "a", newline="", encoding="utf-8") as summary_file:
+        writer = csv.DictWriter(summary_file, fieldnames=RUN_SUMMARY_FIELDNAMES)
+
+        if not summary_file_exists:
             writer.writeheader()
 
-        writer.writerows(new_records)
+        writer.writerow(summary_row)
 
 
-# APPEND known_documents.csv for seed/full runs
-append_known_documents()
-save_document_canonical_keys()
-save_url_status_file()
+    print('SCRAPER COMPLETE: header-only checks; embedded PDF dates and content hashes not read.')
+    print(f'URLs processed: {total_urls_processed}; documents captured: {len(output_data)}; diff candidates: {len(new_records)}')
+    print(f'Header decisions: {HEADER_DECISIONS_FILE}; state: {HEADER_STATE_FILE}')
 
-
-# SAVE capture issues file
-with open(ISSUES_FILE, "w", newline="", encoding="utf-8") as issue_file:
-    writer = csv.DictWriter(
-        issue_file,
-        fieldnames=[
-            "date",
-            "run_mode",
-            "url_file",
-            "source_url",
-            "issue_type",
-            "status_code",
-            "documents_captured",
-            "error_message"
-        ]
-    )
-    writer.writeheader()
-    writer.writerows(issue_rows)
-
-
-# APPEND clean run_summary_master.csv
-previous_run_number = 0
-
-if os.path.exists(RUN_SUMMARY_FILE):
-    validate_csv_header(RUN_SUMMARY_FILE, RUN_SUMMARY_FIELDNAMES)
-
-    try:
-        with open(RUN_SUMMARY_FILE, newline="", encoding="utf-8") as summary_read:
-            reader = csv.DictReader(summary_read)
-
-            for r in reader:
-                try:
-                    previous_run_number = max(previous_run_number, int(r.get("run_number", 0)))
-                except Exception:
-                    pass
-    except Exception:
-        previous_run_number = 0
-
-current_run_number = previous_run_number + 1
-
-summary_file_exists = os.path.exists(RUN_SUMMARY_FILE)
-
-summary_row = {
-    "run_number": current_run_number,
-    "date": current_date,
-    "run_mode": RUN_MODE,
-    "url_file": TARGET_URL_FILE,
-    "total_urls_processed": total_urls_processed,
-    "total_documents_captured": len(output_data),
-    "new_diff_records": len(new_records),
-    "issue_count": len(issue_rows),
-    "success_zero_docs_count": sum(1 for x in issue_rows if x["issue_type"] == "SUCCESS_ZERO_DOCS"),
-    "fetch_failed_status_count": sum(1 for x in issue_rows if x["issue_type"] == "FETCH_FAILED_STATUS"),
-    "fetch_error_count": sum(1 for x in issue_rows if x["issue_type"] == "FETCH_ERROR"),
-    "browser_fallback_enabled": ENABLE_BROWSER_FALLBACK,
-    "output_file": OUTPUT_FILE,
-    "raw_file": RAW_FILE,
-    "issues_file": ISSUES_FILE
-}
-
-extra_keys = set(summary_row.keys()) - set(RUN_SUMMARY_FIELDNAMES)
-missing_keys = set(RUN_SUMMARY_FIELDNAMES) - set(summary_row.keys())
-
-if extra_keys or missing_keys:
-    raise ValueError(
-        f"Run summary row format mismatch. "
-        f"Extra keys: {extra_keys}. "
-        f"Missing keys: {missing_keys}. "
-        f"Row: {summary_row}"
-    )
-
-with open(RUN_SUMMARY_FILE, "a", newline="", encoding="utf-8") as summary_file:
-    writer = csv.DictWriter(summary_file, fieldnames=RUN_SUMMARY_FIELDNAMES)
-
-    if not summary_file_exists:
-        writer.writeheader()
-
-    writer.writerow(summary_row)
-
-
-print("\n✅ SCRAPER COMPLETE")
-print("✅ Existing logic preserved")
-print("✅ Improved document title selection")
-print("✅ Generic title/action text rejected")
-print("✅ document_title_source added")
-print("✅ PDF links are checked before navigation filters")
-print("✅ Global duplicate document URL prevention enabled")
-print("✅ Retry queue enabled")
-print("✅ Fallback/ URL prefix support enabled")
-print("✅ Previous output preservation disabled")
-print("✅ output.csv represents combined latest production capture")
-print("✅ known_documents.csv history enabled")
-print("✅ New source URL onboarding does not pollute diff.csv")
-print("✅ Image/icon files excluded from document capture")
-print("✅ Iframe scraping enabled")
-print("✅ Hash-aware fallback enabled")
-print("✅ Report-card fallback enabled")
-print(f"✅ Report keywords file: {REPORT_KEYWORDS_FILE}")
-print(f"✅ Report-card keywords loaded: {len(REPORT_CARD_KEYWORDS)}")
-print("✅ Browser fallback scans frames/iframes")
-print("✅ Browser fallback clicks generic expandable UI")
-print("✅ Browser fallback captures document network responses")
-print("✅ Browser-like headers and retry fetch enabled for EQT only")
-print("✅ diff.csv format locked")
-print("✅ run_summary_master.csv format locked")
-print("✅ known_documents.csv format locked")
-print(f"✅ Sleep seconds between URLs: {SLEEP_SECONDS}")
-print(f"✅ Retry failed URLs: {RETRY_FAILED_URLS}")
-print(f"✅ Retry sleep seconds: {RETRY_SLEEP_SECONDS}")
-print(f"✅ Run mode: {RUN_MODE}")
-print(f"✅ URL file: {TARGET_URL_FILE}")
-print(f"✅ Output file: {OUTPUT_FILE}")
-print(f"✅ Raw file: {RAW_FILE}")
-print(f"✅ Issues file: {ISSUES_FILE}")
-print(f"✅ Summary file: {RUN_SUMMARY_FILE}")
-print(f"✅ Known documents file: {KNOWN_DOCUMENTS_FILE}")
-print(f"✅ URL status file: {URL_STATUS_FILE}")
-print(f"✅ URL status rows updated: {len(url_status_updates)}")
-print(f"✅ URLs processed: {total_urls_processed}")
-print(f"✅ Documents captured: {len(output_data)}")
-print(f"✅ New diff records: {len(new_records)}")
-print(f"✅ Known documents appended: {len(known_documents_to_append)}")
-print(f"✅ Issues: {len(issue_rows)}")
-print(f"✅ Browser fallback enabled: {ENABLE_BROWSER_FALLBACK}")
-print(f"✅ Run {current_run_number}: {len(output_data)} documents captured")
-print(f"✅ PDF metadata diff filter enabled: {ENABLE_PDF_METADATA_DIFF_FILTER}")
-print(f"✅ PDF metadata recency days: {PDF_METADATA_RECENCY_DAYS}")
-print(f"✅ Document canonical file: {DOCUMENT_CANONICAL_FILE}")
-print(f"✅ Document canonical rows: {len(document_canonical_keys)}")
-print(f"✅ PDF metadata max bytes: {PDF_METADATA_MAX_BYTES}")
-
+if __name__ == '__main__':
+    main()
