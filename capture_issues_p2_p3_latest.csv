@@ -1,25 +1,27 @@
 date,run_mode,url_file,source_url,issue_type,status_code,documents_captured,error_message
-2026-10-23 19:42:10,full,documents_p2.csv,https://investorcentre.sigmahealthcare.com.au/corporate-sustainability,FETCH_FAILED_STATUS_AFTER_RETRY,403,0,Non-200 status code and browser fallback captured 0 documents
-2026-10-23 19:42:10,full,documents_p2.csv,https://investorcentre.sigmahealthcare.com.au/corporate-governance/governance-documents,FETCH_FAILED_STATUS_AFTER_RETRY,403,0,Non-200 status code and browser fallback captured 0 documents
-2026-10-23 19:42:10,full,documents_p2.csv,https://investors.biontech.de/agm/agm-2026,FETCH_FAILED_STATUS_AFTER_RETRY,403,0,Non-200 status code and browser fallback captured 0 documents
-2026-10-23 19:42:10,full,documents_p2.csv,https://esg.eqt.com/report-resources/report-downloads/,FETCH_ERROR_AFTER_RETRY,,0,Request failed / timeout and browser fallback captured 0 documents
-2026-10-23 19:42:10,full,documents_p2.csv,https://www.coalindia.in/esg/,FETCH_FAILED_STATUS_AFTER_RETRY,403,0,Non-200 status code and browser fallback captured 0 documents
-2026-10-23 19:42:10,full,documents_p2.csv,https://www.goldfields.com/sustainability-data.php,FETCH_ERROR_AFTER_RETRY,,0,Request failed / timeout and browser fallback captured 0 documents
-2026-10-23 19:42:10,full,documents_p2.csv,https://www.regeneron.com/responsibility/policies-corporate-transparency,FETCH_FAILED_STATUS_AFTER_RETRY,403,0,Non-200 status code and browser fallback captured 0 documents
-2026-10-23 19:42:10,full,documents_p2.csv,https://evolutionmining.com/document-centre/#corporate-governance#reports,SUCCESS_ZERO_DOCS_AFTER_RETRY,200,0,Page opened successfully but no document links captured
-2026-10-23 19:42:10,full,documents_p2.csv,https://polyus.com/en/sustainability/esg-data-and-reports/,FETCH_FAILED_STATUS_AFTER_RETRY,503,0,Non-200 status code and browser fallback captured 0 documents
-2026-10-23 19:42:09,full,documents_p3.csv,https://www.sanlam.com/sustainability,FETCH_FAILED_STATUS_AFTER_RETRY,404,0,Non-200 status code and browser fallback captured 0 documents
-2026-10-23 19:42:09,full,documents_p3.csv,https://www.sanlam.com/financial-reporting,FETCH_FAILED_STATUS_AFTER_RETRY,404,0,Non-200 status code and browser fallback captured 0 documents
-2026-10-23 19:42:09,full,documents_p3.csv,https://www.sanlam.com/shareholder-information,FETCH_FAILED_STATUS_AFTER_RETRY,404,0,Non-200 status code and browser fallback captured 0 documents
-2026-10-23 19:42:09,full,documents_p3.csv,https://investors.aecom.com/sustainability,FETCH_FAILED_STATUS_AFTER_RETRY,403,0,Non-200 status code and browser fallback captured 0 documents
-2026-10-23 19:42:09,full,documents_p3.csv,https://investors.aecom.com/tax-information,FETCH_FAILED_STATUS_AFTER_RETRY,403,0,Non-200 status code and browser fallback captured 0 documents
-2026-10-23 19:42:09,full,documents_p3.csv,https://www.hyatt.com/world-of-care/en-US/policies-statements,FETCH_FAILED_STATUS_AFTER_RETRY,403,0,Non-200 status code and browser fallback captured 0 documents
-2026-10-23 19:42:09,full,documents_p3.csv,https://nextpower.com/sustainability,FETCH_FAILED_STATUS_AFTER_RETRY,429,0,Non-200 status code and browser fallback captured 0 documents
-2026-10-23 19:42:09,full,documents_p3.csv,https://www.epam.com/about/who-we-are/corporate-responsibility,FETCH_FAILED_STATUS_AFTER_RETRY,403,0,Non-200 status code and browser fallback captured 0 documents
-2026-10-23 19:42:09,full,documents_p3.csv,https://www.stantec.com/en/about/sustainability,SUCCESS_ZERO_DOCS_AFTER_RETRY,200,0,Page opened successfully but no document links captured
-2026-10-23 19:42:09,full,documents_p3.csv,https://emerasustainability.com/,SUCCESS_ZERO_DOCS_AFTER_RETRY,200,0,Page opened successfully but no document links captured
-2026-10-23 19:42:09,full,documents_p3.csv,https://www.bollore.com/en/assemblees-generales/,FETCH_FAILED_STATUS_AFTER_RETRY,403,0,Non-200 status code and browser fallback captured 0 documents
-2026-10-23 19:42:09,full,documents_p3.csv,https://www.bollore.com/en/publications-csr/,FETCH_FAILED_STATUS_AFTER_RETRY,403,0,Non-200 status code and browser fallback captured 0 documents
-2026-10-23 19:42:09,full,documents_p3.csv,https://www.getlinkgroup.com/en/shareholders-investors/general-meeting/,SUCCESS_ZERO_DOCS_AFTER_RETRY,200,0,Page opened successfully but no document links captured
-2026-10-23 19:42:09,full,documents_p3.csv,https://www.icicilombard.com/investor-relations,FETCH_FAILED_STATUS_AFTER_RETRY,403,0,Non-200 status code and browser fallback captured 0 documents
-2026-10-23 19:42:09,full,documents_p3.csv,https://nlmk.com/en/sustainability/,SUCCESS_ZERO_DOCS_AFTER_RETRY,200,0,Page opened successfully but no document links captured
+2026-10-24 18:32:47,full,documents_p2.csv,https://investorcentre.sigmahealthcare.com.au/corporate-sustainability,FETCH_FAILED_STATUS_AFTER_RETRY,403,0,Non-200 status code and browser fallback captured 0 documents
+2026-10-24 18:32:47,full,documents_p2.csv,https://investorcentre.sigmahealthcare.com.au/corporate-governance/governance-documents,FETCH_FAILED_STATUS_AFTER_RETRY,403,0,Non-200 status code and browser fallback captured 0 documents
+2026-10-24 18:32:47,full,documents_p2.csv,https://investors.biontech.de/agm/agm-2026,FETCH_FAILED_STATUS_AFTER_RETRY,403,0,Non-200 status code and browser fallback captured 0 documents
+2026-10-24 18:32:47,full,documents_p2.csv,https://esg.eqt.com/report-resources/report-downloads/,FETCH_ERROR_AFTER_RETRY,,0,Request failed / timeout and browser fallback captured 0 documents
+2026-10-24 18:32:47,full,documents_p2.csv,https://www.coalindia.in/esg/,FETCH_FAILED_STATUS_AFTER_RETRY,403,0,Non-200 status code and browser fallback captured 0 documents
+2026-10-24 18:32:47,full,documents_p2.csv,https://www.goldfields.com/sustainability-data.php,FETCH_ERROR_AFTER_RETRY,,0,Request failed / timeout and browser fallback captured 0 documents
+2026-10-24 18:32:47,full,documents_p2.csv,https://www.regeneron.com/responsibility,FETCH_FAILED_STATUS_AFTER_RETRY,403,0,Non-200 status code and browser fallback captured 0 documents
+2026-10-24 18:32:47,full,documents_p2.csv,https://www.regeneron.com/responsibility/policies-corporate-transparency,FETCH_FAILED_STATUS_AFTER_RETRY,403,0,Non-200 status code and browser fallback captured 0 documents
+2026-10-24 18:32:47,full,documents_p2.csv,https://evolutionmining.com/document-centre/#corporate-governance#reports,SUCCESS_ZERO_DOCS_AFTER_RETRY,200,0,Page opened successfully but no document links captured
+2026-10-24 18:32:47,full,documents_p2.csv,https://polyus.com/en/sustainability/esg-data-and-reports/,FETCH_FAILED_STATUS_AFTER_RETRY,503,0,Non-200 status code and browser fallback captured 0 documents
+2026-10-24 18:32:46,full,documents_p3.csv,https://www.sanlam.com/sustainability,FETCH_FAILED_STATUS_AFTER_RETRY,404,0,Non-200 status code and browser fallback captured 0 documents
+2026-10-24 18:32:46,full,documents_p3.csv,https://www.sanlam.com/financial-reporting,FETCH_FAILED_STATUS_AFTER_RETRY,404,0,Non-200 status code and browser fallback captured 0 documents
+2026-10-24 18:32:46,full,documents_p3.csv,https://www.sanlam.com/shareholder-information,FETCH_FAILED_STATUS_AFTER_RETRY,404,0,Non-200 status code and browser fallback captured 0 documents
+2026-10-24 18:32:46,full,documents_p3.csv,https://investors.aecom.com/sustainability,FETCH_FAILED_STATUS_AFTER_RETRY,403,0,Non-200 status code and browser fallback captured 0 documents
+2026-10-24 18:32:46,full,documents_p3.csv,https://investors.aecom.com/tax-information,FETCH_FAILED_STATUS_AFTER_RETRY,403,0,Non-200 status code and browser fallback captured 0 documents
+2026-10-24 18:32:46,full,documents_p3.csv,https://www.alliantenergy.com/who-we-are/responsibility-report,FETCH_FAILED_STATUS_AFTER_RETRY,403,0,Non-200 status code and browser fallback captured 0 documents
+2026-10-24 18:32:46,full,documents_p3.csv,https://www.hyatt.com/world-of-care/en-US/policies-statements,FETCH_FAILED_STATUS_AFTER_RETRY,403,0,Non-200 status code and browser fallback captured 0 documents
+2026-10-24 18:32:46,full,documents_p3.csv,https://nextpower.com/sustainability,FETCH_FAILED_STATUS_AFTER_RETRY,429,0,Non-200 status code and browser fallback captured 0 documents
+2026-10-24 18:32:46,full,documents_p3.csv,https://www.epam.com/about/who-we-are/corporate-responsibility,FETCH_FAILED_STATUS_AFTER_RETRY,403,0,Non-200 status code and browser fallback captured 0 documents
+2026-10-24 18:32:46,full,documents_p3.csv,https://www.stantec.com/en/about/sustainability,SUCCESS_ZERO_DOCS_AFTER_RETRY,200,0,Page opened successfully but no document links captured
+2026-10-24 18:32:46,full,documents_p3.csv,https://emerasustainability.com/,SUCCESS_ZERO_DOCS_AFTER_RETRY,200,0,Page opened successfully but no document links captured
+2026-10-24 18:32:46,full,documents_p3.csv,https://www.bollore.com/en/assemblees-generales/,FETCH_FAILED_STATUS_AFTER_RETRY,403,0,Non-200 status code and browser fallback captured 0 documents
+2026-10-24 18:32:46,full,documents_p3.csv,https://www.bollore.com/en/publications-csr/,FETCH_FAILED_STATUS_AFTER_RETRY,403,0,Non-200 status code and browser fallback captured 0 documents
+2026-10-24 18:32:46,full,documents_p3.csv,https://www.getlinkgroup.com/en/shareholders-investors/general-meeting/,SUCCESS_ZERO_DOCS_AFTER_RETRY,200,0,Page opened successfully but no document links captured
+2026-10-24 18:32:46,full,documents_p3.csv,https://www.icicilombard.com/investor-relations,FETCH_FAILED_STATUS_AFTER_RETRY,403,0,Non-200 status code and browser fallback captured 0 documents
+2026-10-24 18:32:46,full,documents_p3.csv,https://nlmk.com/en/sustainability/,SUCCESS_ZERO_DOCS_AFTER_RETRY,200,0,Page opened successfully but no document links captured
