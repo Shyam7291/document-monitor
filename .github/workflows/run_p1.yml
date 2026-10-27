@@ -17,9 +17,11 @@ jobs:
       RUN_MODE: full
       TARGET_URL_FILE: documents_p1.csv
       ENABLE_BROWSER_FALLBACK: "true"
-      SLEEP_SECONDS: "5"
+      SLEEP_SECONDS: "0.5"
       RETRY_FAILED_URLS: "true"
       RETRY_SLEEP_SECONDS: "30"
+      HTTP_WORKERS: "8"
+      PDF_METADATA_WORKERS: "4"
       ENABLE_PDF_METADATA_DIFF_FILTER: "true"
       PDF_METADATA_RECENCY_DAYS: "60"
       PDF_METADATA_MAX_BYTES: "104857600"
@@ -41,7 +43,7 @@ jobs:
           echo "IST now: $(TZ='Asia/Kolkata' date '+%Y-%m-%d %H:%M:%S %Z')"
       - name: Install dependencies
         run: |
-          pip install requests beautifulsoup4 playwright PyPDF2
+          pip install -r requirements.txt
           playwright install chromium
 
       - name: Check Python syntax
@@ -55,7 +57,7 @@ jobs:
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
 
-          git add -A output*.csv raw_links*.csv capture_issues*.csv diff*.csv known_documents*.csv run_summary*.csv 2>/dev/null || true
+          git add -A output*.csv raw_links*.csv capture_issues*.csv diff*.csv known_documents*.csv run_summary*.csv url_status.csv source_strategies_*.json 2>/dev/null || true
 
           git commit -m "Update scraped data P1" || echo "No changes to commit"
 

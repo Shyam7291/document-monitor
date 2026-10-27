@@ -9,7 +9,7 @@ on:
         default: "full"
 
 concurrency:
-  group: document-monitor-p4-p5
+  group: document-monitor-production
   cancel-in-progress: false
 
 jobs:
@@ -29,7 +29,6 @@ jobs:
             known_file: known_documents_p4_p5_01_work.csv
             summary_file: run_summary_p4_p5_01_work.csv
             status_file: url_status_p4_p5_01_work.csv
-            canonical_file: document_canonical_keys_p4_p5_01_work.csv
 
           - shard: "02"
             target_url_file: p4_p5/documents_p4_p5_02.csv
@@ -39,7 +38,6 @@ jobs:
             known_file: known_documents_p4_p5_02_work.csv
             summary_file: run_summary_p4_p5_02_work.csv
             status_file: url_status_p4_p5_02_work.csv
-            canonical_file: document_canonical_keys_p4_p5_02_work.csv
 
           - shard: "03"
             target_url_file: p4_p5/documents_p4_p5_03.csv
@@ -49,7 +47,6 @@ jobs:
             known_file: known_documents_p4_p5_03_work.csv
             summary_file: run_summary_p4_p5_03_work.csv
             status_file: url_status_p4_p5_03_work.csv
-            canonical_file: document_canonical_keys_p4_p5_03_work.csv
 
           - shard: "04"
             target_url_file: p4_p5/documents_p4_p5_04.csv
@@ -59,7 +56,6 @@ jobs:
             known_file: known_documents_p4_p5_04_work.csv
             summary_file: run_summary_p4_p5_04_work.csv
             status_file: url_status_p4_p5_04_work.csv
-            canonical_file: document_canonical_keys_p4_p5_04_work.csv
 
           - shard: "05"
             target_url_file: p4_p5/documents_p4_p5_05.csv
@@ -69,7 +65,6 @@ jobs:
             known_file: known_documents_p4_p5_05_work.csv
             summary_file: run_summary_p4_p5_05_work.csv
             status_file: url_status_p4_p5_05_work.csv
-            canonical_file: document_canonical_keys_p4_p5_05_work.csv
 
           - shard: "06"
             target_url_file: p4_p5/documents_p4_p5_06.csv
@@ -79,7 +74,6 @@ jobs:
             known_file: known_documents_p4_p5_06_work.csv
             summary_file: run_summary_p4_p5_06_work.csv
             status_file: url_status_p4_p5_06_work.csv
-            canonical_file: document_canonical_keys_p4_p5_06_work.csv
 
     env:
       RUN_MODE: ${{ github.event.inputs.run_mode }}
@@ -91,15 +85,16 @@ jobs:
       KNOWN_DOCUMENTS_FILE: ${{ matrix.known_file }}
       RUN_SUMMARY_FILE: ${{ matrix.summary_file }}
       URL_STATUS_FILE: ${{ matrix.status_file }}
-      DOCUMENT_CANONICAL_FILE: ${{ matrix.canonical_file }}
 
       ENABLE_DIFF_DECISION_LOGS: "true"
 
-      ENABLE_BROWSER_FALLBACK: "false"
-      SLEEP_SECONDS: "1"
+      ENABLE_BROWSER_FALLBACK: "true"
+      SLEEP_SECONDS: "0.5"
       RETRY_FAILED_URLS: "true"
       RETRY_SLEEP_SECONDS: "20"
 
+      HTTP_WORKERS: "8"
+      PDF_METADATA_WORKERS: "4"
       ENABLE_PDF_METADATA_DIFF_FILTER: "true"
       PDF_METADATA_RECENCY_DAYS: "60"
       PDF_METADATA_MAX_BYTES: "104857600"
@@ -122,9 +117,6 @@ jobs:
             cp p4_p5/output_p4_p5.csv "${OUTPUT_FILE}"
           fi
 
-          if [ -f p4_p5/document_canonical_keys_p4_p5.csv ]; then
-            cp p4_p5/document_canonical_keys_p4_p5.csv "${DOCUMENT_CANONICAL_FILE}"
-          fi
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -133,7 +125,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install requests beautifulsoup4 playwright PyPDF2
+          pip install -r requirements.txt
           playwright install chromium
 
       - name: Check Python syntax
@@ -152,8 +144,8 @@ jobs:
             ${{ matrix.diff_file }}
             ${{ matrix.known_file }}
             ${{ matrix.summary_file }}
+            source_strategies_documents_p4_p5_${{ matrix.shard }}.json
             ${{ matrix.status_file }}
-            ${{ matrix.canonical_file }}
 
   merge-results:
     if: ${{ always() }}
@@ -178,6 +170,15 @@ jobs:
           import os
           import glob
           from urllib.parse import urlparse
+
+          import shutil
+          for strategy_file in glob.glob("shard_outputs/**/source_strategies_*.json", recursive=True):
+              shutil.copyfile(strategy_file, os.path.basename(strategy_file))
+
+          # Refuse to replace production snapshots when any shard is absent.
+          expected_outputs = glob.glob("shard_outputs/**/output_p4_p5_*_work.csv", recursive=True)
+          if len(expected_outputs) != 6:
+              raise RuntimeError(f"Expected 6 completed shards, found {len(expected_outputs)}")
 
           OUTPUT_FIELDS = ["company", "document_title", "document_title_source", "document_url"]
           DIFF_FIELDS = ["date", "company", "document_title", "document_url"]
@@ -219,7 +220,7 @@ jobs:
 
           def normalize_url_key(url):
               parsed = urlparse(url or "")
-              return f"{parsed.scheme}://{parsed.netloc}{parsed.path}".lower()
+              return parsed._replace(scheme=parsed.scheme.lower(), netloc=parsed.netloc.lower(), fragment="").geturl()
 
           def clean_source_url(raw):
               raw = (raw or "").strip()
@@ -418,65 +419,6 @@ jobs:
           write_csv("p4_p5/url_status_p4_p5.csv", URL_STATUS_FIELDS, url_status_rows)
 
           # -----------------------
-          # Merge document canonical keys
-          # -----------------------
-          canonical_rows_by_key = {}
-
-          for row in read_csv("p4_p5/document_canonical_keys_p4_p5.csv"):
-              company = row.get("company", "")
-              canonical_key = row.get("canonical_document_key", "")
-
-              if not company or not canonical_key:
-                  continue
-
-              key = (normalize_url_key(company), canonical_key)
-
-              canonical_rows_by_key[key] = {
-                  "company": company,
-                  "canonical_document_key": canonical_key,
-                  "pdf_metadata_date": row.get("pdf_metadata_date", "")
-              }
-
-          for file in glob.glob("shard_outputs/**/document_canonical_keys_p4_p5_*_work.csv", recursive=True):
-              for row in read_csv(file):
-                  company = row.get("company", "")
-                  canonical_key = row.get("canonical_document_key", "")
-
-                  if not company or not canonical_key:
-                      continue
-
-                  key = (normalize_url_key(company), canonical_key)
-
-                  existing = canonical_rows_by_key.get(key, {
-                      "company": company,
-                      "canonical_document_key": canonical_key,
-                      "pdf_metadata_date": ""
-                  })
-
-                  existing_date = existing.get("pdf_metadata_date", "")
-                  new_date = row.get("pdf_metadata_date", "")
-
-                  if new_date and (not existing_date or new_date > existing_date):
-                      existing["pdf_metadata_date"] = new_date
-
-                  canonical_rows_by_key[key] = existing
-
-          canonical_rows = list(canonical_rows_by_key.values())
-
-          canonical_rows.sort(
-              key=lambda r: (
-                  r.get("company", ""),
-                  r.get("canonical_document_key", "")
-              )
-          )
-
-          write_csv(
-              "p4_p5/document_canonical_keys_p4_p5.csv",
-              DOCUMENT_CANONICAL_FIELDS,
-              canonical_rows
-          )
-
-          # -----------------------
           # Merge run summary as one P4/P5 total row
           # -----------------------
           summary_rows = read_csv("run_summary_master.csv")
@@ -649,14 +591,16 @@ jobs:
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
 
-          git add -A p4_p5/documents_p4_p5_*.csv p4_p5/output_p4_p5.csv p4_p5/known_documents_p4_p5.csv p4_p5/capture_issues_p4_p5.csv p4_p5/url_status_p4_p5.csv p4_p5/document_canonical_keys_p4_p5.csv diff_p4_p5.csv run_summary_master.csv 2>/dev/null || true
+          git add -A p4_p5/documents_p4_p5_*.csv p4_p5/output_p4_p5.csv p4_p5/known_documents_p4_p5.csv p4_p5/capture_issues_p4_p5.csv p4_p5/url_status_p4_p5.csv p4_p5/document_canonical_keys_p4_p5.csv diff_p4_p5.csv run_summary_master.csv source_strategies_*.json 2>/dev/null || true
 
           git commit -m "Update P4 P5 batch data" || echo "No changes to commit"
 
+          pushed=false
           for i in 1 2 3; do
-            git pull --rebase origin main && git push && break
+            git pull --rebase origin main && git push && { pushed=true; break; }
 
             echo "Push/rebase failed. Retry attempt $i..."
             git rebase --abort 2>/dev/null || true
             sleep 10
           done
+          "$pushed" || { echo "Failed to publish results after three attempts"; exit 1; }

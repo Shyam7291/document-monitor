@@ -41,14 +41,14 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install requests beautifulsoup4 playwright PyPDF2
+          pip install -r requirements.txt
           playwright install chromium
 
       - name: Check Python syntax
-        run: python -m py_compile scrape_dev.py
+        run: python -m py_compile scrape.py monitor_io.py
 
       - name: Run dev scraper test
-        run: python scrape_dev.py
+        run: python scrape.py
 
       - name: Commit and push test output files
         run: |
