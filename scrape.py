@@ -4,7 +4,14 @@ import os
 import re
 import html
 import time
-from datetime import datetime, timedelta
+import json
+import hashlib
+from pathlib import Path
+from datetime import datetime, timedelta, timezone
+from concurrent.futures import ThreadPoolExecutor
+from monitor_io import (url_key, pdf_date, read_modified, recent_modified, paced_get,
+                        prefetched, shared_browser, settle, paginate_browser, embedded_pdf_links, click_once, BrowserBudgetExceeded,
+                        download_candidate, confirms_pdf, scroll_collect)
 from io import BytesIO
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse, unquote
@@ -15,8 +22,16 @@ from urllib.parse import urljoin, urlparse, unquote
 
 RUN_MODE = os.environ.get("RUN_MODE", "full").strip().lower()
 TARGET_URL_FILE = os.environ.get("TARGET_URL_FILE", "documents.csv").strip()
+SOURCE_STRATEGY_FILE = os.environ.get("SOURCE_STRATEGY_FILE", "source_strategies_" + Path(TARGET_URL_FILE).stem + ".json")
+try:
+    source_strategies = json.loads(Path(SOURCE_STRATEGY_FILE).read_text())
+except (OSError, ValueError):
+    source_strategies = {}
+browser_attempted_sources = set()
+source_page_fingerprints = {}
 
 ENABLE_BROWSER_FALLBACK = os.environ.get("ENABLE_BROWSER_FALLBACK", "false").strip().lower() == "true"
+ENABLE_RAW_LINKS = os.environ.get("ENABLE_RAW_LINKS", "false").strip().lower() == "true"
 
 # Sleep between URLs to reduce blocking
 SLEEP_SECONDS = float(os.environ.get("SLEEP_SECONDS", "2"))
@@ -151,7 +166,7 @@ HEADERS = {
                   "Chrome/124.0 Safari/537.36",
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
     "Accept-Language": "en-US,en;q=0.9",
-    "Connection": "close"
+    "Connection": "keep-alive"
 }
 
 IGNORE_WORDS = {
@@ -201,7 +216,7 @@ def fetch_url(source_url):
     Safe fetch logic.
 
     Default:
-    - Use old simple requests.get() behavior for all normal URLs.
+    - Use old simple paced_get() behavior for all normal URLs.
 
     Special:
     - Use browser-like headers + retry only for EQT ESG site,
@@ -218,7 +233,7 @@ def fetch_url(source_url):
     # Special handling only for EQT ESG site
     if "esg.eqt.com" in source_lower:
         try:
-            response = requests.get(
+            response = paced_get(
                 source_url,
                 timeout=30,
                 headers=HEADERS
@@ -230,7 +245,7 @@ def fetch_url(source_url):
             print("Retrying EQT once with longer timeout...")
 
             try:
-                response = requests.get(
+                response = paced_get(
                     source_url,
                     timeout=60,
                     headers=HEADERS
@@ -251,7 +266,7 @@ def fetch_url(source_url):
 
     # Default old behavior for all other websites
     try:
-        response = requests.get(source_url, timeout=15)
+        response = paced_get(source_url, timeout=15)
 
         # Generic retry only when site blocks simple request
         if response.status_code in [403, 406, 429]:
@@ -263,7 +278,7 @@ def fetch_url(source_url):
                 retry_headers = HEADERS.copy()
                 retry_headers["Referer"] = f"{parsed.scheme}://{parsed.netloc}/"
 
-                retry_response = requests.get(
+                retry_response = paced_get(
                     source_url,
                     timeout=25,
                     headers=retry_headers
@@ -500,6 +515,11 @@ def queue_known_document_if_new(doc):
     if RUN_MODE not in ["full", "seed"]:
         return
 
+    # Unknown dates/transient failures must be eligible for another attempt next run.
+    key = normalize_url_key(doc.get("document_url", ""))
+    if key in pdf_metadata_status and pdf_metadata_status[key] != "ok":
+        return
+
     document_url = doc.get("document_url", "")
 
     if not document_url:
@@ -569,158 +589,27 @@ def limit_document_title_words(title, max_words=20):
 
     return " ".join(words[:max_words])
 def parse_pdf_metadata_date(raw_date):
-    """
-    Parse PDF metadata date.
-
-    Common PDF formats:
-    - D:20260420113938
-    - D:20260420113938+05'30'
-    - D:20260420113938Z
-    """
-
-    if not raw_date:
-        return None
-
-    raw_date = str(raw_date).strip()
-
-    if raw_date.startswith("D:"):
-        raw_date = raw_date[2:]
-
-    digits = re.sub(r"\D", "", raw_date)
-
-    if len(digits) >= 14:
-        try:
-            return datetime.strptime(digits[:14], "%Y%m%d%H%M%S")
-        except Exception:
-            pass
-
-    if len(digits) >= 8:
-        try:
-            return datetime.strptime(digits[:8], "%Y%m%d")
-        except Exception:
-            pass
-
-    return None
+    return pdf_date(raw_date)
 
 
 pdf_metadata_date_cache = {}
+pdf_metadata_status = {}
 
 
 def get_pdf_metadata_date(document_url):
-    """
-    Download PDF and read Created/Modified metadata.
-
-    Returns datetime object if /CreationDate or /ModDate is found.
-    Returns None if metadata is missing/unreadable.
-    """
-
-    document_key = normalize_url_key(document_url)
-
-    if document_key in pdf_metadata_date_cache:
-        return pdf_metadata_date_cache[document_key]
-
-    metadata_date = None
-
-    try:
-        response = requests.get(
-            document_url,
-            timeout=45,
-            headers=HEADERS,
-            stream=True
-        )
-
-        if response.status_code != 200:
-            print(f"PDF metadata fetch failed status {response.status_code}: {document_url}")
-            pdf_metadata_date_cache[document_key] = None
-            return None
-
-        content_length = response.headers.get("Content-Length")
-
-        if content_length:
-            try:
-                if int(content_length) > PDF_METADATA_MAX_BYTES:
-                    print(f"PDF metadata skipped large file: {document_url}")
-                    pdf_metadata_date_cache[document_key] = None
-                    return None
-            except Exception:
-                pass
-
-        pdf_bytes = response.content
-
-        if len(pdf_bytes) > PDF_METADATA_MAX_BYTES:
-            print(f"PDF metadata skipped large downloaded file: {document_url}")
-            pdf_metadata_date_cache[document_key] = None
-            return None
-
-        try:
-            from PyPDF2 import PdfReader
-        except Exception as import_error:
-            print(f"PyPDF2 not available for PDF metadata: {import_error}")
-            pdf_metadata_date_cache[document_key] = None
-            return None
-
-        reader = PdfReader(BytesIO(pdf_bytes))
-        metadata = reader.metadata
-
-        if metadata:
-            created_raw = metadata.get("/CreationDate")
-            modified_raw = metadata.get("/ModDate")
-
-            created_date = parse_pdf_metadata_date(created_raw)
-            modified_date = parse_pdf_metadata_date(modified_raw)
-
-            available_metadata_dates = [
-                d for d in [created_date, modified_date]
-                if d is not None
-            ]
-            if available_metadata_dates:
-                metadata_date = max(available_metadata_dates)
-            else:
-                metadata_date = None
-                print(
-                    f"PDF metadata raw dates → "
-                    f"Created={created_raw}, Modified={modified_raw}, "
-                    f"Selected={metadata_date.date() if metadata_date else None} | {document_url}"
-                )
-
-
-
-            if metadata_date:
-                print(f"PDF metadata date found → {metadata_date.date()} | {document_url}")
-            else:
-                print(f"PDF metadata date missing/unreadable: {document_url}")
-        else:
-            print(f"PDF metadata not available: {document_url}")
-
-    except Exception as e:
-        print(f"PDF metadata read error: {e} | {document_url}")
-
-    pdf_metadata_date_cache[document_key] = metadata_date
-    return metadata_date
+    key = normalize_url_key(document_url)
+    if key not in pdf_metadata_date_cache:
+        value, status = read_modified(document_url, HEADERS, PDF_METADATA_MAX_BYTES)
+        pdf_metadata_date_cache[key] = value
+        pdf_metadata_status[key] = status
+        print(f"PDF PROPERTY → modified={value} status={status} | {document_url}")
+    return pdf_metadata_date_cache[key]
 
 
 def is_pdf_metadata_recent_for_diff(document_url, recency_days=60):
-    """
-    Return True when PDF Created/Modified metadata date is recent.
+    return recent_modified(get_pdf_metadata_date(document_url), recency_days)
 
-    Important behavior:
-    - If metadata date exists, it must be within the recent window.
-    - If metadata date is missing/unreadable, do not block diff.
-      In that case, return True so normal source/doc URL diff logic applies.
-    """
 
-    metadata_date = get_pdf_metadata_date(document_url)
-
-    if not metadata_date:
-        print(
-            f"PDF metadata missing/unreadable. "
-            f"Allowing diff based on source/doc URL logic → {document_url}"
-        )
-        return True
-
-    cutoff_date = datetime.now() - timedelta(days=recency_days)
-
-    return metadata_date >= cutoff_date    
 def load_report_keywords():
     """
     Load configurable report/card keywords from report_keywords.csv.
@@ -1127,8 +1016,7 @@ def get_link_text_title(link):
 
 
 def normalize_url_key(url):
-    parsed = urlparse(url)
-    return f"{parsed.scheme}://{parsed.netloc}{parsed.path}".lower()
+    return url_key(url)
 
 def canonical_document_key(url):
     """
@@ -1438,9 +1326,12 @@ def mark_document_seen(document_url):
 
 
 def get_best_title_with_source(link, full_url, source_url):
-    html_title = get_title_from_html_context(link)
     link_text = get_link_text_title(link)
     url_title = clean_title_from_url(full_url)
+    # A clear local label avoids repeatedly walking large ancestor subtrees.
+    if link_text and len(link_text.split()) <= 20 and title_quality_score(link_text) >= title_quality_score(url_title):
+        return {"title": link_text, "source": "link_text", "score": title_quality_score(link_text)}
+    html_title = get_title_from_html_context(link)
 
     candidates = []
 
@@ -1593,7 +1484,7 @@ def parse_source_url(raw_source_url):
     - force browser fallback = True
     """
 
-    raw_source_url = normalize_text(raw_source_url)
+    raw_source_url = html.unescape((raw_source_url or "").strip())
 
     fallback_prefixes = [
         "fallback/",
@@ -1618,7 +1509,18 @@ def parse_source_url(raw_source_url):
 
 
 def should_use_browser_fallback(source_url, force_browser_fallback=False):
-    return ENABLE_BROWSER_FALLBACK or force_browser_fallback
+    if source_url in browser_attempted_sources:
+        return False
+    if force_browser_fallback:
+        return True
+    if not ENABLE_BROWSER_FALLBACK:
+        return False
+    strategy = source_strategies.get(source_url, {})
+    if (strategy.get("browser_required") is False
+        and strategy.get("html_fingerprint") == source_page_fingerprints.get(source_url, "unfetched")
+        and time.time() - strategy.get("checked_at", 0) < 7 * 86400):
+        return False
+    return True
 
 
 def source_url_has_hash(source_url):
@@ -1690,7 +1592,19 @@ def get_iframe_soups(source_url, soup):
 def extract_links_from_soup(soup, base_url, source_url, seen, label="KEPT"):
     docs_found = []
 
-    links = soup.find_all("a")
+    links = list(soup.find_all("a"))
+    extra_urls = set()
+    for tag in soup.find_all(True):
+        for attr in ("data-href", "data-url", "data-file", "data-download", "data-src", "src"):
+            value = tag.get(attr)
+            if isinstance(value, str) and (is_document_link(value) or download_candidate(value)):
+                extra_urls.add(value)
+        extra_urls.update(embedded_pdf_links(tag.get("onclick", "")))
+    for script in soup.find_all("script"):
+        extra_urls.update(embedded_pdf_links(script.string or script.get_text()))
+    for value in extra_urls:
+        synthetic = soup.new_tag("a", href=value)
+        links.append(synthetic)
 
     for link in links:
         href = link.get("href")
@@ -1700,19 +1614,28 @@ def extract_links_from_soup(soup, base_url, source_url, seen, label="KEPT"):
 
         full_url = urljoin(base_url, href)
         href_lower = full_url.lower()
+        is_pdf = is_document_link(full_url)
+        if not is_pdf and (download_candidate(full_url) or link.has_attr("download")):
+            is_pdf = normalize_url_key(full_url) in known_document_urls or confirms_pdf(full_url)
+
+        if not is_pdf and not ENABLE_RAW_LINKS:
+            continue
+        if is_pdf and normalize_url_key(full_url) in seen:
+            continue
 
         title_info = get_best_title_with_source(link, full_url, source_url)
         title = title_info["title"]
         title_source = title_info["source"]
         title = limit_document_title_words(title, max_words=20)
-        raw_links.append({
+        if ENABLE_RAW_LINKS:
+            raw_links.append({
             "company": source_url,
             "text": title,
             "title_source": title_source,
             "url": full_url
-        })
+            })
 
-        if is_document_link(href_lower):
+        if is_pdf:
             duplicate_key = normalize_url_key(full_url)
 
             if duplicate_key in seen:
@@ -1742,6 +1665,32 @@ def extract_links_from_soup(soup, base_url, source_url, seen, label="KEPT"):
             continue
 
     return docs_found
+
+
+def scan_http_pagination(soup, base_url, source_url, seen):
+    """Follow explicit same-host pagination without opening Chromium."""
+    visited = {url_key(base_url)}
+    for _ in range(100):
+        candidates = soup.select("a[rel~=next]")
+        candidates += [a for a in soup.find_all("a", href=True)
+            if re.fullmatch(r"\s*(next(?: page)?|older(?: reports)?|load more|show more)\s*", a.get_text(), re.I)]
+        next_url = None
+        for tag in candidates:
+            url = urljoin(base_url, tag.get("href", ""))
+            if urlparse(url).netloc == urlparse(base_url).netloc and url_key(url) not in visited and not url.startswith(base_url + "#"):
+                next_url = url
+                break
+        if next_url is None:
+            return
+        visited.add(url_key(next_url))
+        response = fetch_url(next_url)
+        if response is None or response.status_code != 200:
+            add_issue(source_url, "PAGINATION_FETCH_FAILED", error_message=next_url)
+            return
+        base_url = response.url or next_url
+        soup = BeautifulSoup(response.text, "html.parser")
+        extract_links_from_soup(soup, base_url, source_url, seen, label="PAGINATION KEPT")
+    add_issue(source_url, "PAGINATION_CAPTURE_LIMIT", error_message="Reached 100 linked pages")
 
 
 def extract_title_from_playwright_element(element):
@@ -1813,9 +1762,11 @@ def should_trigger_report_card_fallback(soup, docs_captured_for_url):
     Keywords are loaded from report_keywords.csv.
     """
 
-    if docs_captured_for_url >= 5:
-        return False
 
+    if soup.select("button[aria-controls], [role=tab], select, [aria-expanded='false']"):
+        return True
+    if any(re.search(r"load more|show more|next page", button.get_text(), re.I) for button in soup.find_all("button")):
+        return True
     try:
         page_text = normalize_text(soup.get_text(" ", strip=True))
 
@@ -1850,23 +1801,29 @@ def should_trigger_report_card_fallback(soup, docs_captured_for_url):
 
 def browser_click_fallback(source_url, existing_keys):
     fallback_docs = []
+    browser_deadline = time.monotonic() + float(os.environ.get("BROWSER_SOURCE_SECONDS", "120"))
+    browser_attempted_sources.add(source_url)
+    initial_existing_count = len(existing_keys)
+    initial_issue_count = len(issue_rows)
 
     try:
         from playwright.sync_api import sync_playwright
+    except BrowserBudgetExceeded:
+        raise
     except Exception as e:
         print(f"Playwright not available: {e}")
         return fallback_docs
 
     print("Running enhanced browser fallback for failed/zero-doc/hash page...")
 
-    def add_doc_from_url(found_url, title_hint=""):
+    def add_doc_from_url(found_url, title_hint="", confirmed_pdf=False):
         full_url = urljoin(source_url, found_url)
         key = normalize_url_key(full_url)
 
         if key in existing_keys:
             return
 
-        if not is_click_document_candidate(full_url):
+        if not confirmed_pdf and not is_click_document_candidate(full_url):
             return
 
         if not mark_document_seen(full_url):
@@ -1904,7 +1861,16 @@ def browser_click_fallback(source_url, existing_keys):
         })
 
     def scan_soup_for_links(scan_soup, base_url):
+        for script in scan_soup.find_all("script"):
+            if time.monotonic() > browser_deadline:
+                raise BrowserBudgetExceeded("Browser source time budget exceeded; capture may be incomplete")
+            for value in embedded_pdf_links(script.string or script.get_text()):
+                if time.monotonic() > browser_deadline:
+                    raise BrowserBudgetExceeded("Browser source time budget exceeded; capture may be incomplete")
+                add_doc_from_url(urljoin(base_url, value))
         for tag in scan_soup.find_all(True):
+            if time.monotonic() > browser_deadline:
+                raise BrowserBudgetExceeded("Browser source time budget exceeded; capture may be incomplete")
             for attr in [
                 "href",
                 "src",
@@ -1937,6 +1903,8 @@ def browser_click_fallback(source_url, existing_keys):
                     )
 
                 for possible_value in possible_values:
+                    if time.monotonic() > browser_deadline:
+                        raise BrowserBudgetExceeded("Browser source time budget exceeded; capture may be incomplete")
                     full_url = urljoin(base_url, possible_value)
 
                     if not is_click_document_candidate(full_url):
@@ -1954,6 +1922,8 @@ def browser_click_fallback(source_url, existing_keys):
             html_content = page.content()
             main_soup = BeautifulSoup(html_content, "html.parser")
             scan_soup_for_links(main_soup, page.url or source_url)
+        except BrowserBudgetExceeded:
+            raise
         except Exception as e:
             print(f"Main page scan error: {e}")
 
@@ -1962,6 +1932,8 @@ def browser_click_fallback(source_url, existing_keys):
             print(f"Frames found: {len(frames)}")
 
             for frame in frames:
+                if time.monotonic() > browser_deadline:
+                    raise BrowserBudgetExceeded("Browser source time budget exceeded; capture may be incomplete")
                 try:
                     frame_url = frame.url or source_url
 
@@ -1975,9 +1947,13 @@ def browser_click_fallback(source_url, existing_keys):
 
                     scan_soup_for_links(frame_soup, frame_url)
 
+                except BrowserBudgetExceeded:
+                    raise
                 except Exception as frame_error:
                     print(f"Frame scan error: {frame_error}")
 
+        except BrowserBudgetExceeded:
+            raise
         except Exception as e:
             print(f"Frame collection error: {e}")
     def interact_with_year_dropdowns(page):
@@ -2001,7 +1977,7 @@ def browser_click_fallback(source_url, existing_keys):
             def scan_after_year_change(year_label):
                 print(f"Scanning after year dropdown change: {year_label}")
 
-                page.wait_for_timeout(2500)
+                settle(page, 2500)
 
                 scan_all_rendered_content(page)
 
@@ -2023,6 +1999,8 @@ def browser_click_fallback(source_url, existing_keys):
 
                 try:
                     for frame in page.frames:
+                        if time.monotonic() > browser_deadline:
+                            raise BrowserBudgetExceeded("Browser source time budget exceeded; capture may be incomplete")
                         frame_url = frame.url or ""
 
                         if not frame_url:
@@ -2042,6 +2020,8 @@ def browser_click_fallback(source_url, existing_keys):
                             "url": frame_url
                         })
 
+                except BrowserBudgetExceeded:
+                    raise
                 except Exception:
                     pass
 
@@ -2052,6 +2032,8 @@ def browser_click_fallback(source_url, existing_keys):
             print(f"Year dropdown contexts to scan: {len(contexts_to_scan)}")
 
             for ctx_item in contexts_to_scan:
+                if time.monotonic() > browser_deadline:
+                    raise BrowserBudgetExceeded("Browser source time budget exceeded; capture may be incomplete")
                 ctx = ctx_item["context"]
                 ctx_name = ctx_item["name"]
                 ctx_url = ctx_item["url"]
@@ -2073,12 +2055,16 @@ def browser_click_fallback(source_url, existing_keys):
 
                         # Prefer exact same URL first
                         for item in current_contexts:
+                            if time.monotonic() > browser_deadline:
+                                raise BrowserBudgetExceeded("Browser source time budget exceeded; capture may be incomplete")
                             if item.get("url", "") == original_context_url:
                                 return item.get("context")
 
                         # For Protasco / similar pages, prefer current general-meeting iframe
                         if "general-meeting" in original_context_url.lower():
                             for item in current_contexts:
+                                if time.monotonic() > browser_deadline:
+                                    raise BrowserBudgetExceeded("Browser source time budget exceeded; capture may be incomplete")
                                 item_url = item.get("url", "").lower()
 
                                 if "general-meeting" in item_url:
@@ -2086,6 +2072,8 @@ def browser_click_fallback(source_url, existing_keys):
 
                         # Fallback to first non-main useful frame
                         for item in current_contexts:
+                            if time.monotonic() > browser_deadline:
+                                raise BrowserBudgetExceeded("Browser source time budget exceeded; capture may be incomplete")
                             item_url = item.get("url", "").lower()
 
                             if "cloudflare.com" in item_url:
@@ -2094,6 +2082,8 @@ def browser_click_fallback(source_url, existing_keys):
                             if item.get("name") == "frame":
                                 return item.get("context")
 
+                    except BrowserBudgetExceeded:
+                        raise
                     except Exception:
                         pass
 
@@ -2101,6 +2091,8 @@ def browser_click_fallback(source_url, existing_keys):
 
 
                 for ctx_item in contexts_to_scan:
+                    if time.monotonic() > browser_deadline:
+                        raise BrowserBudgetExceeded("Browser source time budget exceeded; capture may be incomplete")
                     ctx = ctx_item["context"]
                     ctx_name = ctx_item["name"]
                     ctx_url = ctx_item["url"]
@@ -2112,6 +2104,8 @@ def browser_click_fallback(source_url, existing_keys):
                         print(f"Native select dropdowns found in {ctx_name}: {select_count}")
 
                         for i in range(select_count):
+                            if time.monotonic() > browser_deadline:
+                                raise BrowserBudgetExceeded("Browser source time budget exceeded; capture may be incomplete")
                             try:
                                 select_el = select_elements.nth(i)
 
@@ -2121,6 +2115,8 @@ def browser_click_fallback(source_url, existing_keys):
                                 year_options = []
 
                                 for j in range(option_count):
+                                    if time.monotonic() > browser_deadline:
+                                        raise BrowserBudgetExceeded("Browser source time budget exceeded; capture may be incomplete")
                                     try:
                                         option = options.nth(j)
                                         option_text = normalize_text(option.inner_text(timeout=1000))
@@ -2136,6 +2132,8 @@ def browser_click_fallback(source_url, existing_keys):
                                             if year_value not in year_options:
                                                 year_options.append(year_value)
 
+                                    except BrowserBudgetExceeded:
+                                        raise
                                     except Exception:
                                         continue
 
@@ -2177,6 +2175,8 @@ def browser_click_fallback(source_url, existing_keys):
                                         original_url_before_iframe_visits = page.url or source_url
 
                                         for year_value in year_options[:15]:
+                                            if time.monotonic() > browser_deadline:
+                                                raise BrowserBudgetExceeded("Browser source time budget exceeded; capture may be incomplete")
                                             if year_value in years_clicked_or_selected:
                                                 continue
 
@@ -2194,14 +2194,16 @@ def browser_click_fallback(source_url, existing_keys):
                                                 page.goto(
                                                     generated_iframe_url,
                                                     wait_until="domcontentloaded",
-                                                    timeout=60000
+                                                    timeout=min(30000, max(1000, int((browser_deadline-time.monotonic())*1000)))
                                                 )
-                                                page.wait_for_timeout(2500)
+                                                settle(page, 2500)
 
                                                 scan_all_rendered_content(page)
 
                                                 years_clicked_or_selected.add(year_value)
 
+                                            except BrowserBudgetExceeded:
+                                                raise
                                             except Exception as iframe_year_error:
                                                 print(f"Dropdown-derived iframe visit failed for {year_value}: {iframe_year_error}")
 
@@ -2209,9 +2211,11 @@ def browser_click_fallback(source_url, existing_keys):
                                             page.goto(
                                                 original_url_before_iframe_visits,
                                                 wait_until="domcontentloaded",
-                                                timeout=60000
+                                                timeout=min(30000, max(1000, int((browser_deadline-time.monotonic())*1000)))
                                             )
-                                            page.wait_for_timeout(1000)
+                                            settle(page, 1000)
+                                        except BrowserBudgetExceeded:
+                                            raise
                                         except Exception:
                                             pass
 
@@ -2221,6 +2225,8 @@ def browser_click_fallback(source_url, existing_keys):
                                         continue
 
                                 for year_value in year_options[:15]:
+                                    if time.monotonic() > browser_deadline:
+                                        raise BrowserBudgetExceeded("Browser source time budget exceeded; capture may be incomplete")
                                     if year_value in years_clicked_or_selected:
                                         continue
 
@@ -2245,32 +2251,44 @@ def browser_click_fallback(source_url, existing_keys):
                                         try:
                                             fresh_select.select_option(label=year_value, timeout=5000)
                                             selection_done = True
+                                        except BrowserBudgetExceeded:
+                                            raise
                                         except Exception:
                                             try:
                                                 fresh_select.select_option(value=year_value, timeout=5000)
                                                 selection_done = True
+                                            except BrowserBudgetExceeded:
+                                                raise
                                             except Exception as select_error:
                                                 print(f"Native year select failed for {year_value}: {select_error}")
 
                                         if not selection_done:
                                             continue
 
-                                        page.wait_for_timeout(2500)
+                                        settle(page, 2500)
 
                                         scan_after_year_change(year_value)
 
                                         # Mark handled only after successful selection + scan
                                         years_clicked_or_selected.add(year_value)
 
+                                    except BrowserBudgetExceeded:
+                                        raise
                                     except Exception as year_error:
                                         print(f"Native year processing failed for {year_value}: {year_error}")
 
+                            except BrowserBudgetExceeded:
+                                raise
                             except Exception:
                                 continue
 
+                    except BrowserBudgetExceeded:
+                        raise
                     except Exception as e:
                         print(f"Native select dropdown phase error in {ctx_name}: {e}")
 
+            except BrowserBudgetExceeded:
+                raise
             except Exception as e:
                 print(f"Native select dropdown phase error: {e}")
 
@@ -2292,6 +2310,8 @@ def browser_click_fallback(source_url, existing_keys):
                     print(f"Custom dropdown/control candidates found in {ctx_name}: {dropdown_count}")
 
                     for i in range(dropdown_count):
+                        if time.monotonic() > browser_deadline:
+                            raise BrowserBudgetExceeded("Browser source time budget exceeded; capture may be incomplete")
                         try:
                             dropdown = dropdown_candidates.nth(i)
 
@@ -2299,6 +2319,8 @@ def browser_click_fallback(source_url, existing_keys):
 
                             try:
                                 dropdown_text = normalize_text(dropdown.inner_text(timeout=1000))
+                            except BrowserBudgetExceeded:
+                                raise
                             except Exception:
                                 dropdown_text = ""
 
@@ -2309,21 +2331,29 @@ def browser_click_fallback(source_url, existing_keys):
 
                             try:
                                 dropdown_id = dropdown.get_attribute("id", timeout=500) or ""
+                            except BrowserBudgetExceeded:
+                                raise
                             except Exception:
                                 pass
 
                             try:
                                 dropdown_class = dropdown.get_attribute("class", timeout=500) or ""
+                            except BrowserBudgetExceeded:
+                                raise
                             except Exception:
                                 pass
 
                             try:
                                 dropdown_role = dropdown.get_attribute("role", timeout=500) or ""
+                            except BrowserBudgetExceeded:
+                                raise
                             except Exception:
                                 pass
 
                             try:
                                 dropdown_aria = dropdown.get_attribute("aria-haspopup", timeout=500) or ""
+                            except BrowserBudgetExceeded:
+                                raise
                             except Exception:
                                 pass
 
@@ -2355,6 +2385,8 @@ def browser_click_fallback(source_url, existing_keys):
 
                             try:
                                 dropdown.scroll_into_view_if_needed(timeout=3000)
+                            except BrowserBudgetExceeded:
+                                raise
                             except Exception:
                                 pass
 
@@ -2362,8 +2394,10 @@ def browser_click_fallback(source_url, existing_keys):
                                 print(f"Opening custom year dropdown/control in {ctx_name}: {dropdown_text or combined_meta[:80]}")
 
                                 dropdown.click(timeout=4000, force=True)
-                                page.wait_for_timeout(1000)
+                                settle(page, 1000)
 
+                            except BrowserBudgetExceeded:
+                                raise
                             except Exception:
                                 continue
 
@@ -2380,6 +2414,8 @@ def browser_click_fallback(source_url, existing_keys):
                             print(f"Custom year options found after opening in {ctx_name}: {option_count}")
 
                             for j in range(option_count):
+                                if time.monotonic() > browser_deadline:
+                                    raise BrowserBudgetExceeded("Browser source time budget exceeded; capture may be incomplete")
                                 try:
                                     option = year_options.nth(j)
 
@@ -2407,12 +2443,16 @@ def browser_click_fallback(source_url, existing_keys):
 
                                     try:
                                         option.scroll_into_view_if_needed(timeout=3000)
+                                    except BrowserBudgetExceeded:
+                                        raise
                                     except Exception:
                                         pass
 
                                     try:
                                         option.click(timeout=4000, force=True)
-                                        page.wait_for_timeout(2000)
+                                        settle(page, 2000)
+                                    except BrowserBudgetExceeded:
+                                        raise
                                     except Exception as option_error:
                                         print(f"Custom year option click failed for {year_value}: {option_error}")
                                         continue
@@ -2422,22 +2462,32 @@ def browser_click_fallback(source_url, existing_keys):
                                     # If clicking changed main page URL, return to previous URL
                                     if page.url != before_url:
                                         try:
-                                            page.goto(before_url, wait_until="domcontentloaded", timeout=60000)
-                                            page.wait_for_timeout(1000)
+                                            page.goto(before_url, wait_until="domcontentloaded", timeout=min(30000, max(1000, int((browser_deadline-time.monotonic())*1000))))
+                                            settle(page, 1000)
+                                        except BrowserBudgetExceeded:
+                                            raise
                                         except Exception:
                                             pass
 
+                                except BrowserBudgetExceeded:
+                                    raise
                                 except Exception:
                                     continue
 
+                        except BrowserBudgetExceeded:
+                            raise
                         except Exception:
                             continue
 
+                except BrowserBudgetExceeded:
+                    raise
                 except Exception as e:
                     print(f"Custom year dropdown phase error in {ctx_name}: {e}")
 
             print(f"Year dropdown interaction complete. Years handled: {len(years_clicked_or_selected)}")
 
+        except BrowserBudgetExceeded:
+            raise
         except Exception as e:
             print(f"Year dropdown interaction error: {e}")        
     def collect_year_dropdown_urls(page):
@@ -2456,6 +2506,8 @@ def browser_click_fallback(source_url, existing_keys):
 
             try:
                 page_text = normalize_text(page.locator("body").inner_text(timeout=3000))
+            except BrowserBudgetExceeded:
+                raise
             except Exception:
                 page_text = ""
 
@@ -2467,6 +2519,8 @@ def browser_click_fallback(source_url, existing_keys):
                 context_hit = bool(
                     re.search(REPORT_CARD_KEYWORD_REGEX, page_text, flags=re.IGNORECASE)
                 )
+            except BrowserBudgetExceeded:
+                raise
             except Exception:
                 context_hit = False
 
@@ -2559,6 +2613,8 @@ def browser_click_fallback(source_url, existing_keys):
                     current_year = int(year_match.group(0))
 
                     for year in range(current_year, current_year - 11, -1):
+                        if time.monotonic() > browser_deadline:
+                            raise BrowserBudgetExceeded("Browser source time budget exceeded; capture may be incomplete")
                         generated_url = replace_year_in_current_url(year)
                         add_year_url(generated_url, f"Year {year}")
 
@@ -2567,6 +2623,8 @@ def browser_click_fallback(source_url, existing_keys):
                 soup = BeautifulSoup(html_content, "html.parser")
 
                 for tag in soup.find_all(True):
+                    if time.monotonic() > browser_deadline:
+                        raise BrowserBudgetExceeded("Browser source time budget exceeded; capture may be incomplete")
                     tag_text = normalize_text(tag.get_text(" ", strip=True))
 
                     for attr in [
@@ -2594,6 +2652,8 @@ def browser_click_fallback(source_url, existing_keys):
                             )
 
                         for possible_value in possible_values:
+                            if time.monotonic() > browser_deadline:
+                                raise BrowserBudgetExceeded("Browser source time budget exceeded; capture may be incomplete")
                             possible_value_text = str(possible_value).strip()
 
                             if not possible_value_text:
@@ -2623,6 +2683,8 @@ def browser_click_fallback(source_url, existing_keys):
                                 ):
                                     add_year_url(possible_value_text, tag_text)
 
+            except BrowserBudgetExceeded:
+                raise
             except Exception as scan_error:
                 print(f"Year dropdown HTML scan error: {scan_error}")
 
@@ -2634,8 +2696,12 @@ def browser_click_fallback(source_url, existing_keys):
             print(f"Year dropdown URLs discovered: {len(year_links)}")
 
             for item in year_links[:10]:
+                if time.monotonic() > browser_deadline:
+                    raise BrowserBudgetExceeded("Browser source time budget exceeded; capture may be incomplete")
                 print(f"Year dropdown candidate: {item.get('url')}")
 
+        except BrowserBudgetExceeded:
+            raise
         except Exception as e:
             print(f"Year dropdown URL collection error: {e}")
 
@@ -2656,6 +2722,8 @@ def browser_click_fallback(source_url, existing_keys):
             original_url = page.url or source_url
 
             for item in year_links:
+                if time.monotonic() > browser_deadline:
+                    raise BrowserBudgetExceeded("Browser source time budget exceeded; capture may be incomplete")
                 year_url = item.get("url", "")
                 title_hint = item.get("title", "")
 
@@ -2665,21 +2733,27 @@ def browser_click_fallback(source_url, existing_keys):
                 try:
                     print(f"Visiting year dropdown page: {year_url}")
 
-                    page.goto(year_url, wait_until="domcontentloaded", timeout=60000)
-                    page.wait_for_timeout(2500)
+                    page.goto(year_url, wait_until="domcontentloaded", timeout=min(30000, max(1000, int((browser_deadline-time.monotonic())*1000))))
+                    settle(page, 2500)
 
                     scan_all_rendered_content(page)
                     click_download_controls_on_detail_page(page, title_hint)
 
+                except BrowserBudgetExceeded:
+                    raise
                 except Exception as year_error:
                     print(f"Year dropdown page visit error: {year_error}")
 
             try:
-                page.goto(original_url, wait_until="domcontentloaded", timeout=60000)
-                page.wait_for_timeout(1000)
+                page.goto(original_url, wait_until="domcontentloaded", timeout=min(30000, max(1000, int((browser_deadline-time.monotonic())*1000))))
+                settle(page, 1000)
+            except BrowserBudgetExceeded:
+                raise
             except Exception:
                 pass
 
+        except BrowserBudgetExceeded:
+            raise
         except Exception as e:
             print(f"Year dropdown phase error: {e}")
     def visit_year_iframe_pages(page):
@@ -2701,10 +2775,14 @@ def browser_click_fallback(source_url, existing_keys):
 
             try:
                 frames = page.frames
+            except BrowserBudgetExceeded:
+                raise
             except Exception:
                 frames = []
 
             for frame in frames:
+                if time.monotonic() > browser_deadline:
+                    raise BrowserBudgetExceeded("Browser source time budget exceeded; capture may be incomplete")
                 try:
                     frame_url = frame.url or ""
 
@@ -2752,6 +2830,8 @@ def browser_click_fallback(source_url, existing_keys):
                     current_year = int(year_match.group(0))
 
                     for year in range(current_year, current_year - 11, -1):
+                        if time.monotonic() > browser_deadline:
+                            raise BrowserBudgetExceeded("Browser source time budget exceeded; capture may be incomplete")
                         generated_frame_url = re.sub(
                             r"20\d{2}",
                             str(year),
@@ -2781,12 +2861,16 @@ def browser_click_fallback(source_url, existing_keys):
                             "title": f"Year iframe {year}"
                         })
 
+                except BrowserBudgetExceeded:
+                    raise
                 except Exception:
                     continue
 
             print(f"Year iframe URLs discovered: {len(iframe_year_links)}")
 
             for item in iframe_year_links[:10]:
+                if time.monotonic() > browser_deadline:
+                    raise BrowserBudgetExceeded("Browser source time budget exceeded; capture may be incomplete")
                 print(f"Year iframe candidate: {item.get('url')}")
 
             if not iframe_year_links:
@@ -2795,6 +2879,8 @@ def browser_click_fallback(source_url, existing_keys):
             original_url = page.url or source_url
 
             for item in iframe_year_links[:12]:
+                if time.monotonic() > browser_deadline:
+                    raise BrowserBudgetExceeded("Browser source time budget exceeded; capture may be incomplete")
                 iframe_url = item.get("url", "")
                 title_hint = item.get("title", "")
 
@@ -2804,21 +2890,27 @@ def browser_click_fallback(source_url, existing_keys):
                 try:
                     print(f"Visiting year iframe page: {iframe_url}")
 
-                    page.goto(iframe_url, wait_until="domcontentloaded", timeout=60000)
-                    page.wait_for_timeout(2500)
+                    page.goto(iframe_url, wait_until="domcontentloaded", timeout=min(30000, max(1000, int((browser_deadline-time.monotonic())*1000))))
+                    settle(page, 2500)
 
                     scan_all_rendered_content(page)
                     click_download_controls_on_detail_page(page, title_hint)
 
+                except BrowserBudgetExceeded:
+                    raise
                 except Exception as iframe_error:
                     print(f"Year iframe page visit error: {iframe_error}")
 
             try:
-                page.goto(original_url, wait_until="domcontentloaded", timeout=60000)
-                page.wait_for_timeout(1000)
+                page.goto(original_url, wait_until="domcontentloaded", timeout=min(30000, max(1000, int((browser_deadline-time.monotonic())*1000))))
+                settle(page, 1000)
+            except BrowserBudgetExceeded:
+                raise
             except Exception:
                 pass
 
+        except BrowserBudgetExceeded:
+            raise
         except Exception as e:
             print(f"Year iframe phase error: {e}")        
     def collect_report_detail_links(page):
@@ -2843,6 +2935,8 @@ def browser_click_fallback(source_url, existing_keys):
             page_soup = BeautifulSoup(html_content, "html.parser")
 
             for link in page_soup.find_all("a"):
+                if time.monotonic() > browser_deadline:
+                    raise BrowserBudgetExceeded("Browser source time budget exceeded; capture may be incomplete")
                 href = link.get("href")
 
                 if not href:
@@ -2880,6 +2974,8 @@ def browser_click_fallback(source_url, existing_keys):
                 parent_text_candidates = []
 
                 for parent_name in ["tr", "li", "article", "section", "div"]:
+                    if time.monotonic() > browser_deadline:
+                        raise BrowserBudgetExceeded("Browser source time budget exceeded; capture may be incomplete")
                     parent = link.find_parent(parent_name)
 
                     if parent:
@@ -2898,6 +2994,8 @@ def browser_click_fallback(source_url, existing_keys):
                     keyword_hit = bool(
                         re.search(REPORT_CARD_KEYWORD_REGEX, combined_text, flags=re.IGNORECASE)
                     )
+                except BrowserBudgetExceeded:
+                    raise
                 except Exception:
                     keyword_hit = False
 
@@ -2966,13 +3064,19 @@ def browser_click_fallback(source_url, existing_keys):
 
                     if not skip_area:
                         for parent in link.parents:
+                            if time.monotonic() > browser_deadline:
+                                raise BrowserBudgetExceeded("Browser source time budget exceeded; capture may be incomplete")
                             try:
                                 parent_id = parent.get("id", "")
+                            except BrowserBudgetExceeded:
+                                raise
                             except Exception:
                                 parent_id = ""
 
                             try:
                                 parent_class_list = parent.get("class", [])
+                            except BrowserBudgetExceeded:
+                                raise
                             except Exception:
                                 parent_class_list = []
 
@@ -2985,6 +3089,8 @@ def browser_click_fallback(source_url, existing_keys):
                                 parent_tokens.add(parent_id.lower())
 
                             for cls in parent_class_list:
+                                if time.monotonic() > browser_deadline:
+                                    raise BrowserBudgetExceeded("Browser source time budget exceeded; capture may be incomplete")
                                 parent_tokens.add(str(cls).lower())
 
                             # Use token-level check, not broad substring check.
@@ -3068,8 +3174,12 @@ def browser_click_fallback(source_url, existing_keys):
             print(f"Report detail pages discovered: {len(detail_links)}")
 
             for detail in detail_links[:10]:
+                if time.monotonic() > browser_deadline:
+                    raise BrowserBudgetExceeded("Browser source time budget exceeded; capture may be incomplete")
                 print(f"Report detail candidate: {detail.get('url')} priority={detail.get('priority')}")
 
+        except BrowserBudgetExceeded:
+            raise
         except Exception as e:
             print(f"Report detail link collection error: {e}")
 
@@ -3088,7 +3198,11 @@ def browser_click_fallback(source_url, existing_keys):
                 detail_soup = BeautifulSoup(detail_html, "html.parser")
 
                 for tag in detail_soup.find_all(True):
+                    if time.monotonic() > browser_deadline:
+                        raise BrowserBudgetExceeded("Browser source time budget exceeded; capture may be incomplete")
                     for attr in ["href", "src", "data-href", "data-url", "data-download", "data-file"]:
+                        if time.monotonic() > browser_deadline:
+                            raise BrowserBudgetExceeded("Browser source time budget exceeded; capture may be incomplete")
                         value = tag.get(attr)
 
                         if not value:
@@ -3102,6 +3216,8 @@ def browser_click_fallback(source_url, existing_keys):
 
                             add_doc_from_url(possible_url, final_title)
 
+            except BrowserBudgetExceeded:
+                raise
             except Exception as detail_scan_error:
                 print(f"Detail page direct document scan error: {detail_scan_error}")
             download_selector = (
@@ -3122,11 +3238,15 @@ def browser_click_fallback(source_url, existing_keys):
 
             download_controls = page.locator(download_selector)
 
-            count = min(download_controls.count(), 15)
+            count = min(download_controls.count(), 100)
+            if download_controls.count() > 100:
+                add_issue(source_url, "BROWSER_CAPTURE_LIMIT", error_message="More than 100 download_controls; source-specific review needed")
 
             print(f"Download controls found on detail page: {count}")
 
             for i in range(count):
+                if time.monotonic() > browser_deadline:
+                    raise BrowserBudgetExceeded("Browser source time budget exceeded; capture may be incomplete")
                 try:
                     element = download_controls.nth(i)
 
@@ -3135,6 +3255,8 @@ def browser_click_fallback(source_url, existing_keys):
 
                     try:
                         element.scroll_into_view_if_needed(timeout=3000)
+                    except BrowserBudgetExceeded:
+                        raise
                     except Exception:
                         pass
 
@@ -3147,58 +3269,26 @@ def browser_click_fallback(source_url, existing_keys):
                             if is_click_document_candidate(possible_url):
                                 captured_url = possible_url
 
+                    except BrowserBudgetExceeded:
+                        raise
                     except Exception:
                         pass
 
                     if not captured_url:
-                        try:
-                            with page.expect_popup(timeout=2500) as popup_info:
-                                element.click(timeout=4000, force=True)
-
-                            popup = popup_info.value
-                            popup.wait_for_load_state("domcontentloaded", timeout=10000)
-                            captured_url = popup.url
-                            popup.close()
-
-                        except Exception:
-                            pass
-
-                    if not captured_url:
-                        try:
-                            with page.expect_download(timeout=2500) as download_info:
-                                element.click(timeout=4000, force=True)
-
-                            download = download_info.value
-                            captured_url = download.url
-
-                        except Exception:
-                            pass
-
-                    if not captured_url:
-                        try:
-                            element.click(timeout=4000, force=True)
-                            page.wait_for_timeout(1500)
-
-                            if page.url != before_url:
-                                captured_url = page.url
-
-                                try:
-                                    page.goto(before_url, wait_until="domcontentloaded", timeout=60000)
-                                    page.wait_for_timeout(1000)
-                                except Exception:
-                                    pass
-
-                        except Exception:
-                            pass
+                        captured_url = click_once(page, element)
 
                     if captured_url:
                         add_doc_from_url(captured_url, title_hint)
 
                     scan_all_rendered_content(page)
 
+                except BrowserBudgetExceeded:
+                    raise
                 except Exception:
                     continue
 
+        except BrowserBudgetExceeded:
+            raise
         except Exception as e:
             print(f"Download control click error on detail page: {e}")
 
@@ -3217,6 +3307,8 @@ def browser_click_fallback(source_url, existing_keys):
             original_url = page.url or source_url
 
             for detail in detail_links:
+                if time.monotonic() > browser_deadline:
+                    raise BrowserBudgetExceeded("Browser source time budget exceeded; capture may be incomplete")
                 detail_url = detail.get("url", "")
                 title_hint = detail.get("title", "")
 
@@ -3226,20 +3318,26 @@ def browser_click_fallback(source_url, existing_keys):
                 try:
                     print(f"Visiting report detail page: {detail_url}")
 
-                    page.goto(detail_url, wait_until="domcontentloaded", timeout=60000)
-                    page.wait_for_timeout(2500)
+                    page.goto(detail_url, wait_until="domcontentloaded", timeout=min(30000, max(1000, int((browser_deadline-time.monotonic())*1000))))
+                    settle(page, 2500)
 
                     click_download_controls_on_detail_page(page, title_hint)
 
+                except BrowserBudgetExceeded:
+                    raise
                 except Exception as detail_error:
                     print(f"Report detail page visit error: {detail_error}")
 
             try:
-                page.goto(original_url, wait_until="domcontentloaded", timeout=60000)
-                page.wait_for_timeout(1000)
+                page.goto(original_url, wait_until="domcontentloaded", timeout=min(30000, max(1000, int((browser_deadline-time.monotonic())*1000))))
+                settle(page, 1000)
+            except BrowserBudgetExceeded:
+                raise
             except Exception:
                 pass
 
+        except BrowserBudgetExceeded:
+            raise
         except Exception as e:
             print(f"Report detail page phase error: {e}")
 
@@ -3252,6 +3350,8 @@ def browser_click_fallback(source_url, existing_keys):
         print(f"Hash fragments found: {hash_fragments}")
 
         for fragment in hash_fragments:
+            if time.monotonic() > browser_deadline:
+                raise BrowserBudgetExceeded("Browser source time budget exceeded; capture may be incomplete")
             raw_fragment = fragment["raw"]
             text_fragment = fragment["text"]
 
@@ -3304,9 +3404,11 @@ def browser_click_fallback(source_url, existing_keys):
 
                 print(f"Hash interaction for '{text_fragment}': {clicked}")
 
-                page.wait_for_timeout(1200)
+                settle(page, 1200)
                 scan_all_rendered_content(page)
 
+            except BrowserBudgetExceeded:
+                raise
             except Exception as e:
                 print(f"Hash interaction error for {text_fragment}: {e}")
 
@@ -3319,7 +3421,7 @@ def browser_click_fallback(source_url, existing_keys):
 
         try:
             report_card_selector = (
-                "a, button, [role='button'], article, section, .card, div, span"
+                "a, button, [role='button'], [onclick], .card"
             )
 
             report_cards = page.locator(report_card_selector).filter(
@@ -3329,11 +3431,15 @@ def browser_click_fallback(source_url, existing_keys):
                 )
             )
 
-            count = min(report_cards.count(), 25)
+            count = min(report_cards.count(), 100)
+            if report_cards.count() > 100:
+                add_issue(source_url, "BROWSER_CAPTURE_LIMIT", error_message="More than 100 report_cards; source-specific review needed")
 
             print(f"Report-card fallback controls found: {count}")
 
             for i in range(count):
+                if time.monotonic() > browser_deadline:
+                    raise BrowserBudgetExceeded("Browser source time budget exceeded; capture may be incomplete")
                 try:
                     element = report_cards.nth(i)
 
@@ -3344,57 +3450,29 @@ def browser_click_fallback(source_url, existing_keys):
 
                     try:
                         element.scroll_into_view_if_needed(timeout=3000)
+                    except BrowserBudgetExceeded:
+                        raise
                     except Exception:
                         pass
 
-                    try:
-                        with page.expect_popup(timeout=2500) as popup_info:
-                            element.click(timeout=4000, force=True)
-
-                        popup = popup_info.value
-                        popup.wait_for_load_state("domcontentloaded", timeout=10000)
-                        captured_url = popup.url
-                        popup.close()
-
-                    except Exception:
-                        pass
-
-                    if not captured_url:
-                        try:
-                            with page.expect_download(timeout=2500) as download_info:
-                                element.click(timeout=4000, force=True)
-
-                            download = download_info.value
-                            captured_url = download.url
-
-                        except Exception:
-                            pass
-
-                    if not captured_url:
-                        try:
-                            element.click(timeout=4000, force=True)
-                            page.wait_for_timeout(1500)
-
-                            if page.url != before_url:
-                                captured_url = page.url
-
-                                try:
-                                    page.goto(source_url, wait_until="domcontentloaded", timeout=60000)
-                                    page.wait_for_timeout(1000)
-                                except Exception:
-                                    pass
-
-                        except Exception:
-                            pass
+                    href = element.get_attribute("href")
+                    if href and is_document_link(href):
+                        add_doc_from_url(urljoin(page.url, href), title)
+                        continue
+                    captured_url = click_once(page, element)
 
                     if captured_url:
                         add_doc_from_url(captured_url, title)
 
                     scan_all_rendered_content(page)
 
+                except BrowserBudgetExceeded:
+                    raise
                 except Exception:
                     continue
 
+        except BrowserBudgetExceeded:
+            raise
         except Exception as e:
             print(f"Report-card click phase error: {e}")
 
@@ -3428,48 +3506,70 @@ def browser_click_fallback(source_url, existing_keys):
                 }
                 """
             )
+        except BrowserBudgetExceeded:
+            raise
         except Exception:
             return False
 
     try:
-        with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
+        with shared_browser() as browser:
 
             context = browser.new_context(
                 user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
                            "(KHTML, like Gecko) Chrome/124.0 Safari/537.36",
                 viewport={"width": 1920, "height": 1080},
-                ignore_https_errors=True
+                ignore_https_errors=False
             )
 
+            context.route("**/*", lambda route: route.abort() if route.request.resource_type in
+                          {"image", "font", "media"} else route.continue_())
             page = context.new_page()
 
             def handle_response(response):
                 try:
                     response_url = response.url
 
-                    if is_click_document_candidate(response_url):
-                        add_doc_from_url(response_url, "")
+                    content_type = response.headers.get("content-type", "").lower()
+                    disposition = response.headers.get("content-disposition", "").lower()
+                    if response.ok and ("application/pdf" in content_type or ".pdf" in disposition):
+                        add_doc_from_url(response_url, "", confirmed_pdf=True)
+                    elif response.ok and "json" in content_type:
+                        length = response.headers.get("content-length")
+                        if length and int(length) <= 2 * 1024 * 1024:
+                            for value in embedded_pdf_links(response.text()):
+                                if time.monotonic() > browser_deadline:
+                                    raise BrowserBudgetExceeded("Browser source time budget exceeded; capture may be incomplete")
+                                add_doc_from_url(urljoin(response_url, value))
+                except BrowserBudgetExceeded:
+                    raise
                 except Exception:
                     pass
 
-            page.on("response", handle_response)
+            context.on("response", handle_response)
 
             try:
-                page.goto(source_url, wait_until="domcontentloaded", timeout=60000)
+                page.goto(source_url, wait_until="domcontentloaded", timeout=min(30000, max(1000, int((browser_deadline-time.monotonic())*1000))))
+            except BrowserBudgetExceeded:
+                raise
             except Exception as e:
                 print(f"Browser goto domcontentloaded error: {e}")
 
                 try:
-                    page.goto(source_url, wait_until="load", timeout=60000)
+                    page.goto(source_url, wait_until="load", timeout=min(30000, max(1000, int((browser_deadline-time.monotonic())*1000))))
+                except BrowserBudgetExceeded:
+                    raise
                 except Exception as e2:
                     print(f"Browser goto load error: {e2}")
-                    browser.close()
+                    context.close()
                     return fallback_docs
 
-            page.wait_for_timeout(5000)
+            settle(page, 2500)
 
             scan_all_rendered_content(page)
+            scroll_collect(page, scan_all_rendered_content,
+                lambda message: add_issue(source_url, "BROWSER_CAPTURE_INCOMPLETE", error_message=message), browser_deadline)
+            paginate_browser(page, scan_all_rendered_content,
+                lambda message: add_issue(source_url, "BROWSER_CAPTURE_INCOMPLETE", error_message=message))
 
             interact_with_hash_fragments(page)
             interact_with_year_dropdowns(page)
@@ -3491,15 +3591,15 @@ def browser_click_fallback(source_url, existing_keys):
                     ".nav-link, "
                     ".tab, "
                     ".card, "
-                    "li, "
-                    "div, "
-                    "span"
+                    "[role=tab]"
                 )
 
                 expandable_candidates = page.locator(expander_selector)
 
                 total_expandables = expandable_candidates.count()
-                max_expandable_clicks = min(total_expandables, 35)
+                max_expandable_clicks = min(total_expandables, 100)
+                if total_expandables > 100:
+                    add_issue(source_url, "BROWSER_CAPTURE_LIMIT", error_message=f"{total_expandables} expandable controls; inspected 100")
 
                 print(f"Expandable candidates found: {total_expandables}")
                 print(f"Expandable candidates to try: {max_expandable_clicks}")
@@ -3507,6 +3607,8 @@ def browser_click_fallback(source_url, existing_keys):
                 clicked_expanders = 0
 
                 for i in range(max_expandable_clicks):
+                    if time.monotonic() > browser_deadline:
+                        raise BrowserBudgetExceeded("Browser source time budget exceeded; capture may be incomplete")
                     try:
                         element = expandable_candidates.nth(i)
 
@@ -3517,15 +3619,19 @@ def browser_click_fallback(source_url, existing_keys):
                         element.click(timeout=3000, force=True)
                         clicked_expanders += 1
 
-                        page.wait_for_timeout(1000)
+                        settle(page, 1000)
 
                         scan_all_rendered_content(page)
 
+                    except BrowserBudgetExceeded:
+                        raise
                     except Exception:
                         continue
 
                 print(f"Expandable controls clicked: {clicked_expanders}")
 
+            except BrowserBudgetExceeded:
+                raise
             except Exception as e:
                 print(f"Expandable click phase error: {e}")
 
@@ -3539,11 +3645,15 @@ def browser_click_fallback(source_url, existing_keys):
                     )
                 )
 
-                count = min(clickable.count(), 15)
+                count = min(clickable.count(), 100)
+                if clickable.count() > 100:
+                    add_issue(source_url, "BROWSER_CAPTURE_LIMIT", error_message="More than 100 clickable; source-specific review needed")
 
                 print(f"Clickable fallback controls found: {count}")
 
                 for i in range(count):
+                    if time.monotonic() > browser_deadline:
+                        raise BrowserBudgetExceeded("Browser source time budget exceeded; capture may be incomplete")
                     try:
                         element = clickable.nth(i)
                         title = extract_title_from_playwright_element(element)
@@ -3551,62 +3661,45 @@ def browser_click_fallback(source_url, existing_keys):
                         before_url = page.url
                         captured_url = ""
 
-                        try:
-                            with page.expect_popup(timeout=2500) as popup_info:
-                                element.click(timeout=4000)
-
-                            popup = popup_info.value
-                            popup.wait_for_load_state("domcontentloaded", timeout=10000)
-                            captured_url = popup.url
-                            popup.close()
-
-                        except Exception:
-                            pass
-
-                        if not captured_url:
-                            try:
-                                with page.expect_download(timeout=2500) as download_info:
-                                    element.click(timeout=4000)
-
-                                download = download_info.value
-                                captured_url = download.url
-
-                            except Exception:
-                                pass
-
-                        if not captured_url:
-                            try:
-                                element.click(timeout=4000)
-                                page.wait_for_timeout(1200)
-
-                                if page.url != before_url:
-                                    captured_url = page.url
-                                    page.goto(source_url, wait_until="domcontentloaded", timeout=60000)
-                                    page.wait_for_timeout(1000)
-
-                            except Exception:
-                                pass
+                        href = element.get_attribute("href")
+                        if href and is_document_link(href):
+                            add_doc_from_url(urljoin(page.url, href), title)
+                            continue
+                        captured_url = click_once(page, element)
 
                         if captured_url:
                             add_doc_from_url(captured_url, title)
 
                         scan_all_rendered_content(page)
 
+                    except BrowserBudgetExceeded:
+                        raise
                     except Exception:
                         continue
 
+            except BrowserBudgetExceeded:
+                raise
             except Exception as e:
                 print(f"Clickable scan error: {e}")
 
-            browser.close()
+            context.close()
+            source_strategies[source_url] = {
+                "browser_required": bool(fallback_docs) or initial_existing_count == 0 or len(issue_rows) > initial_issue_count,
+                "checked_at": time.time(),
+                "html_fingerprint": source_page_fingerprints.get(source_url, "")
+            }
 
     except Exception as e:
         print(f"Browser fallback error: {e}")
+        add_issue(source_url, "BROWSER_CAPTURE_INCOMPLETE", error_message=str(e))
+    finally:
+        if "context" in locals():
+            context.close()
 
     return fallback_docs
 
 
-def process_source_url(source_url, retry_attempt=False, force_browser_fallback=False):
+def process_source_url(source_url, retry_attempt=False, force_browser_fallback=False, prefetched_response=False):
     """
     Process one source URL.
 
@@ -3621,7 +3714,7 @@ def process_source_url(source_url, retry_attempt=False, force_browser_fallback=F
     start_doc_count = len(output_data)
 
     try:
-        response = fetch_url(source_url)
+        response = fetch_url(source_url) if prefetched_response is False else prefetched_response
 
         if response is None:
             print("Failed to fetch page")
@@ -3677,7 +3770,7 @@ def process_source_url(source_url, retry_attempt=False, force_browser_fallback=F
 
             docs_captured_for_url = 0
 
-            if should_use_browser_fallback(source_url, force_browser_fallback):
+            if response.status_code not in (404, 410) and should_use_browser_fallback(source_url, force_browser_fallback):
                 print("Non-200 status detected. Trying browser fallback...")
 
                 seen = set()
@@ -3720,17 +3813,19 @@ def process_source_url(source_url, retry_attempt=False, force_browser_fallback=F
 
             return docs_captured_for_url
 
+        source_page_fingerprints[source_url] = hashlib.sha256(response.content).hexdigest()
         soup = BeautifulSoup(response.text, "html.parser")
 
         seen = set()
 
         extract_links_from_soup(
             soup=soup,
-            base_url=source_url,
+            base_url=response.url or source_url,
             source_url=source_url,
             seen=seen,
             label="RETRY KEPT" if retry_attempt else "KEPT"
         )
+        scan_http_pagination(soup, response.url or source_url, source_url, seen)
 
         iframe_soups = get_iframe_soups(source_url, soup)
 
@@ -3745,6 +3840,7 @@ def process_source_url(source_url, retry_attempt=False, force_browser_fallback=F
                 seen=seen,
                 label="RETRY IFRAME KEPT" if retry_attempt else "IFRAME KEPT"
             )
+            scan_http_pagination(iframe_soup, iframe_url, source_url, seen)
 
         docs_captured_for_url = len(output_data) - start_doc_count
 
@@ -3932,575 +4028,278 @@ def build_output_with_previous_non_target_rows(target_source_urls, current_run_o
 
     return final_rows
 
-# MAIN SCRAPER
+if __name__ == "__main__":
+    run_started = time.monotonic()
+    # MAIN SCRAPER
 
-known_document_urls, known_source_urls = load_known_documents()
-known_document_urls_before_run = set(known_document_urls)
-known_source_urls_before_run = set(known_source_urls)
-document_canonical_keys = load_document_canonical_keys()
-document_canonical_keys_before_run = dict(document_canonical_keys)
+    known_document_urls, known_source_urls = load_known_documents()
+    known_document_urls_before_run = set(known_document_urls)
+    known_source_urls_before_run = set(known_source_urls)
+    document_canonical_keys = {}  # Legacy canonical files are not used by exact-link diff.
+    document_canonical_keys_before_run = dict(document_canonical_keys)
 
-previous_output_by_company = load_previous_output_by_company()
-target_source_urls = []
+    previous_output_by_company = load_previous_output_by_company()
+    target_source_urls = []
 
-total_urls_processed = 0
+    total_urls_processed = 0
 
-if not os.path.exists(TARGET_URL_FILE):
-    raise FileNotFoundError(f"URL file not found: {TARGET_URL_FILE}")
+    if not os.path.exists(TARGET_URL_FILE):
+        raise FileNotFoundError(f"URL file not found: {TARGET_URL_FILE}")
 
-with open(TARGET_URL_FILE, newline="", encoding="utf-8") as file:
-    reader = csv.DictReader(file)
-
-    for row in reader:
-        raw_source_url = row["source_url"]
-
-        if not raw_source_url:
-            continue
-
-        parsed_source = parse_source_url(raw_source_url)
-
-        source_url = parsed_source["source_url"]
-        force_browser_fallback = parsed_source["force_browser_fallback"]
-
-        if not source_url:
-            continue
-
+    with open(TARGET_URL_FILE, newline="", encoding="utf-8") as file:
+        sources = [parse_source_url(row["source_url"]) for row in csv.DictReader(file) if row.get("source_url", "").strip()]
+    sources = list({item["source_url"]: item for item in sources}.values())
+    for item, response in prefetched(sources, fetch_url, workers=int(os.environ.get("HTTP_WORKERS", "8"))):
+        source_url = item["source_url"]
         target_source_urls.append(source_url)
-
-        if force_browser_fallback:
-            print(f"Force browser fallback enabled for URL: {source_url}")
-
-        if total_urls_processed > 0 and SLEEP_SECONDS > 0:
-            print(f"Sleeping {SLEEP_SECONDS} seconds before next URL...")
-            time.sleep(SLEEP_SECONDS)
-
         total_urls_processed += 1
-
-        process_source_url(
-            source_url,
-            retry_attempt=False,
-            force_browser_fallback=force_browser_fallback
-        )
+        process_source_url(source_url, force_browser_fallback=item["force_browser_fallback"],
+                           prefetched_response=response)
 
 
-# RETRY FAILED URLS ONCE AFTER FIRST PASS
+    # RETRY FAILED URLS ONCE AFTER FIRST PASS
 
-if RETRY_FAILED_URLS and retry_queue:
-    unique_retry_items = []
-    seen_retry_urls = set()
+    if RETRY_FAILED_URLS and retry_queue:
+        unique_retry_items = []
+        seen_retry_urls = set()
 
-    for retry_item in retry_queue:
-        retry_url = retry_item["source_url"]
+        for retry_item in retry_queue:
+            retry_url = retry_item["source_url"]
 
-        if retry_url not in seen_retry_urls:
-            seen_retry_urls.add(retry_url)
-            unique_retry_items.append(retry_item)
+            if retry_url not in seen_retry_urls:
+                seen_retry_urls.add(retry_url)
+                unique_retry_items.append(retry_item)
 
-    print(f"\nRetry queue found: {len(unique_retry_items)} URLs")
-    print(f"Waiting {RETRY_SLEEP_SECONDS} seconds before retry pass...")
+        print(f"\nRetry queue found: {len(unique_retry_items)} URLs")
+        print(f"Waiting {RETRY_SLEEP_SECONDS} seconds before retry pass...")
 
-    if RETRY_SLEEP_SECONDS > 0:
-        time.sleep(RETRY_SLEEP_SECONDS)
+        if RETRY_SLEEP_SECONDS > 0:
+            time.sleep(RETRY_SLEEP_SECONDS)
 
-    for retry_item in unique_retry_items:
-        retry_url = retry_item["source_url"]
-        retry_force_browser_fallback = retry_item.get("force_browser_fallback", False)
+        for retry_item, retry_response in prefetched(unique_retry_items, fetch_url, workers=int(os.environ.get("HTTP_WORKERS", "8"))):
+            retry_url = retry_item["source_url"]
+            retry_force_browser_fallback = retry_item.get("force_browser_fallback", False)
 
-        print(f"\nRETRYING: {retry_url}")
+            print(f"\nRETRYING: {retry_url}")
 
-        process_source_url(
-            retry_url,
-            retry_attempt=True,
-            force_browser_fallback=retry_force_browser_fallback
-        )
-
-
-# Previous output preservation disabled intentionally.
-# output.csv represents combined latest capture for all production URL groups.
-# known_documents.csv remains the permanent history used for diff protection.
-# preserve_previous_output_documents(target_source_urls, previous_output_by_company)
-
-
-# DIFF SYSTEM
-
-existing_diff_urls = set()
-
-if RUN_MODE == "full" and os.path.exists(DIFF_FILE):
-    validate_csv_header(DIFF_FILE, DIFF_FIELDNAMES)
-
-    with open(DIFF_FILE, newline="", encoding="utf-8") as diff_read_file:
-        reader = csv.DictReader(diff_read_file)
-
-        for r in reader:
-            if "document_url" in r and r["document_url"]:
-                existing_diff_urls.add(normalize_url_key(r["document_url"]))
-
-
-new_records = []
-if RUN_MODE == "full":
-    for r in output_data:
-        document_url = r.get("document_url", "")
-        source_url = r.get("company", "")
-        document_title_for_log = r.get(
-            "document_title",
-            "Unknown Title"
-        )
-
-        if not document_url or not source_url:
-            continue
-
-        current_url_key = normalize_url_key(document_url)
-        source_key = normalize_url_key(source_url)
-
-        source_was_known_before_run = (
-            source_key in known_source_urls_before_run
-        )
-
-        document_was_known_before_run = (
-            current_url_key in known_document_urls_before_run
-        )
-
-        already_in_diff = current_url_key in existing_diff_urls
-
-        # --------------------------------
-        # Check 1: source URL history
-        # --------------------------------
-        if not source_was_known_before_run:
-            log_diff_decision(
-                document_title=document_title_for_log,
-                document_url=document_url,
-                source_url=source_url,
-                decision="SKIPPED",
-                reason="source_url_not_known_before_run"
-            )
-            continue
-
-        # --------------------------------
-        # Check 2: exact document URL
-        # --------------------------------
-        if document_was_known_before_run:
-            log_diff_decision(
-                document_title=document_title_for_log,
-                document_url=document_url,
-                source_url=source_url,
-                decision="SKIPPED",
-                reason="document_url_already_known"
-            )
-            continue
-
-        # --------------------------------
-        # Check 3: already in diff
-        # --------------------------------
-        if already_in_diff:
-            log_diff_decision(
-                document_title=document_title_for_log,
-                document_url=document_url,
-                source_url=source_url,
-                decision="SKIPPED",
-                reason="document_url_already_in_diff"
-            )
-            continue
-
-        document_title_for_diff = limit_document_title_words(
-            r.get("document_title", "Unknown Title"),
-            max_words=20
-        )
-
-        # --------------------------------
-        # Canonical identity
-        # --------------------------------
-        canonical_key = canonical_document_key(document_url)
-
-        canonical_match = document_canonical_keys_before_run.get(
-            (source_key, canonical_key)
-        )
-
-        add_to_diff = True
-        metadata_extra = ""
-        canonical_reason = "canonical_key_not_previously_known"
-        current_metadata_date = None
-
-        # --------------------------------
-        # Read metadata only for a genuine
-        # new exact document URL
-        # --------------------------------
-        if ENABLE_PDF_METADATA_DIFF_FILTER:
-            current_metadata_date = get_pdf_metadata_date(
-                document_url
+            process_source_url(
+                retry_url,
+                retry_attempt=True,
+                force_browser_fallback=retry_force_browser_fallback,
+            prefetched_response=retry_response
             )
 
-            if current_metadata_date:
-                cutoff_date = datetime.now() - timedelta(
-                    days=PDF_METADATA_RECENCY_DAYS
-                )
 
-                add_to_diff = (
-                    current_metadata_date >= cutoff_date
-                )
-
-                metadata_extra = (
-                    f"pdf_metadata_date="
-                    f"{metadata_date_to_string(current_metadata_date)}, "
-                    f"pdf_metadata_recent={add_to_diff}"
-                )
-            else:
-                # New canonical document:
-                # missing metadata must not block diff.
-                add_to_diff = True
-
-                metadata_extra = (
-                    "pdf_metadata_date=missing_or_unreadable, "
-                    "pdf_metadata_recent=allowed"
-                )
-
-        # --------------------------------
-        # Canonical comparison
-        # --------------------------------
-        if canonical_match:
-            previous_metadata_raw = canonical_match.get(
-                "pdf_metadata_date",
-                ""
-            )
-
-            previous_metadata_date = (
-                parse_canonical_metadata_date(
-                    previous_metadata_raw
-                )
-            )
-
-            print(
-                f"CANONICAL COMPARISON → "
-                f"canonical_key={canonical_key} | "
-                f"previous_metadata="
-                f"{previous_metadata_raw or 'MISSING'} | "
-                f"current_metadata="
-                f"{metadata_date_to_string(current_metadata_date) if current_metadata_date else 'MISSING'} | "
-                f"doc={document_url}"
-            )
-
-            # Canonical key existed before this run, but the stored
-            # metadata was blank. Treat the changed URL as the same
-            # previously known document.
-            if not previous_metadata_date:
-                log_diff_decision(
-                    document_title=document_title_for_log,
-                    document_url=document_url,
-                    source_url=source_url,
-                    decision="SKIPPED",
-                    reason="canonical_match_previous_metadata_missing",
-                    extra=(
-                        f"canonical_key={canonical_key}, "
-                        f"current_metadata="
-                        f"{metadata_date_to_string(current_metadata_date) if current_metadata_date else 'missing'}"
-                    )
-                )
-                continue
-
-            # Canonical key and previous metadata exist, but current
-            # metadata cannot be read. Treat it as the same document.
-            if not current_metadata_date:
-                log_diff_decision(
-                    document_title=document_title_for_log,
-                    document_url=document_url,
-                    source_url=source_url,
-                    decision="SKIPPED",
-                    reason="canonical_match_current_metadata_missing",
-                    extra=(
-                        f"canonical_key={canonical_key}, "
-                        f"previous_metadata={previous_metadata_raw}"
-                    )
-                )
-                continue
-
-            # Same or older metadata means that only the document
-            # URL/hash/download number changed.
-            if current_metadata_date.date() <= previous_metadata_date.date():
-                log_diff_decision(
-                    document_title=document_title_for_log,
-                    document_url=document_url,
-                    source_url=source_url,
-                    decision="SKIPPED",
-                    reason="canonical_match_metadata_same_or_old",
-                    extra=(
-                        f"canonical_key={canonical_key}, "
-                        f"previous_metadata={previous_metadata_raw}, "
-                        f"current_metadata="
-                        f"{metadata_date_to_string(current_metadata_date)}"
-                    )
-                )
-                continue
-
-            # Canonical key exists, and the current metadata is newer.
-            canonical_reason = "canonical_match_metadata_newer"
-
-            print(
-                f"CANONICAL UPDATED DOCUMENT → "
-                f"previous_metadata={previous_metadata_raw} | "
-                f"current_metadata="
-                f"{metadata_date_to_string(current_metadata_date)} | "
-                f"doc={document_url}"
-            )
-
-        # --------------------------------
-        # Final diff decision
-        # This must be outside:
-        # if canonical_match:
-        # --------------------------------
-        if add_to_diff:
-            new_records.append({
-                "date": current_date,
-                "company": source_url,
-                "document_title": document_title_for_diff,
-                "document_url": document_url
-            })
-
-            # Prevent the same document being added twice during
-            # the current run.
-            existing_diff_urls.add(current_url_key)
-
-            if canonical_match:
-                diff_reason = canonical_reason
-            else:
-                diff_reason = (
-                    "source_known_doc_new_"
-                    "metadata_recent_or_unavailable"
-                )
-
-            log_diff_decision(
-                document_title=document_title_for_diff,
-                document_url=document_url,
-                source_url=source_url,
-                decision="ADDED",
-                reason=diff_reason,
-                extra=(
-                    f"canonical_key={canonical_key}, "
-                    f"{metadata_extra}"
-                )
-            )
-
-        else:
-            log_diff_decision(
-                document_title=document_title_for_diff,
-                document_url=document_url,
-                source_url=source_url,
-                decision="SKIPPED",
-                reason="pdf_metadata_not_recent",
-                extra=(
-                    f"canonical_key={canonical_key}, "
-                    f"{metadata_extra}"
-                )
-            )
-
-            print(
-                f"DIFF SKIPPED BY PDF METADATA DATE → "
-                f"{document_title_for_diff} | "
-                f"{document_url}"
-            )
-# Update known document queue for seed/full.
-# New source URLs are baselined into known_documents.csv but not added to diff.csv.
-if RUN_MODE in ["full", "seed"]:
-    for r in output_data:
-        queue_known_document_if_new(r)
-        queue_document_canonical_record(r)
+    # Previous output preservation disabled intentionally.
+    # output.csv represents combined latest capture for all production URL groups.
+    # known_documents.csv remains the permanent history used for diff protection.
+    # preserve_previous_output_documents(target_source_urls, previous_output_by_company)
 
 
-# SAVE output file
-if RUN_MODE == "full":
-    final_output_data = build_output_with_previous_non_target_rows(
-        target_source_urls=target_source_urls,
-        current_run_output_rows=output_data
-    )
-else:
-    final_output_data = output_data
+    # DIFF SYSTEM
 
-with open(OUTPUT_FILE, "w", newline="", encoding="utf-8") as out_file:
-    writer = csv.DictWriter(
-        out_file,
-        fieldnames=[
-            "company",
-            "document_title",
-            "document_title_source",
-            "document_url"
-        ]
-    )
-    writer.writeheader()
-    writer.writerows(final_output_data)
+    existing_diff_urls = set()
 
+    if RUN_MODE == "full" and os.path.exists(DIFF_FILE):
+        validate_csv_header(DIFF_FILE, DIFF_FIELDNAMES)
 
-# SAVE raw links file
-with open(RAW_FILE, "w", newline="", encoding="utf-8") as raw_file:
-    writer = csv.DictWriter(
-        raw_file,
-        fieldnames=[
-            "company",
-            "text",
-            "title_source",
-            "url"
-        ]
-    )
-    writer.writeheader()
-    writer.writerows(raw_links)
-
-
-# APPEND diff.csv only for full production run
-if RUN_MODE == "full":
-    validate_csv_header(DIFF_FILE, DIFF_FIELDNAMES)
-
-    file_exists = os.path.exists(DIFF_FILE)
-
-    for record in new_records:
-        extra_keys = set(record.keys()) - set(DIFF_FIELDNAMES)
-        missing_keys = set(DIFF_FIELDNAMES) - set(record.keys())
-
-        if extra_keys or missing_keys:
-            raise ValueError(
-                f"Diff row format mismatch. "
-                f"Extra keys: {extra_keys}. "
-                f"Missing keys: {missing_keys}. "
-                f"Record: {record}"
-            )
-
-    with open(DIFF_FILE, "a", newline="", encoding="utf-8") as diff_file:
-        writer = csv.DictWriter(diff_file, fieldnames=DIFF_FIELDNAMES)
-
-        if not file_exists:
-            writer.writeheader()
-
-        writer.writerows(new_records)
-
-
-# APPEND known_documents.csv for seed/full runs
-append_known_documents()
-save_document_canonical_keys()
-save_url_status_file()
-
-
-# SAVE capture issues file
-with open(ISSUES_FILE, "w", newline="", encoding="utf-8") as issue_file:
-    writer = csv.DictWriter(
-        issue_file,
-        fieldnames=[
-            "date",
-            "run_mode",
-            "url_file",
-            "source_url",
-            "issue_type",
-            "status_code",
-            "documents_captured",
-            "error_message"
-        ]
-    )
-    writer.writeheader()
-    writer.writerows(issue_rows)
-
-
-# APPEND clean run_summary_master.csv
-previous_run_number = 0
-
-if os.path.exists(RUN_SUMMARY_FILE):
-    validate_csv_header(RUN_SUMMARY_FILE, RUN_SUMMARY_FIELDNAMES)
-
-    try:
-        with open(RUN_SUMMARY_FILE, newline="", encoding="utf-8") as summary_read:
-            reader = csv.DictReader(summary_read)
+        with open(DIFF_FILE, newline="", encoding="utf-8") as diff_read_file:
+            reader = csv.DictReader(diff_read_file)
 
             for r in reader:
-                try:
-                    previous_run_number = max(previous_run_number, int(r.get("run_number", 0)))
-                except Exception:
-                    pass
-    except Exception:
-        previous_run_number = 0
+                if "document_url" in r and r["document_url"]:
+                    existing_diff_urls.add(normalize_url_key(r["document_url"]))
 
-current_run_number = previous_run_number + 1
 
-summary_file_exists = os.path.exists(RUN_SUMMARY_FILE)
+    new_records = []
+    if RUN_MODE == "full":
+        candidates = [row for row in output_data
+            if normalize_url_key(row.get("company", "")) in known_source_urls_before_run
+            and normalize_url_key(row.get("document_url", "")) not in known_document_urls_before_run
+            and normalize_url_key(row.get("document_url", "")) not in existing_diff_urls]
+        # Only unseen candidates require metadata requests, with bounded concurrency.
+        with ThreadPoolExecutor(max_workers=int(os.environ.get("PDF_METADATA_WORKERS", "4"))) as pool:
+            list(pool.map(get_pdf_metadata_date, dict.fromkeys(row["document_url"] for row in candidates)))
+        for row in candidates:
+            url = row["document_url"]
+            key = normalize_url_key(url)
+            value = pdf_metadata_date_cache.get(key)
+            if recent_modified(value, PDF_METADATA_RECENCY_DAYS):
+                if key not in existing_diff_urls:
+                    new_records.append({"date": current_date, "company": row["company"],
+                        "document_title": limit_document_title_words(row.get("document_title", "Unknown Title"), 20),
+                        "document_url": url})
+                    existing_diff_urls.add(key)
+                reason = "pdf_modified_date_recent"
+            else:
+                reason = pdf_metadata_status.get(key, "date_unknown") if value is None else "pdf_modified_date_outside_window"
+                if value is None:
+                    add_issue(row["company"], "PDF_MODIFIED_DATE_UNKNOWN", error_message=f"{reason} | {url}")
+            log_diff_decision(row.get("document_title", ""), url, row["company"],
+                              "ADDED" if recent_modified(value, PDF_METADATA_RECENCY_DAYS) else "SKIPPED",
+                              reason, f"pdf_modified_date={value}")
 
-summary_row = {
-    "run_number": current_run_number,
-    "date": current_date,
-    "run_mode": RUN_MODE,
-    "url_file": TARGET_URL_FILE,
-    "total_urls_processed": total_urls_processed,
-    "total_documents_captured": len(output_data),
-    "new_diff_records": len(new_records),
-    "issue_count": len(issue_rows),
-    "success_zero_docs_count": sum(1 for x in issue_rows if x["issue_type"] == "SUCCESS_ZERO_DOCS"),
-    "fetch_failed_status_count": sum(1 for x in issue_rows if x["issue_type"] == "FETCH_FAILED_STATUS"),
-    "fetch_error_count": sum(1 for x in issue_rows if x["issue_type"] == "FETCH_ERROR"),
-    "browser_fallback_enabled": ENABLE_BROWSER_FALLBACK,
-    "output_file": OUTPUT_FILE,
-    "raw_file": RAW_FILE,
-    "issues_file": ISSUES_FILE
-}
+    # Update known document queue for seed/full.
+    # New source URLs are baselined into known_documents.csv but not added to diff.csv.
+    if RUN_MODE in ["full", "seed"]:
+        for r in output_data:
+            queue_known_document_if_new(r)
 
-extra_keys = set(summary_row.keys()) - set(RUN_SUMMARY_FIELDNAMES)
-missing_keys = set(RUN_SUMMARY_FIELDNAMES) - set(summary_row.keys())
 
-if extra_keys or missing_keys:
-    raise ValueError(
-        f"Run summary row format mismatch. "
-        f"Extra keys: {extra_keys}. "
-        f"Missing keys: {missing_keys}. "
-        f"Row: {summary_row}"
-    )
+    # SAVE output file
+    if RUN_MODE == "full":
+        final_output_data = build_output_with_previous_non_target_rows(
+            target_source_urls=target_source_urls,
+            current_run_output_rows=output_data
+        )
+    else:
+        final_output_data = output_data
 
-with open(RUN_SUMMARY_FILE, "a", newline="", encoding="utf-8") as summary_file:
-    writer = csv.DictWriter(summary_file, fieldnames=RUN_SUMMARY_FIELDNAMES)
-
-    if not summary_file_exists:
+    with open(OUTPUT_FILE, "w", newline="", encoding="utf-8") as out_file:
+        writer = csv.DictWriter(
+            out_file,
+            fieldnames=[
+                "company",
+                "document_title",
+                "document_title_source",
+                "document_url"
+            ]
+        )
         writer.writeheader()
+        writer.writerows(final_output_data)
 
-    writer.writerow(summary_row)
+
+    # SAVE raw links file
+    with open(RAW_FILE, "w", newline="", encoding="utf-8") as raw_file:
+        writer = csv.DictWriter(
+            raw_file,
+            fieldnames=[
+                "company",
+                "text",
+                "title_source",
+                "url"
+            ]
+        )
+        writer.writeheader()
+        writer.writerows(raw_links)
 
 
-print("\n✅ SCRAPER COMPLETE")
-print("✅ Existing logic preserved")
-print("✅ Improved document title selection")
-print("✅ Generic title/action text rejected")
-print("✅ document_title_source added")
-print("✅ PDF links are checked before navigation filters")
-print("✅ Global duplicate document URL prevention enabled")
-print("✅ Retry queue enabled")
-print("✅ Fallback/ URL prefix support enabled")
-print("✅ Previous output preservation disabled")
-print("✅ output.csv represents combined latest production capture")
-print("✅ known_documents.csv history enabled")
-print("✅ New source URL onboarding does not pollute diff.csv")
-print("✅ Image/icon files excluded from document capture")
-print("✅ Iframe scraping enabled")
-print("✅ Hash-aware fallback enabled")
-print("✅ Report-card fallback enabled")
-print(f"✅ Report keywords file: {REPORT_KEYWORDS_FILE}")
-print(f"✅ Report-card keywords loaded: {len(REPORT_CARD_KEYWORDS)}")
-print("✅ Browser fallback scans frames/iframes")
-print("✅ Browser fallback clicks generic expandable UI")
-print("✅ Browser fallback captures document network responses")
-print("✅ Browser-like headers and retry fetch enabled for EQT only")
-print("✅ diff.csv format locked")
-print("✅ run_summary_master.csv format locked")
-print("✅ known_documents.csv format locked")
-print(f"✅ Sleep seconds between URLs: {SLEEP_SECONDS}")
-print(f"✅ Retry failed URLs: {RETRY_FAILED_URLS}")
-print(f"✅ Retry sleep seconds: {RETRY_SLEEP_SECONDS}")
-print(f"✅ Run mode: {RUN_MODE}")
-print(f"✅ URL file: {TARGET_URL_FILE}")
-print(f"✅ Output file: {OUTPUT_FILE}")
-print(f"✅ Raw file: {RAW_FILE}")
-print(f"✅ Issues file: {ISSUES_FILE}")
-print(f"✅ Summary file: {RUN_SUMMARY_FILE}")
-print(f"✅ Known documents file: {KNOWN_DOCUMENTS_FILE}")
-print(f"✅ URL status file: {URL_STATUS_FILE}")
-print(f"✅ URL status rows updated: {len(url_status_updates)}")
-print(f"✅ URLs processed: {total_urls_processed}")
-print(f"✅ Documents captured: {len(output_data)}")
-print(f"✅ New diff records: {len(new_records)}")
-print(f"✅ Known documents appended: {len(known_documents_to_append)}")
-print(f"✅ Issues: {len(issue_rows)}")
-print(f"✅ Browser fallback enabled: {ENABLE_BROWSER_FALLBACK}")
-print(f"✅ Run {current_run_number}: {len(output_data)} documents captured")
-print(f"✅ PDF metadata diff filter enabled: {ENABLE_PDF_METADATA_DIFF_FILTER}")
-print(f"✅ PDF metadata recency days: {PDF_METADATA_RECENCY_DAYS}")
-print(f"✅ Document canonical file: {DOCUMENT_CANONICAL_FILE}")
-print(f"✅ Document canonical rows: {len(document_canonical_keys)}")
-print(f"✅ PDF metadata max bytes: {PDF_METADATA_MAX_BYTES}")
+    # APPEND diff.csv only for full production run
+    if RUN_MODE == "full":
+        validate_csv_header(DIFF_FILE, DIFF_FIELDNAMES)
+
+        file_exists = os.path.exists(DIFF_FILE)
+
+        for record in new_records:
+            extra_keys = set(record.keys()) - set(DIFF_FIELDNAMES)
+            missing_keys = set(DIFF_FIELDNAMES) - set(record.keys())
+
+            if extra_keys or missing_keys:
+                raise ValueError(
+                    f"Diff row format mismatch. "
+                    f"Extra keys: {extra_keys}. "
+                    f"Missing keys: {missing_keys}. "
+                    f"Record: {record}"
+                )
+
+        with open(DIFF_FILE, "a", newline="", encoding="utf-8") as diff_file:
+            writer = csv.DictWriter(diff_file, fieldnames=DIFF_FIELDNAMES)
+
+            if not file_exists:
+                writer.writeheader()
+
+            writer.writerows(new_records)
+
+
+    # APPEND known_documents.csv for seed/full runs
+    append_known_documents()
+    if RUN_MODE in ["full", "seed"]:
+        save_url_status_file()
+        Path(SOURCE_STRATEGY_FILE).write_text(json.dumps(source_strategies, indent=2, sort_keys=True))
+
+
+    # SAVE capture issues file
+    with open(ISSUES_FILE, "w", newline="", encoding="utf-8") as issue_file:
+        writer = csv.DictWriter(
+            issue_file,
+            fieldnames=[
+                "date",
+                "run_mode",
+                "url_file",
+                "source_url",
+                "issue_type",
+                "status_code",
+                "documents_captured",
+                "error_message"
+            ]
+        )
+        writer.writeheader()
+        writer.writerows(issue_rows)
+
+
+    # APPEND clean run_summary_master.csv
+    previous_run_number = 0
+
+    if os.path.exists(RUN_SUMMARY_FILE):
+        validate_csv_header(RUN_SUMMARY_FILE, RUN_SUMMARY_FIELDNAMES)
+
+        try:
+            with open(RUN_SUMMARY_FILE, newline="", encoding="utf-8") as summary_read:
+                reader = csv.DictReader(summary_read)
+
+                for r in reader:
+                    try:
+                        previous_run_number = max(previous_run_number, int(r.get("run_number", 0)))
+                    except Exception:
+                        pass
+        except Exception:
+            previous_run_number = 0
+
+    current_run_number = previous_run_number + 1
+
+    summary_file_exists = os.path.exists(RUN_SUMMARY_FILE)
+
+    summary_row = {
+        "run_number": current_run_number,
+        "date": current_date,
+        "run_mode": RUN_MODE,
+        "url_file": TARGET_URL_FILE,
+        "total_urls_processed": total_urls_processed,
+        "total_documents_captured": len(output_data),
+        "new_diff_records": len(new_records),
+        "issue_count": len(issue_rows),
+        "success_zero_docs_count": sum(1 for x in issue_rows if x["issue_type"].startswith("SUCCESS_ZERO_DOCS")),
+        "fetch_failed_status_count": sum(1 for x in issue_rows if x["issue_type"].startswith("FETCH_FAILED_STATUS")),
+        "fetch_error_count": sum(1 for x in issue_rows if x["issue_type"].startswith("FETCH_ERROR")),
+        "browser_fallback_enabled": ENABLE_BROWSER_FALLBACK,
+        "output_file": OUTPUT_FILE,
+        "raw_file": RAW_FILE,
+        "issues_file": ISSUES_FILE
+    }
+
+    extra_keys = set(summary_row.keys()) - set(RUN_SUMMARY_FIELDNAMES)
+    missing_keys = set(RUN_SUMMARY_FIELDNAMES) - set(summary_row.keys())
+
+    if extra_keys or missing_keys:
+        raise ValueError(
+            f"Run summary row format mismatch. "
+            f"Extra keys: {extra_keys}. "
+            f"Missing keys: {missing_keys}. "
+            f"Row: {summary_row}"
+        )
+
+    with open(RUN_SUMMARY_FILE, "a", newline="", encoding="utf-8") as summary_file:
+        writer = csv.DictWriter(summary_file, fieldnames=RUN_SUMMARY_FIELDNAMES)
+
+        if not summary_file_exists:
+            writer.writeheader()
+
+        writer.writerow(summary_row)
+
+
+    print("\nSCRAPER COMPLETE")
+    print(f"Mode={RUN_MODE} sources={total_urls_processed} captured={len(output_data)} new_diff={len(new_records)} issues={len(issue_rows)}")
+    print(f"PDF filter=internal /ModDate only; window={PDF_METADATA_RECENCY_DAYS} days; missing dates excluded and retryable")
+    print(f"Browser fallback={ENABLE_BROWSER_FALLBACK}; source strategies={SOURCE_STRATEGY_FILE}")
+    print(f"Output={OUTPUT_FILE}; diff={DIFF_FILE}; issues={ISSUES_FILE}; summary={RUN_SUMMARY_FILE}")
+    print(f"Elapsed seconds={time.monotonic() - run_started:.2f}")

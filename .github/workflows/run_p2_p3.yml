@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: document-monitor-p2-p3
+  group: document-monitor-production
   cancel-in-progress: false
 
 jobs:
@@ -48,13 +48,16 @@ jobs:
       DIFF_FILE: ${{ matrix.diff_file }}
       KNOWN_DOCUMENTS_FILE: ${{ matrix.known_file }}
       RUN_SUMMARY_FILE: ${{ matrix.summary_file }}
+      URL_STATUS_FILE: url_status_${{ matrix.group_name }}_work.csv
 
       ENABLE_BROWSER_FALLBACK: "true"
       ENABLE_RAW_LINKS: "false"
-      SLEEP_SECONDS: "5"
+      SLEEP_SECONDS: "0.5"
       RETRY_FAILED_URLS: "true"
       RETRY_SLEEP_SECONDS: "30"
 
+      HTTP_WORKERS: "8"
+      PDF_METADATA_WORKERS: "4"
       ENABLE_PDF_METADATA_DIFF_FILTER: "true"
       PDF_METADATA_RECENCY_DAYS: "60"
       PDF_METADATA_MAX_BYTES: "104857600"
@@ -80,7 +83,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install requests beautifulsoup4 playwright PyPDF2
+          pip install -r requirements.txt
           playwright install chromium
 
       - name: Check Python syntax
@@ -98,7 +101,9 @@ jobs:
             ${{ matrix.issues_file }}
             ${{ matrix.diff_file }}
             ${{ matrix.known_file }}
+            url_status_${{ matrix.group_name }}_work.csv
             ${{ matrix.summary_file }}
+            source_strategies_documents_${{ matrix.group_name }}.json
 
   merge-results:
     if: ${{ always() }}
@@ -121,6 +126,15 @@ jobs:
           import os
           import glob
           from urllib.parse import urlparse
+
+          import shutil
+          for strategy_file in glob.glob("shard_outputs/**/source_strategies_*.json", recursive=True):
+              shutil.copyfile(strategy_file, os.path.basename(strategy_file))
+
+          # Refuse to replace production snapshots when any shard is absent.
+          expected_outputs = glob.glob("shard_outputs/**/output_*_work.csv", recursive=True)
+          if len(expected_outputs) != 2:
+              raise RuntimeError(f"Expected 2 completed shards, found {len(expected_outputs)}")
 
           OUTPUT_FIELDS = ["company", "document_title", "document_title_source", "document_url"]
           DIFF_FIELDS = ["date", "company", "document_title", "document_url"]
@@ -147,7 +161,7 @@ jobs:
 
           def normalize_url_key(url):
               parsed = urlparse(url or "")
-              return f"{parsed.scheme}://{parsed.netloc}{parsed.path}".lower()
+              return parsed._replace(scheme=parsed.scheme.lower(), netloc=parsed.netloc.lower(), fragment="").geturl()
 
           def clean_source_url(raw):
               raw = (raw or "").strip()
@@ -275,6 +289,19 @@ jobs:
               issue_rows.extend(read_csv(file))
 
           write_csv("capture_issues_p2_p3_latest.csv", ISSUE_FIELDS, issue_rows)
+
+          # Persist per-source health updates from both workers.
+          STATUS_FIELDS = ["url", "last_working_date", "last_working_docs_count", "latest_status_code", "latest_issue", "url_file"]
+          status_by_key = {normalize_url_key(row["url"]): row for row in read_csv("url_status.csv") if row.get("url")}
+          for file in glob.glob("shard_outputs/**/url_status_*_work.csv", recursive=True):
+              for row in read_csv(file):
+                  key = normalize_url_key(row.get("url", ""))
+                  previous = status_by_key.get(key, {})
+                  if not row.get("last_working_date"):
+                      row["last_working_date"] = previous.get("last_working_date", "")
+                      row["last_working_docs_count"] = previous.get("last_working_docs_count", "")
+                  status_by_key[key] = row
+          write_csv("url_status.csv", STATUS_FIELDS, list(status_by_key.values()))
 
           # -----------------------
           # Merge run summary
@@ -404,15 +431,16 @@ jobs:
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
 
-          git add -A output.csv diff.csv known_documents.csv capture_issues_p2_p3_latest.csv run_summary_master.csv 2>/dev/null || true
+          git add -A output.csv diff.csv known_documents.csv capture_issues_p2_p3_latest.csv run_summary_master.csv url_status.csv source_strategies_*.json 2>/dev/null || true
 
           git commit -m "Update scraped data P2 and P3" || echo "No changes to commit"
 
+          pushed=false
           for i in 1 2 3; do
-            git pull --rebase origin main && git push && break
+            git pull --rebase origin main && git push && { pushed=true; break; }
 
             echo "Push/rebase failed. Retry attempt $i..."
             git rebase --abort 2>/dev/null || true
             sleep 10
           done
-
+          "$pushed" || { echo "Failed to publish results after three attempts"; exit 1; }
