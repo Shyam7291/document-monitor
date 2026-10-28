@@ -1,15 +1,61 @@
 url,last_working_date,last_working_docs_count,latest_status_code,latest_issue,url_file
-https://ir.bookingholdings.com/governance/governance-documents/default.aspx,2026-10-28 00:44:21,20,200,,documents_p1.csv
-https://www.aramco.com/en/investors/reports-and-presentations,2026-10-28 00:44:21,113,200,,documents_p1.csv
-https://www.aramco.com/en/sustainability/sustainability-report,2026-10-28 00:44:21,36,200,,documents_p1.csv
-https://www.bookingholdings.com/sustainability/,2026-10-28 00:44:21,3,200,,documents_p1.csv
-https://www.broadcom.com/company/corporate-responsibility,2026-10-28 00:44:21,1,200,,documents_p1.csv
-https://www.intuitive.com/en-us/about-us/company/cir,2026-10-28 00:44:21,12,200,,documents_p1.csv
-https://www.intuitive.com/en-us/about-us/company/legal/governance,2026-10-28 00:44:21,21,200,,documents_p1.csv
-https://www.ril.com/investors/financial-reporting/online-annual-report,2026-10-28 00:44:21,51,200,,documents_p1.csv
-https://www.td.com/ca/en/about-td/for-investors/environmental-social-governance-publications,2026-10-28 00:44:21,14,200,,documents_p1.csv
-https://www.td.com/ca/en/about-td/for-investors/policies-and-references,2026-10-28 00:44:21,22,200,,documents_p1.csv
-https://investors.broadcom.com/financial-information/tax-information,,,403,FETCH_FAILED_STATUS_AFTER_RETRY,documents_p1.csv
+https://ir.bookingholdings.com/governance/governance-documents/default.aspx,2026-10-28 20:28:09,20,200,,documents_p1.csv
+https://www.aramco.com/en/investors/reports-and-presentations,2026-10-28 20:28:09,113,200,,documents_p1.csv
+https://www.aramco.com/en/sustainability/sustainability-report,2026-10-28 20:28:09,36,200,,documents_p1.csv
+https://www.bookingholdings.com/sustainability/,2026-10-28 20:28:09,3,200,,documents_p1.csv
+https://www.broadcom.com/company/corporate-responsibility,2026-10-28 00:44:21,1,200,SUCCESS_ZERO_DOCS,documents_p1.csv
+https://www.intuitive.com/en-us/about-us/company/cir,2026-10-28 20:28:09,11,200,,documents_p1.csv
+https://www.intuitive.com/en-us/about-us/company/legal/governance,2026-10-28 20:28:09,23,200,,documents_p1.csv
+https://www.ril.com/investors/financial-reporting/online-annual-report,2026-10-28 20:28:09,35,200,,documents_p1.csv
+https://www.td.com/ca/en/about-td/for-investors/environmental-social-governance-publications,2026-10-28 20:28:09,14,200,,documents_p1.csv
+https://www.td.com/ca/en/about-td/for-investors/policies-and-references,2026-10-28 20:28:09,23,200,,documents_p1.csv
+https://evolutionmining.com/document-centre/#corporate-governance#reports,2026-10-28 01:01:54,7,200,,documents_p2.csv
+https://evolutionmining.com/sustainability/reports-disclosures-and-policies/,2026-10-28 01:01:54,2,200,,documents_p2.csv
+https://gf.com/about-us/corporate-responsibility/,2026-10-28 01:01:54,2,200,,documents_p2.csv
+https://investors.airbnb.com/governance/default.aspx#esg,2026-10-28 01:01:54,16,200,,documents_p2.csv
+https://investors.quantaservices.com/corporate-governance/governance-documents,2026-10-28 01:01:54,17,200,,documents_p2.csv
+https://investors.universalmusic.com/governance/agm/,2026-10-28 01:01:54,67,200,,documents_p2.csv
+https://investors.universalmusic.com/reports/,2026-10-28 01:01:54,49,200,,documents_p2.csv
+https://ir.amwater.com/sustainability/cdp/default.aspx,2026-10-28 01:01:54,8,200,,documents_p2.csv
+https://ir.amwater.com/sustainability/data-disclosures/default.aspx,2026-10-28 01:01:54,11,200,,documents_p2.csv
+https://ir.apollo.com/sustainability,2026-10-28 01:01:54,2,200,,documents_p2.csv
+https://sunpharma.com/policies/,2026-10-28 01:01:54,37,200,,documents_p2.csv
+https://sunpharma.com/responsibility/sustainability/,2026-10-28 01:01:54,22,200,,documents_p2.csv
+https://sustainability.quantaservices.com/,2026-10-28 01:01:54,14,200,,documents_p2.csv
+https://www.acwapower.com/en/investors/earnings-and-reports/,2026-10-28 01:01:54,118,200,,documents_p2.csv
+https://www.acwapower.com/en/sustainability/sustainability/,2026-10-28 01:01:54,13,200,,documents_p2.csv
+https://www.archgroup.com/sustainability-governance/,2026-10-28 01:01:54,3,200,,documents_p2.csv
+https://www.atmosenergy.com/company/corporate-responsibility-reports/,2026-10-28 01:01:54,2,200,,documents_p2.csv
+https://www.biontech.com/int/en/home/about/responsibility/sustainability-and-responsibility.html,2026-10-28 01:01:54,13,200,,documents_p2.csv
+https://www.borouge.com/en/investor-relations/Pages/reports-results.aspx,2026-10-28 01:01:54,108,200,,documents_p2.csv
+https://www.dollargeneral.com/about-us/corporate-social-responsibility,2026-10-28 01:01:54,9,200,,documents_p2.csv
+https://www.eogresources.com/sustainability/,2026-10-28 01:01:54,5,200,,documents_p2.csv
+https://www.equinix.com/about/sustainability/document-center,2026-10-28 01:01:54,44,200,,documents_p2.csv
+https://www.franco-nevada.com/sustainability/default.aspx,2026-10-28 01:01:54,42,200,,documents_p2.csv
+https://www.gehealthcare.com/en-us/about/sustainability,2026-10-28 01:01:54,3,200,,documents_p2.csv
+https://www.hapag-lloyd.com/en/company/ir/calendar-events/annual-general-meeting.html,2026-10-28 01:01:54,16,200,,documents_p2.csv
+https://www.hapag-lloyd.com/en/company/ir/publications/financial-report.html,2026-10-28 01:01:54,158,200,,documents_p2.csv
+https://www.hapag-lloyd.com/en/company/responsibility/sustainability/sustainability-report.html,2026-10-28 01:01:54,17,200,,documents_p2.csv
+https://www.iairgroup.com/investors-and-shareholders/shareholders/annual-shareholders-meeting-2026/,2026-10-28 01:01:54,13,200,,documents_p2.csv
+https://www.iairgroup.com/sustainability/esg-data-reports-and-policies/,2026-10-28 01:01:54,4,200,,documents_p2.csv
+https://www.illumina.com/company/about-us/corporate-social-responsibility/environmental-social-governance.html,2026-10-28 01:01:54,66,200,,documents_p2.csv
+https://www.iq.com.qa/en/investor-relations/financial-information/#annual-reports,2026-10-28 01:01:54,165,200,,documents_p2.csv
+https://www.kfh.com/en/home/Investor-Relations/Annual-Reports/Annual-Reports.html,2026-10-28 01:01:54,49,200,,documents_p2.csv
+https://www.kfh.com/en/home/Investor-Relations/Sustainability.html,2026-10-28 01:01:54,16,200,,documents_p2.csv
+https://www.leidos.com/company/responsibility-and-sustainability,2026-10-28 01:01:54,1,200,,documents_p2.csv
+https://www.pembina.com/sustainability/esg-data-reports,2026-10-28 01:01:54,24,200,,documents_p2.csv
+https://www.publicbankgroup.com/investor-relations/general-meetings/2025/,2026-10-28 01:01:54,8,200,,documents_p2.csv
+https://www.publicbankgroup.com/investor-relations/general-meetings/2026/,2026-10-28 01:01:54,16,200,,documents_p2.csv
+https://www.publicbankgroup.com/sustainability/sustainability-disclosures/,2026-10-28 01:01:54,12,200,,documents_p2.csv
+https://www.rbi.com/English/sustainability/policies-and-reports/default.aspx,2026-10-28 01:01:54,23,200,,documents_p2.csv
+https://www.sabic.com/en/reports,2026-10-28 01:01:54,52,200,,documents_p2.csv
+https://www.synopsys.com/company/responsible-business/reporting.html,2026-10-28 01:01:54,5,200,,documents_p2.csv
+https://www.tatasteel.com/investors/integrated-reportannual-report/118-integrated-annual-report-2024-25/,2026-10-28 01:01:54,54,200,,documents_p2.csv
+https://www.tatasteel.com/investors/integrated-reportannual-report/integrated-report-annual-accounts-2025-26-119th-year-and-related-documents/,2026-10-28 01:01:54,12,200,,documents_p2.csv
+https://www.tatasteel.com/sustainability/governance/taskforce-on-nature-related-financial-disclosures-tnfd-reports/,,,200,SUCCESS_ZERO_DOCS_AFTER_RETRY,documents_p2.csv
+https://www.vedantalimited.com/eng/esg-reporting.php,2026-10-28 01:01:54,661,200,,documents_p2.csv
+https://www.wecenergygroup.com/csr/index.htm,2026-10-28 01:01:54,36,200,,documents_p2.csv
+https://www.wheatonpm.com/sustainability/reporting-disclosure-portal/default.aspx,2026-10-28 01:01:54,1,200,,documents_p2.csv
 https://azrieligroup.com/corporate-responsibility/,2026-10-28 01:01:54,6,200,,documents_p3.csv
 https://azrieligroup.com/general-meetings/,2026-10-28 01:01:54,76,200,,documents_p3.csv
 https://ctp.eu/investors/governance/,2026-10-28 01:01:54,80,200,,documents_p3.csv
@@ -70,6 +116,12 @@ https://www.strabag.com/en/investor-relations-en/news-and-events/annual-general-
 https://www.varunbeverages.com/sustainability-reports/,2026-10-28 01:01:54,7,200,,documents_p3.csv
 https://www.westlake.com/sustainability,2026-10-28 01:01:54,4,200,,documents_p3.csv
 https://www.wmg.com/,2026-10-28 01:01:54,3,200,,documents_p3.csv
+https://investors.broadcom.com/financial-information/tax-information,,,403,SUCCESS_ZERO_DOCS,documents_p1.csv
+https://investorcentre.sigmahealthcare.com.au/corporate-governance/governance-documents,,,403,FETCH_FAILED_STATUS_AFTER_RETRY,documents_p2.csv
+https://investorcentre.sigmahealthcare.com.au/corporate-sustainability,,,403,FETCH_FAILED_STATUS_AFTER_RETRY,documents_p2.csv
+https://investors.biontech.de/agm/agm-2026,,,403,FETCH_FAILED_STATUS_AFTER_RETRY,documents_p2.csv
+https://www.regeneron.com/responsibility,,,403,FETCH_FAILED_STATUS_AFTER_RETRY,documents_p2.csv
+https://www.regeneron.com/responsibility/policies-corporate-transparency,,,403,FETCH_FAILED_STATUS_AFTER_RETRY,documents_p2.csv
 https://investors.aecom.com/sustainability,,,403,FETCH_FAILED_STATUS_AFTER_RETRY,documents_p3.csv
 https://investors.aecom.com/tax-information,,,403,FETCH_FAILED_STATUS_AFTER_RETRY,documents_p3.csv
 https://www.alliantenergy.com/who-we-are/responsibility-report,,,403,FETCH_FAILED_STATUS_AFTER_RETRY,documents_p3.csv
@@ -78,66 +130,14 @@ https://www.bollore.com/en/publications-csr/,,,403,FETCH_FAILED_STATUS_AFTER_RET
 https://www.epam.com/about/who-we-are/corporate-responsibility,,,403,FETCH_FAILED_STATUS_AFTER_RETRY,documents_p3.csv
 https://www.hyatt.com/world-of-care/en-US/policies-statements,,,403,FETCH_FAILED_STATUS_AFTER_RETRY,documents_p3.csv
 https://www.icicilombard.com/investor-relations,,,403,FETCH_FAILED_STATUS_AFTER_RETRY,documents_p3.csv
+https://www.expediagroup.com/en-us/our-story/impact-and-sustainability,,,404,FETCH_FAILED_STATUS_AFTER_RETRY,documents_p2.csv
+https://www.nrg.com/sustainability/reporting.hthttps://www.nrg.com/sustainability/reporting.html,,,404,FETCH_FAILED_STATUS_AFTER_RETRY,documents_p2.csv
 https://www.sanlam.com/shareholder-information,,,404,FETCH_FAILED_STATUS_AFTER_RETRY,documents_p3.csv
 https://nextpower.com/sustainability,,,429,FETCH_FAILED_STATUS_AFTER_RETRY,documents_p3.csv
+https://polyus.com/en/sustainability/esg-data-and-reports/,,,503,FETCH_FAILED_STATUS_AFTER_RETRY,documents_p2.csv
+https://esg.eqt.com/report-resources/report-downloads/,,,REQUEST_ERROR,FETCH_ERROR_AFTER_RETRY,documents_p2.csv
+https://www.coalindia.in/esg/,,,REQUEST_ERROR,FETCH_ERROR_AFTER_RETRY,documents_p2.csv
 https://nlmk.com/en/sustainability/,,,REQUEST_ERROR,FETCH_ERROR_AFTER_RETRY,documents_p3.csv
 https://recindia.nic.in/sustainability-report,,,REQUEST_ERROR,FETCH_ERROR_AFTER_RETRY,documents_p3.csv
 https://www.sanlam.com/financial-reporting,,,REQUEST_ERROR,FETCH_ERROR_AFTER_RETRY,documents_p3.csv
 https://www.sanlam.com/sustainability,,,REQUEST_ERROR,FETCH_ERROR_AFTER_RETRY,documents_p3.csv
-https://evolutionmining.com/document-centre/#corporate-governance#reports,2026-10-28 01:01:54,7,200,,documents_p2.csv
-https://evolutionmining.com/sustainability/reports-disclosures-and-policies/,2026-10-28 01:01:54,2,200,,documents_p2.csv
-https://gf.com/about-us/corporate-responsibility/,2026-10-28 01:01:54,2,200,,documents_p2.csv
-https://investors.airbnb.com/governance/default.aspx#esg,2026-10-28 01:01:54,16,200,,documents_p2.csv
-https://investors.quantaservices.com/corporate-governance/governance-documents,2026-10-28 01:01:54,17,200,,documents_p2.csv
-https://investors.universalmusic.com/governance/agm/,2026-10-28 01:01:54,67,200,,documents_p2.csv
-https://investors.universalmusic.com/reports/,2026-10-28 01:01:54,49,200,,documents_p2.csv
-https://ir.amwater.com/sustainability/cdp/default.aspx,2026-10-28 01:01:54,8,200,,documents_p2.csv
-https://ir.amwater.com/sustainability/data-disclosures/default.aspx,2026-10-28 01:01:54,11,200,,documents_p2.csv
-https://ir.apollo.com/sustainability,2026-10-28 01:01:54,2,200,,documents_p2.csv
-https://sunpharma.com/policies/,2026-10-28 01:01:54,37,200,,documents_p2.csv
-https://sunpharma.com/responsibility/sustainability/,2026-10-28 01:01:54,22,200,,documents_p2.csv
-https://sustainability.quantaservices.com/,2026-10-28 01:01:54,14,200,,documents_p2.csv
-https://www.acwapower.com/en/investors/earnings-and-reports/,2026-10-28 01:01:54,118,200,,documents_p2.csv
-https://www.acwapower.com/en/sustainability/sustainability/,2026-10-28 01:01:54,13,200,,documents_p2.csv
-https://www.archgroup.com/sustainability-governance/,2026-10-28 01:01:54,3,200,,documents_p2.csv
-https://www.atmosenergy.com/company/corporate-responsibility-reports/,2026-10-28 01:01:54,2,200,,documents_p2.csv
-https://www.biontech.com/int/en/home/about/responsibility/sustainability-and-responsibility.html,2026-10-28 01:01:54,13,200,,documents_p2.csv
-https://www.borouge.com/en/investor-relations/Pages/reports-results.aspx,2026-10-28 01:01:54,108,200,,documents_p2.csv
-https://www.dollargeneral.com/about-us/corporate-social-responsibility,2026-10-28 01:01:54,9,200,,documents_p2.csv
-https://www.eogresources.com/sustainability/,2026-10-28 01:01:54,5,200,,documents_p2.csv
-https://www.equinix.com/about/sustainability/document-center,2026-10-28 01:01:54,44,200,,documents_p2.csv
-https://www.franco-nevada.com/sustainability/default.aspx,2026-10-28 01:01:54,42,200,,documents_p2.csv
-https://www.gehealthcare.com/en-us/about/sustainability,2026-10-28 01:01:54,3,200,,documents_p2.csv
-https://www.hapag-lloyd.com/en/company/ir/calendar-events/annual-general-meeting.html,2026-10-28 01:01:54,16,200,,documents_p2.csv
-https://www.hapag-lloyd.com/en/company/ir/publications/financial-report.html,2026-10-28 01:01:54,158,200,,documents_p2.csv
-https://www.hapag-lloyd.com/en/company/responsibility/sustainability/sustainability-report.html,2026-10-28 01:01:54,17,200,,documents_p2.csv
-https://www.iairgroup.com/investors-and-shareholders/shareholders/annual-shareholders-meeting-2026/,2026-10-28 01:01:54,13,200,,documents_p2.csv
-https://www.iairgroup.com/sustainability/esg-data-reports-and-policies/,2026-10-28 01:01:54,4,200,,documents_p2.csv
-https://www.illumina.com/company/about-us/corporate-social-responsibility/environmental-social-governance.html,2026-10-28 01:01:54,66,200,,documents_p2.csv
-https://www.iq.com.qa/en/investor-relations/financial-information/#annual-reports,2026-10-28 01:01:54,165,200,,documents_p2.csv
-https://www.kfh.com/en/home/Investor-Relations/Annual-Reports/Annual-Reports.html,2026-10-28 01:01:54,49,200,,documents_p2.csv
-https://www.kfh.com/en/home/Investor-Relations/Sustainability.html,2026-10-28 01:01:54,16,200,,documents_p2.csv
-https://www.leidos.com/company/responsibility-and-sustainability,2026-10-28 01:01:54,1,200,,documents_p2.csv
-https://www.pembina.com/sustainability/esg-data-reports,2026-10-28 01:01:54,24,200,,documents_p2.csv
-https://www.publicbankgroup.com/investor-relations/general-meetings/2025/,2026-10-28 01:01:54,8,200,,documents_p2.csv
-https://www.publicbankgroup.com/investor-relations/general-meetings/2026/,2026-10-28 01:01:54,16,200,,documents_p2.csv
-https://www.publicbankgroup.com/sustainability/sustainability-disclosures/,2026-10-28 01:01:54,12,200,,documents_p2.csv
-https://www.rbi.com/English/sustainability/policies-and-reports/default.aspx,2026-10-28 01:01:54,23,200,,documents_p2.csv
-https://www.sabic.com/en/reports,2026-10-28 01:01:54,52,200,,documents_p2.csv
-https://www.synopsys.com/company/responsible-business/reporting.html,2026-10-28 01:01:54,5,200,,documents_p2.csv
-https://www.tatasteel.com/investors/integrated-reportannual-report/118-integrated-annual-report-2024-25/,2026-10-28 01:01:54,54,200,,documents_p2.csv
-https://www.tatasteel.com/investors/integrated-reportannual-report/integrated-report-annual-accounts-2025-26-119th-year-and-related-documents/,2026-10-28 01:01:54,12,200,,documents_p2.csv
-https://www.tatasteel.com/sustainability/governance/taskforce-on-nature-related-financial-disclosures-tnfd-reports/,,,200,SUCCESS_ZERO_DOCS_AFTER_RETRY,documents_p2.csv
-https://www.vedantalimited.com/eng/esg-reporting.php,2026-10-28 01:01:54,661,200,,documents_p2.csv
-https://www.wecenergygroup.com/csr/index.htm,2026-10-28 01:01:54,36,200,,documents_p2.csv
-https://www.wheatonpm.com/sustainability/reporting-disclosure-portal/default.aspx,2026-10-28 01:01:54,1,200,,documents_p2.csv
-https://investorcentre.sigmahealthcare.com.au/corporate-governance/governance-documents,,,403,FETCH_FAILED_STATUS_AFTER_RETRY,documents_p2.csv
-https://investorcentre.sigmahealthcare.com.au/corporate-sustainability,,,403,FETCH_FAILED_STATUS_AFTER_RETRY,documents_p2.csv
-https://investors.biontech.de/agm/agm-2026,,,403,FETCH_FAILED_STATUS_AFTER_RETRY,documents_p2.csv
-https://www.regeneron.com/responsibility,,,403,FETCH_FAILED_STATUS_AFTER_RETRY,documents_p2.csv
-https://www.regeneron.com/responsibility/policies-corporate-transparency,,,403,FETCH_FAILED_STATUS_AFTER_RETRY,documents_p2.csv
-https://www.expediagroup.com/en-us/our-story/impact-and-sustainability,,,404,FETCH_FAILED_STATUS_AFTER_RETRY,documents_p2.csv
-https://www.nrg.com/sustainability/reporting.hthttps://www.nrg.com/sustainability/reporting.html,,,404,FETCH_FAILED_STATUS_AFTER_RETRY,documents_p2.csv
-https://polyus.com/en/sustainability/esg-data-and-reports/,,,503,FETCH_FAILED_STATUS_AFTER_RETRY,documents_p2.csv
-https://esg.eqt.com/report-resources/report-downloads/,,,REQUEST_ERROR,FETCH_ERROR_AFTER_RETRY,documents_p2.csv
-https://www.coalindia.in/esg/,,,REQUEST_ERROR,FETCH_ERROR_AFTER_RETRY,documents_p2.csv
