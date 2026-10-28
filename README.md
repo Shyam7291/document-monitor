@@ -26,7 +26,9 @@ CSV column formats are unchanged.
 ## Speed and capture coverage
 
 - Eight bounded HTTP workers prefetch source pages while a single collector parses
-  pages and writes CSVs. Connections are pooled per thread; requests to the same
+  pages and writes CSVs. This HTTP pass finishes before browser jobs begin, so a
+  dynamic page cannot block all remaining source captures. Connections are pooled
+  per thread; requests to the same
   host are spaced by `SLEEP_SECONDS` (default 0.5 in production workflows).
 - Only unseen candidates have their PDF properties checked, using four workers.
   A seekable HTTP range reader caches 64 KB blocks and lets the PDF parser locate
@@ -41,11 +43,27 @@ CSV column formats are unchanged.
   PDF URLs serialized in scripts/JSON, iframes and explicit same-host next links.
   Navigation links are not subjected to expensive document-title analysis when
   raw-link diagnostics are disabled (the default).
-- Browser fallback reuses Chromium with an isolated context per source. Images,
+- Browser fallback remains enabled. HTTP **404/410** skips browser processing and
+  redundant HTTP retries, including forced entries. HTTP 403 is access denied,
+  rather than proof of a removed URL, so it can receive a bounded browser attempt.
+  Browser navigation that itself returns 404/410 also stops.
+- Each shard runs **two persistent browser worker processes**, for up to twelve
+  across the six P4/P5 shards. Each reuses Chromium with an isolated context per
+  source. Images,
   fonts and media are blocked while scripts/XHR remain enabled. Download controls
   are clicked once while observing popup, download and navigation events together.
   Explicit load-more/next controls are followed, and JSON/PDF network responses
   are scanned alongside the rendered content.
+- The parent enforces `BROWSER_SOURCE_SECONDS` (**30 seconds** in production).
+  On expiry it terminates the worker and its Chromium process group, retains
+  incremental PDF discoveries, reports incomplete capture, and replaces the worker.
+  This covers blocked browser calls and cleanup, unlike checks between operations.
+  A timed-out page may need a source-specific extractor or a longer configured budget.
+- Country/language selectors and navigation/footer controls do not trigger browser
+  processing by themselves. Nor do shared PDFs already captured on another source.
+  Document year filters, tabs/cards, load-more controls, forced entries, hashes,
+  known browser-dependent sources and zero-document captures still qualify.
+  PDF iframe links already captured are not downloaded again as HTML.
 - Browser strategy JSON files are maintained per input group. If a browser found
   no additional links on an otherwise populated source, an identical HTML response
   can use the HTTP path for seven days. Changed HTML, forced `Fallback/` entries,
@@ -57,15 +75,22 @@ CSV column formats are unchanged.
   runtime or universal completeness claim.
 
 Pagination limits (100 linked/browser pages), control limits (100 per stage), and
-the browser source budget (`BROWSER_SOURCE_SECONDS`, default 120 seconds) produce
+the parent-enforced browser source budget produce
 explicit capture issues. These limits prevent one site from consuming an entire
 run; an issue means capture needs review. Sites with custom APIs, unusual controls,
 or documents appearing only in remote data without a changed HTML shell can need
 a source-specific extractor or a forced browser entry. The weekly audit reduces
 but does not eliminate delayed discovery on those sites.
 
-Production workflows serialize shared-file writes, refuse merges with missing
-shards, preserve query IDs when merging, and fail if result publishing fails.
+P1/P2/P3 retain their shared production lock. P4/P5 uses an independent lock and
+writes `p4_p5/run_summary_p4_p5.csv`, so it cannot queue P1 behind its long run.
+On first use the P4/P5 summary imports only its historical rows from the master,
+without rewriting that master. Workflows refuse merges with missing shards,
+preserve query IDs and fail if result publishing fails. Per-source browser timings
+are written to `browser_timings_*.jsonl`; P4/P5 uploads these diagnostics even on
+failure. Diagnostics never enter production merges as completed shard outputs.
+Logs separately time HTTP, browser and metadata phases. Learned browser strategies
+are saved after every result rather than only at the end of a long run.
 Dependencies are pinned in `requirements.txt`. No historical CSV data is rewritten
 by this code change. `scrape_dev.py` is retained as legacy code; the manual test
 workflow now exercises `scrape.py` in test mode.
@@ -84,6 +109,9 @@ The verification workflow runs the browser-enabled suite. Tests use a local HTTP
 server and generated PDFs: known-link skipping, old versus recent modified dates,
 missing dates, timezone offsets, malformed/no-range servers, transfer limits,
 query IDs, JSON links, pagination, source-cache invalidation and browser reuse.
+Additional regressions cover overlapping workers, actual timeout/termination with
+partial discoveries retained, worker crashes, 404/410 handling, irrelevant menus,
+shared PDFs and the complete deferred-browser-to-modified-date pipeline.
 Logs include PDF bytes transferred and total elapsed run time for measuring real
 improvements. The local 4 MB fixture required about 132 KB of PDF transfer; this is
 a controlled transfer-size result, not a prediction for total production runtime.

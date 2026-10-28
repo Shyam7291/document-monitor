@@ -56,6 +56,11 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         path = self.path.split('?')[0]
         self.counts[path] = self.counts.get(path, 0) + 1
+        if path in ('/gone404', '/gone410'):
+            self.send_response(404 if path.endswith('404') else 410)
+            self.send_header('Content-Length', '0')
+            self.end_headers()
+            return
         if path == '/favicon.ico':
             self.send_response(404)
             self.send_header('Content-Length', '0')
@@ -74,6 +79,9 @@ class Handler(BaseHTTPRequestHandler):
             <script>let n=0; function load(){n++;document.querySelector('#docs').innerHTML+=
             '<a href="/browser-'+n+'.pdf">Report '+n+'</a>';if(n===3)document.querySelector('button').remove();}
             </script></body></html>'''
+            content_type = 'text/html'
+        elif path == '/browser-hang':
+            body = b'<html><body><script>while (true) {}</script></body></html>'
             content_type = 'text/html'
         elif path == '/pages':
             index = '2' if 'page=2' in self.path else '1'
@@ -224,6 +232,69 @@ class MonitorTests(unittest.TestCase):
             self.assertTrue(scrape.should_use_browser_fallback(source))
             self.assertTrue(scrape.should_use_browser_fallback(source, True))
 
+    def test_404_and_410_never_queue_browser_or_retry_even_when_forced(self):
+        from unittest.mock import patch
+        for path in ('/gone404', '/gone410'):
+            with patch.object(scrape, 'DEFER_BROWSER', True), \
+                 patch.object(scrape, 'ENABLE_BROWSER_FALLBACK', True), \
+                 patch.object(scrape, 'browser_jobs', {}), \
+                 patch.object(scrape, 'retry_queue', []), \
+                 patch.object(scrape, 'issue_rows', []):
+                scrape.process_source_url(self.base+path, force_browser_fallback=True)
+                self.assertEqual(scrape.browser_jobs, {})
+                self.assertEqual(scrape.retry_queue, [])
+                self.assertEqual(scrape.issue_rows[0]['status_code'], int(path[-3:]))
+
+    def test_navigation_controls_do_not_trigger_browser(self):
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup('''<nav><select><option>2025</option><option>2026</option></select>
+            <button role="tab">Financial reports</button></nav>
+            <select aria-label="Country"><option>India</option></select>
+            <button aria-expanded="false">Cookie preferences</button>
+            <a href="one.pdf">Annual report 2026</a>''', 'html.parser')
+        self.assertFalse(scrape.should_trigger_report_card_fallback(soup, 1))
+        soup = BeautifulSoup('<main><select><option>2025</option><option>2026</option></select></main>', 'html.parser')
+        self.assertTrue(scrape.should_trigger_report_card_fallback(soup, 1))
+
+    def test_shared_static_pdf_does_not_trigger_zero_doc_browser(self):
+        import requests
+        from unittest.mock import patch
+        response = requests.Response()
+        response.status_code = 200
+        response.url = self.base+'/shared'
+        response._content = b'<main><a href="one.pdf">Annual report 2026</a></main>'
+        with patch.object(scrape, 'DEFER_BROWSER', True), \
+             patch.object(scrape, 'ENABLE_BROWSER_FALLBACK', True), \
+             patch.object(scrape, 'browser_jobs', {}), \
+             patch.object(scrape, 'output_data', []), \
+             patch.object(scrape, 'global_seen_document_urls', {self.base+'/one.pdf'}), \
+             patch.object(scrape, 'url_status_updates', {}):
+            count = scrape.process_source_url(response.url, prefetched_response=response)
+            self.assertEqual(count, 1)
+            self.assertEqual(scrape.browser_jobs, {})
+
+    def test_shared_browser_pdf_still_counts_as_success_on_both_sources(self):
+        from unittest.mock import patch
+        source = self.base+'/shared-browser'
+        pdf = self.base+'/shared.pdf'
+        job = {'source_url':source, 'existing_keys':set()}
+        doc = {'company':source, 'document_url':pdf, 'document_title':'Annual report'}
+        events = [('document', job, doc), ('done', job, {'outcome':'complete', 'issues':[],
+                  'strategy':None, 'seconds':0.1, 'documents':1})]
+        with tempfile.TemporaryDirectory() as directory, \
+             patch.dict(os.environ, BROWSER_TIMINGS_FILE=str(Path(directory)/'timings.jsonl')), \
+             patch.object(scrape, 'RUN_MODE', 'test'), \
+             patch.object(scrape, 'browser_jobs', {source:job}), \
+             patch.object(scrape, 'browser_events', return_value=iter(events)), \
+             patch.object(scrape, 'output_data', []), \
+             patch.object(scrape, 'global_seen_document_urls', {pdf}), \
+             patch.object(scrape, 'source_strategies', {}), \
+             patch.object(scrape, 'issue_rows', []), \
+             patch.object(scrape, 'url_status_updates', {}):
+            scrape.collect_browser_results()
+            self.assertEqual(scrape.url_status_updates[source]['_documents_captured'], 1)
+            self.assertEqual(scrape.issue_rows, [])
+
     @unittest.skipUnless(os.environ.get('RUN_BROWSER_TESTS') == 'true', 'Chromium test runs in GitHub verification')
     def test_browser_load_more_and_reuse(self):
         from unittest.mock import patch
@@ -238,6 +309,40 @@ class MonitorTests(unittest.TestCase):
                 self.assertEqual(id(second), browser_identity)
         finally:
             close_browser()
+
+    @unittest.skipUnless(os.environ.get('RUN_BROWSER_TESTS') == 'true', 'Chromium test runs in GitHub verification')
+    def test_full_pipeline_deferred_browser_links_reach_modified_date_filter(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory)
+            (path/'sources.csv').write_text('source_url\n'+self.base+'/browser\n')
+            with (path/'known_documents.csv').open('w') as stream:
+                writer = csv.DictWriter(stream, fieldnames=scrape.KNOWN_DOCUMENTS_FIELDNAMES)
+                writer.writeheader()
+                writer.writerow({'first_seen_date':'2026-01-01', 'company':self.base+'/browser',
+                    'document_title':'Previous report', 'document_url':self.base+'/previous.pdf', 'source_run_mode':'seed'})
+            env = dict(os.environ, RUN_MODE='full', TARGET_URL_FILE='sources.csv',
+                ENABLE_BROWSER_FALLBACK='true', RETRY_FAILED_URLS='false',
+                BROWSER_WORKERS='2', BROWSER_SOURCE_SECONDS='20')
+            run = subprocess.run([sys.executable, str(Path(scrape.__file__).resolve())],
+                                 cwd=path, env=env, capture_output=True, text=True, timeout=50)
+            self.assertEqual(run.returncode, 0, run.stdout+run.stderr)
+            with (path/'diff.csv').open() as stream:
+                urls = {row['document_url'] for row in csv.DictReader(stream)}
+            self.assertEqual(urls, {self.base+f'/browser-{i}.pdf' for i in (1,2,3)})
+
+    @unittest.skipUnless(os.environ.get('RUN_BROWSER_TESTS') == 'true', 'Chromium test runs in GitHub verification')
+    def test_real_hung_browser_does_not_block_other_browser(self):
+        from browser_pool import browser_events
+        jobs = [{'source_url':self.base+path, 'existing_keys':set()}
+                for path in ('/browser-hang', '/browser')]
+        start = time.monotonic()
+        events = list(browser_events(jobs, workers=2, timeout=10))
+        outcomes = {job['source_url']:data['outcome'] for event, job, data in events if event == 'done'}
+        self.assertLess(time.monotonic()-start, 15)
+        self.assertEqual(outcomes[self.base+'/browser-hang'], 'timeout')
+        self.assertEqual(outcomes[self.base+'/browser'], 'complete')
+        discovered = {data['document_url'] for event, job, data in events if event == 'document'}
+        self.assertTrue({self.base+f'/browser-{i}.pdf' for i in (1,2,3)}.issubset(discovered))
 
     def test_prefetch_overlaps_independent_requests(self):
         def slow(url):

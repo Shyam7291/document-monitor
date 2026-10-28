@@ -6,6 +6,8 @@ import html
 import time
 import json
 import hashlib
+from collections import Counter
+from browser_pool import browser_events
 from pathlib import Path
 from datetime import datetime, timedelta, timezone
 from concurrent.futures import ThreadPoolExecutor
@@ -29,6 +31,9 @@ except (OSError, ValueError):
     source_strategies = {}
 browser_attempted_sources = set()
 source_page_fingerprints = {}
+DEFER_BROWSER = False
+browser_jobs = {}
+BROWSER_PROGRESS_CALLBACK = None
 
 ENABLE_BROWSER_FALLBACK = os.environ.get("ENABLE_BROWSER_FALLBACK", "false").strip().lower() == "true"
 ENABLE_RAW_LINKS = os.environ.get("ENABLE_RAW_LINKS", "false").strip().lower() == "true"
@@ -1564,6 +1569,12 @@ def get_iframe_soups(source_url, soup):
             continue
 
         iframe_url = urljoin(source_url, iframe_src)
+        # PDF/embed links are already captured by static extraction; fetching them
+        # again as HTML can download large files without adding any documents.
+        if is_document_link(iframe_url):
+            continue
+        if re.search(r"youtube\.com/|youtu\.be/|google\.com/maps/|recaptcha", iframe_url, re.I):
+            continue
 
         try:
             print(f"Checking iframe: {iframe_url}")
@@ -1755,53 +1766,50 @@ def extract_title_from_playwright_element(element):
 
 
 def should_trigger_report_card_fallback(soup, docs_captured_for_url):
-    """
-    Detect pages where report documents appear as visual cards/tiles
-    and normal HTML scraping captured only a few direct links.
-
-    Keywords are loaded from report_keywords.csv.
-    """
-
-
-    if soup.select("button[aria-controls], [role=tab], select, [aria-expanded='false']"):
-        return True
-    if any(re.search(r"load more|show more|next page", button.get_text(), re.I) for button in soup.find_all("button")):
-        return True
-    try:
-        page_text = normalize_text(soup.get_text(" ", strip=True))
-
-        report_matches = re.findall(
-            REPORT_CARD_KEYWORD_REGEX + r".{0,80}\b20\d{2}\b",
-            page_text,
-            flags=re.IGNORECASE
-        )
-
-        unique_matches = set()
-
-        for match in report_matches:
-            if isinstance(match, tuple):
-                match_text = " ".join([str(x) for x in match if x])
-            else:
-                match_text = str(match)
-
-            match_text = normalize_text(match_text).lower()
-
-            if match_text:
-                unique_matches.add(match_text)
-
-        if len(unique_matches) >= 3:
-            print(f"Report-card fallback signal detected: {len(unique_matches)} report-like items")
+    """Look for unresolved document controls, not country menus or footer tabs."""
+    document_words = re.compile(r"report|document|download|pdf|financial|sustainab|governance|polic|disclosure|annual|20\d{2}", re.I)
+    for element in soup.select("select, button, [role=tab], [aria-expanded='false']"):
+        if element.find_parent(["nav", "header", "footer"]):
+            continue
+        if any(is_document_link(str(element.get(attr, ""))) for attr in
+               ("href", "data-file", "data-url", "data-href", "data-download")):
+            continue  # already exposed and captured by the HTTP extractor
+        label = normalize_text(element.get_text(" ", strip=True) + " " +
+            str(element.get("aria-label", "")) + " " + str(element.get("aria-controls", "")))
+        if re.search(r"cookie|consent|language|country|search|menu", label, re.I):
+            continue
+        if element.name == "select":
+            if len(re.findall(r"\b20\d{2}\b", label)) >= 2:
+                return True
+        elif re.search(r"load more|show more|next page", label, re.I):
             return True
-
-    except Exception as e:
-        print(f"Report-card fallback detection error: {e}")
-
+        elif document_words.search(label):
+            return True
+    for link in soup.find_all("a", href=True):
+        if link.find_parent(["nav", "header", "footer"]) or is_document_link(link["href"]):
+            continue
+        text = normalize_text(link.get_text(" ", strip=True))
+        if (re.search(REPORT_CARD_KEYWORD_REGEX, text, re.I)
+            and re.search(r"\b20\d{2}\b", text)
+            and link.find_parent(class_=re.compile(r"report|document|publication|card", re.I))):
+            return True
     return False
 
 
 def browser_click_fallback(source_url, existing_keys):
+    if not DEFER_BROWSER:
+        return browser_click_capture(source_url, existing_keys)
+    browser_attempted_sources.add(source_url)
+    browser_jobs.setdefault(source_url, {
+        "source_url": source_url, "existing_keys": set(existing_keys),
+        "fingerprint": source_page_fingerprints.get(source_url, "")})
+    browser_jobs[source_url]["existing_keys"].update(existing_keys)
+    return []
+
+
+def browser_click_capture(source_url, existing_keys):
     fallback_docs = []
-    browser_deadline = time.monotonic() + float(os.environ.get("BROWSER_SOURCE_SECONDS", "120"))
+    browser_deadline = time.monotonic() + float(os.environ.get("BROWSER_SOURCE_SECONDS", "30"))
     browser_attempted_sources.add(source_url)
     initial_existing_count = len(existing_keys)
     initial_issue_count = len(issue_rows)
@@ -1859,6 +1867,8 @@ def browser_click_fallback(source_url, existing_keys):
             "document_title_source": title_source,
             "document_url": full_url
         })
+        if BROWSER_PROGRESS_CALLBACK is not None:
+            BROWSER_PROGRESS_CALLBACK(fallback_docs[-1])
 
     def scan_soup_for_links(scan_soup, base_url):
         for script in scan_soup.find_all("script"):
@@ -3442,6 +3452,8 @@ def browser_click_fallback(source_url, existing_keys):
                     raise BrowserBudgetExceeded("Browser source time budget exceeded; capture may be incomplete")
                 try:
                     element = report_cards.nth(i)
+                    if element.evaluate("el => !!el.closest('nav, header, footer, [role=navigation]')"):
+                        continue
 
                     title = extract_title_from_playwright_element(element)
 
@@ -3484,6 +3496,9 @@ def browser_click_fallback(source_url, existing_keys):
                     const text = (el.innerText || "").replace(/\\s+/g, " ").trim();
                     const cls = (el.className || "").toString().toLowerCase();
                     const href = (el.getAttribute("href") || "").trim();
+
+                    if (el.closest("nav, header, footer, [role=navigation]")) return false;
+                    if (/cookie|consent|language|country|search|menu/i.test(text + " " + (el.getAttribute("aria-label") || ""))) return false;
 
                     if (text.length > 80) return false;
 
@@ -3548,7 +3563,11 @@ def browser_click_fallback(source_url, existing_keys):
             context.on("response", handle_response)
 
             try:
-                page.goto(source_url, wait_until="domcontentloaded", timeout=min(30000, max(1000, int((browser_deadline-time.monotonic())*1000))))
+                navigation = page.goto(source_url, wait_until="domcontentloaded", timeout=min(15000, max(1000, int((browser_deadline-time.monotonic())*1000))))
+                if navigation is not None and navigation.status in (404, 410):
+                    add_issue(source_url, "BROWSER_HTTP_NOT_FOUND", status_code=navigation.status,
+                              error_message="Browser returned 404/410; no expansion or click retries")
+                    return fallback_docs
             except BrowserBudgetExceeded:
                 raise
             except Exception as e:
@@ -3640,7 +3659,7 @@ def browser_click_fallback(source_url, existing_keys):
                     "a, button, [role='button'], .btn, .button"
                 ).filter(
                     has_text=re.compile(
-                        r"(view|download|pdf|open|report|annual|sustainability|disclosure)",
+                        r"(view|download|pdf|open|report|annual|sustainability|disclosure|polic|charter|governance|code\s+of\s+conduct|esg)",
                         re.IGNORECASE
                     )
                 )
@@ -3656,6 +3675,8 @@ def browser_click_fallback(source_url, existing_keys):
                         raise BrowserBudgetExceeded("Browser source time budget exceeded; capture may be incomplete")
                     try:
                         element = clickable.nth(i)
+                        if element.evaluate("el => !!el.closest('nav, header, footer, [role=navigation]')"):
+                            continue
                         title = extract_title_from_playwright_element(element)
 
                         before_url = page.url
@@ -3697,6 +3718,74 @@ def browser_click_fallback(source_url, existing_keys):
             context.close()
 
     return fallback_docs
+
+
+def collect_browser_results():
+    """Merge browser discoveries on the collector; only this process changes history."""
+    counts = Counter(row["company"] for row in output_data)
+    for update in url_status_updates.values():
+        counts[update["url"]] = max(counts[update["url"]], update.get("_documents_captured", 0))
+    captured_keys = {}
+    for row in output_data:
+        captured_keys.setdefault(row["company"], set()).add(normalize_url_key(row["document_url"]))
+    jobs = list(browser_jobs.values())
+    for job in jobs:
+        job["existing_keys"].update(captured_keys.get(job["source_url"], set()))
+    workers = max(1, int(os.environ.get("BROWSER_WORKERS", "2")))
+    seconds = max(1, float(os.environ.get("BROWSER_SOURCE_SECONDS", "30")))
+    timings = Path(os.environ.get("BROWSER_TIMINGS_FILE", "browser_timings_" + Path(TARGET_URL_FILE).stem + ".jsonl"))
+    timings.write_text("")
+    recovered = set()
+    print(f"BROWSER QUEUE → sources={len(jobs)} workers={workers} hard_limit_seconds={seconds}", flush=True)
+    browser_started = time.monotonic()
+    for event, job, result in browser_events(jobs, workers=workers, timeout=seconds):
+        url = job["source_url"]
+        if event == "document":
+            # Workers dedupe per source; another source may have published this
+            # same PDF first, but this page still successfully discovered it.
+            counts[url] += 1
+            if mark_document_seen(result["document_url"]):
+                output_data.append(result)
+                if ENABLE_RAW_LINKS:
+                    raw_links.append({"company": url, "text": result["document_title"],
+                        "title_source": result.get("document_title_source", "browser_fallback"),
+                        "url": result["document_url"]})
+            continue
+        issue_rows.extend(result.get("issues", []))
+        if result["outcome"] not in ("complete", "incomplete"):
+            add_issue(url, "BROWSER_SOURCE_TIMEOUT" if result["outcome"] == "timeout" else "BROWSER_WORKER_ERROR",
+                documents_captured=counts[url], error_message=result.get("error") or
+                f"Browser {result['outcome']} after {result['seconds']:.2f}s; partial links retained, capture incomplete")
+        if counts[url] > 0:
+            recovered.add(url)
+            record_url_status(url, 200, counts[url])
+        else:
+            record_url_status(url, url_status_updates.get(normalize_url_key(url), {}).get("latest_status_code", "BROWSER"),
+                              0, "BROWSER_CAPTURE_INCOMPLETE" if result["outcome"] != "complete" else "SUCCESS_ZERO_DOCS")
+            if result["outcome"] == "complete":
+                add_issue(url, "SUCCESS_ZERO_DOCS_AFTER_BROWSER", documents_captured=0,
+                          error_message="HTTP and browser completed but found no document links")
+        strategy = result.get("strategy")
+        if strategy:
+            source_strategies[url] = strategy
+        else:
+            source_strategies[url] = {"browser_required": True, "checked_at": time.time(),
+                "html_fingerprint": job.get("fingerprint", "")}
+        # Save learned strategies after each source, rather than losing them on job cancellation.
+        if RUN_MODE in ("full", "seed"):
+            strategy_path = Path(SOURCE_STRATEGY_FILE)
+            temporary = strategy_path.with_suffix(".json.tmp")
+            temporary.write_text(json.dumps(source_strategies, sort_keys=True, indent=2))
+            temporary.replace(strategy_path)
+        record = {"source_url": url, "outcome": result["outcome"],
+                  "seconds": round(result["seconds"], 3), "browser_documents": result["documents"]}
+        with timings.open("a") as stream:
+            stream.write(json.dumps(record) + "\n")
+        print(f"BROWSER RESULT → {record}", flush=True)
+    issue_rows[:] = [row for row in issue_rows if not (
+        row["source_url"] in recovered and
+        row["issue_type"].startswith(("FETCH_ERROR", "FETCH_FAILED_STATUS", "SUCCESS_ZERO_DOCS")))]
+    print(f"PHASE browser_seconds={time.monotonic()-browser_started:.2f} sources={len(jobs)}", flush=True)
 
 
 def process_source_url(source_url, retry_attempt=False, force_browser_fallback=False, prefetched_response=False):
@@ -3764,6 +3853,13 @@ def process_source_url(source_url, retry_attempt=False, force_browser_fallback=F
             return docs_captured_for_url
 
         print("Status:", response.status_code)
+
+        if response.status_code in (404, 410):
+            browser_jobs.pop(source_url, None)
+            add_issue(source_url, "FETCH_FAILED_STATUS", status_code=response.status_code,
+                      error_message="URL returned 404/410; browser and retries skipped")
+            record_url_status(source_url, response.status_code, 0, "HTTP_NOT_FOUND")
+            return 0
 
         if response.status_code != 200:
             print("Failed to fetch page")
@@ -3842,7 +3938,9 @@ def process_source_url(source_url, retry_attempt=False, force_browser_fallback=F
             )
             scan_http_pagination(iframe_soup, iframe_url, source_url, seen)
 
-        docs_captured_for_url = len(output_data) - start_doc_count
+        # A page can contain valid PDFs already seen on another source this run.
+        # Count its discoveries, not only additions to the global deduplicated list.
+        docs_captured_for_url = len(seen)
 
         needs_hash_fallback = source_url_has_hash(source_url)
         needs_report_card_fallback = should_trigger_report_card_fallback(soup, docs_captured_for_url)
@@ -3853,7 +3951,7 @@ def process_source_url(source_url, retry_attempt=False, force_browser_fallback=F
         if needs_report_card_fallback:
             print("Report-card page detected. Browser fallback may be needed for card-based documents.")
 
-        if (docs_captured_for_url == 0 or needs_hash_fallback or needs_report_card_fallback or force_browser_fallback) and should_use_browser_fallback(source_url, force_browser_fallback):
+        if (docs_captured_for_url == 0 or needs_hash_fallback or needs_report_card_fallback or force_browser_fallback or source_strategies.get(source_url, {}).get("browser_required", False)) and should_use_browser_fallback(source_url, force_browser_fallback):
             fallback_docs = browser_click_fallback(source_url, seen)
 
             for doc in fallback_docs:
@@ -3866,7 +3964,11 @@ def process_source_url(source_url, retry_attempt=False, force_browser_fallback=F
                     "url": doc["document_url"]
                 })
 
-            docs_captured_for_url = len(output_data) - start_doc_count
+            docs_captured_for_url = len(seen)
+
+        if docs_captured_for_url == 0 and DEFER_BROWSER and source_url in browser_jobs:
+            record_url_status(source_url, response.status_code, 0, "BROWSER_PENDING")
+            return 0
 
         if docs_captured_for_url == 0:
             if not retry_attempt and RETRY_FAILED_URLS:
@@ -4029,6 +4131,7 @@ def build_output_with_previous_non_target_rows(target_source_urls, current_run_o
     return final_rows
 
 if __name__ == "__main__":
+    DEFER_BROWSER = True
     run_started = time.monotonic()
     # MAIN SCRAPER
 
@@ -4086,9 +4189,12 @@ if __name__ == "__main__":
                 retry_url,
                 retry_attempt=True,
                 force_browser_fallback=retry_force_browser_fallback,
-            prefetched_response=retry_response
+                prefetched_response=retry_response
             )
 
+
+    print(f"PHASE http_capture_seconds={time.monotonic()-run_started:.2f} sources={total_urls_processed}", flush=True)
+    collect_browser_results()
 
     # Previous output preservation disabled intentionally.
     # output.csv represents combined latest capture for all production URL groups.
@@ -4112,6 +4218,7 @@ if __name__ == "__main__":
 
 
     new_records = []
+    metadata_started = time.monotonic()
     if RUN_MODE == "full":
         candidates = [row for row in output_data
             if normalize_url_key(row.get("company", "")) in known_source_urls_before_run
@@ -4139,6 +4246,7 @@ if __name__ == "__main__":
                               "ADDED" if recent_modified(value, PDF_METADATA_RECENCY_DAYS) else "SKIPPED",
                               reason, f"pdf_modified_date={value}")
 
+    print(f"PHASE pdf_metadata_seconds={time.monotonic()-metadata_started:.2f} new_diff={len(new_records)}", flush=True)
     # Update known document queue for seed/full.
     # New source URLs are baselined into known_documents.csv but not added to diff.csv.
     if RUN_MODE in ["full", "seed"]:
