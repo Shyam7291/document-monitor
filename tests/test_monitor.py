@@ -273,6 +273,28 @@ class MonitorTests(unittest.TestCase):
             self.assertEqual(count, 1)
             self.assertEqual(scrape.browser_jobs, {})
 
+    def test_shared_browser_pdf_still_counts_as_success_on_both_sources(self):
+        from unittest.mock import patch
+        source = self.base+'/shared-browser'
+        pdf = self.base+'/shared.pdf'
+        job = {'source_url':source, 'existing_keys':set()}
+        doc = {'company':source, 'document_url':pdf, 'document_title':'Annual report'}
+        events = [('document', job, doc), ('done', job, {'outcome':'complete', 'issues':[],
+                  'strategy':None, 'seconds':0.1, 'documents':1})]
+        with tempfile.TemporaryDirectory() as directory, \
+             patch.dict(os.environ, BROWSER_TIMINGS_FILE=str(Path(directory)/'timings.jsonl')), \
+             patch.object(scrape, 'RUN_MODE', 'test'), \
+             patch.object(scrape, 'browser_jobs', {source:job}), \
+             patch.object(scrape, 'browser_events', return_value=iter(events)), \
+             patch.object(scrape, 'output_data', []), \
+             patch.object(scrape, 'global_seen_document_urls', {pdf}), \
+             patch.object(scrape, 'source_strategies', {}), \
+             patch.object(scrape, 'issue_rows', []), \
+             patch.object(scrape, 'url_status_updates', {}):
+            scrape.collect_browser_results()
+            self.assertEqual(scrape.url_status_updates[source]['_documents_captured'], 1)
+            self.assertEqual(scrape.issue_rows, [])
+
     @unittest.skipUnless(os.environ.get('RUN_BROWSER_TESTS') == 'true', 'Chromium test runs in GitHub verification')
     def test_browser_load_more_and_reuse(self):
         from unittest.mock import patch

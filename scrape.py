@@ -3741,9 +3741,11 @@ def collect_browser_results():
     for event, job, result in browser_events(jobs, workers=workers, timeout=seconds):
         url = job["source_url"]
         if event == "document":
+            # Workers dedupe per source; another source may have published this
+            # same PDF first, but this page still successfully discovered it.
+            counts[url] += 1
             if mark_document_seen(result["document_url"]):
                 output_data.append(result)
-                counts[url] += 1
                 if ENABLE_RAW_LINKS:
                     raw_links.append({"company": url, "text": result["document_title"],
                         "title_source": result.get("document_title_source", "browser_fallback"),
