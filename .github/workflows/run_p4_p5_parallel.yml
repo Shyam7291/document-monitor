@@ -12,87 +12,53 @@ concurrency:
   group: document-monitor-p4-p5
   cancel-in-progress: false
 
-jobs:
-  scrape-shards:
-    runs-on: ubuntu-latest
+permissions:
+  contents: read
 
+jobs:
+  plan-batches:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Divide all six source lists into small work batches
+        id: plan
+        run: python p4_batches.py plan --count 24
+      - uses: actions/upload-artifact@v4
+        with:
+          name: p4-p5-batch-plan
+          path: .p4_p5_batches/
+          include-hidden-files: true
+
+  scrape-shards:
+    needs: plan-batches
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
     strategy:
       fail-fast: false
       max-parallel: 6
-      matrix:
-        include:
-          - shard: "01"
-            target_url_file: p4_p5/documents_p4_p5_01.csv
-            output_file: output_p4_p5_01_work.csv
-            issues_file: capture_issues_p4_p5_01_work.csv
-            diff_file: diff_p4_p5_01_work.csv
-            known_file: known_documents_p4_p5_01_work.csv
-            summary_file: run_summary_p4_p5_01_work.csv
-            status_file: url_status_p4_p5_01_work.csv
-
-          - shard: "02"
-            target_url_file: p4_p5/documents_p4_p5_02.csv
-            output_file: output_p4_p5_02_work.csv
-            issues_file: capture_issues_p4_p5_02_work.csv
-            diff_file: diff_p4_p5_02_work.csv
-            known_file: known_documents_p4_p5_02_work.csv
-            summary_file: run_summary_p4_p5_02_work.csv
-            status_file: url_status_p4_p5_02_work.csv
-
-          - shard: "03"
-            target_url_file: p4_p5/documents_p4_p5_03.csv
-            output_file: output_p4_p5_03_work.csv
-            issues_file: capture_issues_p4_p5_03_work.csv
-            diff_file: diff_p4_p5_03_work.csv
-            known_file: known_documents_p4_p5_03_work.csv
-            summary_file: run_summary_p4_p5_03_work.csv
-            status_file: url_status_p4_p5_03_work.csv
-
-          - shard: "04"
-            target_url_file: p4_p5/documents_p4_p5_04.csv
-            output_file: output_p4_p5_04_work.csv
-            issues_file: capture_issues_p4_p5_04_work.csv
-            diff_file: diff_p4_p5_04_work.csv
-            known_file: known_documents_p4_p5_04_work.csv
-            summary_file: run_summary_p4_p5_04_work.csv
-            status_file: url_status_p4_p5_04_work.csv
-
-          - shard: "05"
-            target_url_file: p4_p5/documents_p4_p5_05.csv
-            output_file: output_p4_p5_05_work.csv
-            issues_file: capture_issues_p4_p5_05_work.csv
-            diff_file: diff_p4_p5_05_work.csv
-            known_file: known_documents_p4_p5_05_work.csv
-            summary_file: run_summary_p4_p5_05_work.csv
-            status_file: url_status_p4_p5_05_work.csv
-
-          - shard: "06"
-            target_url_file: p4_p5/documents_p4_p5_06.csv
-            output_file: output_p4_p5_06_work.csv
-            issues_file: capture_issues_p4_p5_06_work.csv
-            diff_file: diff_p4_p5_06_work.csv
-            known_file: known_documents_p4_p5_06_work.csv
-            summary_file: run_summary_p4_p5_06_work.csv
-            status_file: url_status_p4_p5_06_work.csv
+      matrix: ${{ fromJSON(needs.plan-batches.outputs.matrix) }}
 
     env:
       RUN_MODE: ${{ github.event.inputs.run_mode }}
-      TARGET_URL_FILE: ${{ matrix.target_url_file }}
-
-      OUTPUT_FILE: ${{ matrix.output_file }}
-      ISSUES_FILE: ${{ matrix.issues_file }}
-      DIFF_FILE: ${{ matrix.diff_file }}
-      KNOWN_DOCUMENTS_FILE: ${{ matrix.known_file }}
-      RUN_SUMMARY_FILE: ${{ matrix.summary_file }}
-      URL_STATUS_FILE: ${{ matrix.status_file }}
-
+      TARGET_URL_FILE: .p4_p5_batches/documents_p4_p5_batch_${{ matrix.batch }}.csv
+      OUTPUT_FILE: output_p4_p5_${{ matrix.batch }}_work.csv
+      ISSUES_FILE: capture_issues_p4_p5_${{ matrix.batch }}_work.csv
+      DIFF_FILE: diff_p4_p5_${{ matrix.batch }}_work.csv
+      KNOWN_DOCUMENTS_FILE: known_documents_p4_p5_${{ matrix.batch }}_work.csv
+      RUN_SUMMARY_FILE: run_summary_p4_p5_${{ matrix.batch }}_work.csv
+      URL_STATUS_FILE: url_status_p4_p5_${{ matrix.batch }}_work.csv
+      SOURCE_STRATEGY_FILE: source_strategies_documents_p4_p5_batch_${{ matrix.batch }}.json
+      BROWSER_TIMINGS_FILE: browser_timings_p4_p5_batch_${{ matrix.batch }}.jsonl
       ENABLE_DIFF_DECISION_LOGS: "true"
-
       ENABLE_BROWSER_FALLBACK: "true"
       SLEEP_SECONDS: "0.5"
       RETRY_FAILED_URLS: "true"
       RETRY_SLEEP_SECONDS: "20"
-
       HTTP_WORKERS: "8"
       PDF_METADATA_WORKERS: "4"
       BROWSER_WORKERS: "2"
@@ -105,69 +71,70 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Prepare temporary DB files
-        run: |
-          if [ -f p4_p5/known_documents_p4_p5.csv ]; then
-            cp p4_p5/known_documents_p4_p5.csv "${KNOWN_DOCUMENTS_FILE}"
-          fi
-
-          if [ -f diff_p4_p5.csv ]; then
-            cp diff_p4_p5.csv "${DIFF_FILE}"
-          fi
-
-          if [ -f p4_p5/output_p4_p5.csv ]; then
-            cp p4_p5/output_p4_p5.csv "${OUTPUT_FILE}"
-          fi
-
-
+      - uses: actions/download-artifact@v4
+        with:
+          name: p4-p5-batch-plan
+          path: .p4_p5_batches
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-
+          cache: pip
+      - name: Prepare isolated batch files and learned browser strategies
+        run: python p4_batches.py prepare --batch ${{ matrix.batch }}
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
           playwright install chromium
-
       - name: Check Python syntax
-        run: python -m py_compile scrape.py monitor_io.py browser_pool.py
-
-      - name: Run scraper shard ${{ matrix.shard }}
-        run: python scrape.py
-
-      - name: Upload shard outputs
+        run: python -m py_compile scrape.py monitor_io.py browser_pool.py p4_batches.py
+      - name: Run scraper batch ${{ matrix.batch }}
+        run: |
+          python scrape.py
+          python p4_batches.py finish --batch ${{ matrix.batch }}
+      - name: Upload completed batch outputs
         uses: actions/upload-artifact@v4
         with:
-          name: p4-p5-shard-${{ matrix.shard }}
+          name: p4-p5-shard-${{ matrix.batch }}
           path: |
-            ${{ matrix.output_file }}
-            ${{ matrix.issues_file }}
-            ${{ matrix.diff_file }}
-            ${{ matrix.known_file }}
-            ${{ matrix.summary_file }}
-            source_strategies_documents_p4_p5_${{ matrix.shard }}.json
-            ${{ matrix.status_file }}
-
+            ${{ env.OUTPUT_FILE }}
+            ${{ env.ISSUES_FILE }}
+            ${{ env.DIFF_FILE }}
+            ${{ env.KNOWN_DOCUMENTS_FILE }}
+            ${{ env.RUN_SUMMARY_FILE }}
+            ${{ env.URL_STATUS_FILE }}
+            ${{ env.SOURCE_STRATEGY_FILE }}
+            completion_p4_p5_${{ matrix.batch }}.json
+          if-no-files-found: error
       - name: Upload browser timing diagnostics
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: p4-p5-browser-diagnostics-${{ matrix.shard }}
+          name: p4-p5-browser-diagnostics-${{ matrix.batch }}
           path: |
-            browser_timings_documents_p4_p5_${{ matrix.shard }}.jsonl
-            source_strategies_documents_p4_p5_${{ matrix.shard }}.json
+            ${{ env.BROWSER_TIMINGS_FILE }}
+            ${{ env.SOURCE_STRATEGY_FILE }}
+            ${{ env.ISSUES_FILE }}
           if-no-files-found: ignore
 
   merge-results:
     if: ${{ always() }}
-    needs: scrape-shards
+    needs: [plan-batches, scrape-shards]
+    permissions:
+      contents: write
+    env:
+      P4_P5_BATCH_MANIFEST: .p4_p5_batches/manifest.json
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Download immutable batch plan
+        uses: actions/download-artifact@v4
+        with:
+          name: p4-p5-batch-plan
+          path: .p4_p5_batches
 
       - name: Download shard outputs
         uses: actions/download-artifact@v4
@@ -185,14 +152,18 @@ jobs:
           import glob
           from urllib.parse import urlparse
 
-          import shutil
-          for strategy_file in glob.glob("shard_outputs/**/source_strategies_*.json", recursive=True):
-              shutil.copyfile(strategy_file, os.path.basename(strategy_file))
-
-          # Refuse to replace production snapshots when any shard is absent.
-          expected_outputs = glob.glob("shard_outputs/**/output_p4_p5_*_work.csv", recursive=True)
-          if len(expected_outputs) != 6:
-              raise RuntimeError(f"Expected 6 completed shards, found {len(expected_outputs)}")
+          manifest_path = os.environ.get("P4_P5_BATCH_MANIFEST")
+          if manifest_path:
+              from p4_batches import validate_results
+              validate_results(manifest_path)
+          else:
+              # Retain compatibility with historical six-shard fixtures.
+              import shutil
+              for strategy_file in glob.glob("shard_outputs/**/source_strategies_*.json", recursive=True):
+                  shutil.copyfile(strategy_file, os.path.basename(strategy_file))
+              expected_outputs = glob.glob("shard_outputs/**/output_p4_p5_*_work.csv", recursive=True)
+              if len(expected_outputs) != 6:
+                  raise RuntimeError(f"Expected 6 completed shards, found {len(expected_outputs)}")
 
           OUTPUT_FIELDS = ["company", "document_title", "document_title_source", "document_url"]
           DIFF_FIELDS = ["date", "company", "document_title", "document_url"]
@@ -620,3 +591,4 @@ jobs:
             sleep 10
           done
           "$pushed" || { echo "Failed to publish results after three attempts"; exit 1; }
+
