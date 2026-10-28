@@ -1,0 +1,12 @@
+{
+  "https://investors.broadcom.com/financial-information/tax-information": {
+    "browser_required": true,
+    "checked_at": 1793148555.0485365,
+    "html_fingerprint": ""
+  },
+  "https://www.intuitive.com/en-us/about-us/company/legal/governance": {
+    "browser_required": false,
+    "checked_at": 1793148779.8662472,
+    "html_fingerprint": "602101539c3e1327cf64a2b2d5af58d5faea4900e9ba5ec6b33f291df3b022a7"
+  }
+}

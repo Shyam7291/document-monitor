@@ -1,2 +1,10 @@
 date,run_mode,url_file,source_url,issue_type,status_code,documents_captured,error_message
-2026-10-26 20:40:20,full,documents_p1.csv,https://investors.broadcom.com/financial-information/tax-information,FETCH_FAILED_STATUS_AFTER_RETRY,403,0,Non-200 status code and browser fallback captured 0 documents
+2026-10-28 00:44:21,full,documents_p1.csv,https://www.bookingholdings.com/sustainability/,BROWSER_CAPTURE_INCOMPLETE,,0,Browser source time budget exceeded; capture may be incomplete
+2026-10-28 00:44:21,full,documents_p1.csv,https://www.broadcom.com/company/corporate-responsibility,BROWSER_CAPTURE_INCOMPLETE,,0,Browser source time budget exceeded; capture may be incomplete
+2026-10-28 00:44:21,full,documents_p1.csv,https://www.intuitive.com/en-us/about-us/company/cir,BROWSER_CAPTURE_INCOMPLETE,,0,Browser source time budget exceeded; capture may be incomplete
+2026-10-28 00:44:21,full,documents_p1.csv,https://www.td.com/ca/en/about-td/for-investors/environmental-social-governance-publications,BROWSER_CAPTURE_INCOMPLETE,,0,Browser source time budget exceeded; capture may be incomplete
+2026-10-28 00:44:21,full,documents_p1.csv,https://www.td.com/ca/en/about-td/for-investors/policies-and-references,BROWSER_CAPTURE_INCOMPLETE,,0,Browser source time budget exceeded; capture may be incomplete
+2026-10-28 00:44:21,full,documents_p1.csv,https://www.ril.com/investors/financial-reporting/online-annual-report,BROWSER_CAPTURE_INCOMPLETE,,0,Browser source time budget exceeded; capture may be incomplete
+2026-10-28 00:44:21,full,documents_p1.csv,https://investors.broadcom.com/financial-information/tax-information,FETCH_FAILED_STATUS_AFTER_RETRY,403,0,Non-200 status code and browser fallback captured 0 documents
+2026-10-28 00:44:21,full,documents_p1.csv,https://www.intuitive.com/en-us/about-us/company/cir,PDF_MODIFIED_DATE_UNKNOWN,,0,unreadable:PdfReadError | https://secure.ethicspoint.com/domain/media/en/gui/87432/index.html
+2026-10-28 00:44:21,full,documents_p1.csv,https://www.aramco.com/en/sustainability/sustainability-report,PDF_MODIFIED_DATE_UNKNOWN,,0,unreadable:ReadTimeout | https://www.aramco.com/-/media/publications/corporate-reports/sustainability-reports/report-2025/english/2025-saudi-aramco-sustainability-report-full-en.pdf
