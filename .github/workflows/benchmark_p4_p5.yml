@@ -1,0 +1,168 @@
+name: Isolated P4 P5 Runtime Benchmark
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: isolated-p4-p5-benchmark-${{ github.head_ref }}
+  cancel-in-progress: true
+
+jobs:
+  benchmark:
+    if: github.head_ref == 'runtime-benchmark-p4-p5-20261028'
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      max-parallel: 6
+      matrix:
+        shard: ['01', '02', '03', '04', '05', '06']
+    env:
+      RUN_MODE: full
+      TARGET_URL_FILE: p4_p5/documents_p4_p5_${{ matrix.shard }}.csv
+      OUTPUT_FILE: benchmark_output_${{ matrix.shard }}.csv
+      RAW_FILE: benchmark_raw_${{ matrix.shard }}.csv
+      ISSUES_FILE: benchmark_issues_${{ matrix.shard }}.csv
+      DIFF_FILE: benchmark_diff_${{ matrix.shard }}.csv
+      KNOWN_DOCUMENTS_FILE: benchmark_known_${{ matrix.shard }}.csv
+      RUN_SUMMARY_FILE: benchmark_summary_${{ matrix.shard }}.csv
+      URL_STATUS_FILE: benchmark_status_${{ matrix.shard }}.csv
+      SOURCE_STRATEGY_FILE: source_strategies_documents_p4_p5_${{ matrix.shard }}.json
+      BROWSER_TIMINGS_FILE: benchmark_browser_${{ matrix.shard }}.jsonl
+      ENABLE_BROWSER_FALLBACK: 'true'
+      ENABLE_RAW_LINKS: 'false'
+      ENABLE_DIFF_DECISION_LOGS: 'true'
+      HTTP_WORKERS: '8'
+      PDF_METADATA_WORKERS: '4'
+      BROWSER_WORKERS: '2'
+      BROWSER_SOURCE_SECONDS: '30'
+      SLEEP_SECONDS: '0.5'
+      RETRY_FAILED_URLS: 'true'
+      RETRY_SLEEP_SECONDS: '20'
+      ENABLE_PDF_METADATA_DIFF_FILTER: 'true'
+      PDF_METADATA_RECENCY_DAYS: '60'
+      PDF_METADATA_MAX_BYTES: '104857600'
+      PYTHONUNBUFFERED: '1'
+      BENCHMARK_SHARD: ${{ matrix.shard }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install production dependencies
+        run: |
+          pip install -r requirements.txt
+          playwright install chromium
+      - name: Copy production baselines into isolated work files
+        run: |
+          cp p4_p5/known_documents_p4_p5.csv "$KNOWN_DOCUMENTS_FILE"
+          cp diff_p4_p5.csv "$DIFF_FILE"
+          cp p4_p5/output_p4_p5.csv "$OUTPUT_FILE"
+      - name: Run the full production source shard and record elapsed time
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          import subprocess
+          import sys
+          import time
+
+          started = time.monotonic()
+          result = subprocess.run([sys.executable, '-u', 'scrape.py'])
+          record = {
+              'shard': os.environ['BENCHMARK_SHARD'],
+              'elapsed_seconds': round(time.monotonic()-started, 3),
+              'exit_code': result.returncode,
+              'scraper_baseline_commit': 'c1986eb7d3d4f82f646b6d45e93d14bd2891ef4b'
+          }
+          Path('benchmark_execution_' + os.environ['BENCHMARK_SHARD'] + '.json').write_text(json.dumps(record, indent=2))
+          print('BENCHMARK EXECUTION', json.dumps(record), flush=True)
+          sys.exit(result.returncode)
+          PY
+      - name: Upload benchmark results and partial diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: p4-p5-benchmark-${{ matrix.shard }}
+          path: |
+            benchmark_execution_${{ matrix.shard }}.json
+            benchmark_summary_${{ matrix.shard }}.csv
+            benchmark_issues_${{ matrix.shard }}.csv
+            benchmark_browser_${{ matrix.shard }}.jsonl
+            benchmark_output_${{ matrix.shard }}.csv
+            benchmark_diff_${{ matrix.shard }}.csv
+            source_strategies_documents_p4_p5_${{ matrix.shard }}.json
+          if-no-files-found: ignore
+
+  summarize:
+    if: always() && github.head_ref == 'runtime-benchmark-p4-p5-20261028'
+    needs: benchmark
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: p4-p5-benchmark-*
+          path: benchmark_results
+      - name: Summarize all shards without publishing production CSVs
+        run: |
+          python - <<'PY'
+          import csv
+          import json
+          import os
+          from collections import Counter
+          from pathlib import Path
+
+          root = Path('benchmark_results')
+          records = []
+          totals = Counter()
+          issues = Counter()
+          browser = Counter()
+          for file in sorted(root.rglob('benchmark_execution_*.json')):
+              record = json.loads(file.read_text())
+              records.append(record)
+          for file in root.rglob('benchmark_summary_*.csv'):
+              with file.open() as stream:
+                  rows = list(csv.DictReader(stream))
+              if rows:
+                  for key in ('total_urls_processed', 'total_documents_captured', 'new_diff_records', 'issue_count'):
+                      totals[key] += int(rows[-1].get(key) or 0)
+          for file in root.rglob('benchmark_issues_*.csv'):
+              with file.open() as stream:
+                  issues.update(row['issue_type'] for row in csv.DictReader(stream))
+          for file in root.rglob('benchmark_browser_*.jsonl'):
+              for line in file.read_text().splitlines():
+                  if line.strip():
+                      browser[json.loads(line)['outcome']] += 1
+          report = {
+              'execution_records': records,
+              'successful_shards': sum(row['exit_code'] == 0 for row in records),
+              'expected_shards': 6,
+              'totals': dict(totals),
+              'issue_types': dict(issues),
+              'browser_outcomes': dict(browser),
+              'previous_successful_workflow_seconds': 6612,
+              'previous_cancelled_workflow_seconds': 21703,
+              'production_csvs_published': False
+          }
+          Path('benchmark_report.json').write_text(json.dumps(report, indent=2))
+          print(json.dumps(report, indent=2))
+          lines = ['# P4/P5 isolated runtime benchmark', '',
+                   '| Shard | Scraper seconds | Exit code |', '|---|---:|---:|']
+          lines += [f"| {row['shard']} | {row['elapsed_seconds']} | {row['exit_code']} |" for row in records]
+          lines += ['', f"Successful shards: {report['successful_shards']}/6", '',
+                    'Production CSV files were not published.', '',
+                    'Counts and timings are available in benchmark_report.json. Incomplete browser pages remain reported as issues.']
+          Path(os.environ['GITHUB_STEP_SUMMARY']).write_text('\n'.join(lines))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: p4-p5-benchmark-report
+          path: benchmark_report.json
