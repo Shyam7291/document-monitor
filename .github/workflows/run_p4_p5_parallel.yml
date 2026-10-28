@@ -9,7 +9,7 @@ on:
         default: "full"
 
 concurrency:
-  group: document-monitor-production
+  group: document-monitor-p4-p5
   cancel-in-progress: false
 
 jobs:
@@ -95,6 +95,9 @@ jobs:
 
       HTTP_WORKERS: "8"
       PDF_METADATA_WORKERS: "4"
+      BROWSER_WORKERS: "2"
+      BROWSER_SOURCE_SECONDS: "30"
+      PYTHONUNBUFFERED: "1"
       ENABLE_PDF_METADATA_DIFF_FILTER: "true"
       PDF_METADATA_RECENCY_DAYS: "60"
       PDF_METADATA_MAX_BYTES: "104857600"
@@ -129,7 +132,7 @@ jobs:
           playwright install chromium
 
       - name: Check Python syntax
-        run: python -m py_compile scrape.py
+        run: python -m py_compile scrape.py monitor_io.py browser_pool.py
 
       - name: Run scraper shard ${{ matrix.shard }}
         run: python scrape.py
@@ -147,6 +150,16 @@ jobs:
             source_strategies_documents_p4_p5_${{ matrix.shard }}.json
             ${{ matrix.status_file }}
 
+      - name: Upload browser timing diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: p4-p5-browser-diagnostics-${{ matrix.shard }}
+          path: |
+            browser_timings_documents_p4_p5_${{ matrix.shard }}.jsonl
+            source_strategies_documents_p4_p5_${{ matrix.shard }}.json
+          if-no-files-found: ignore
+
   merge-results:
     if: ${{ always() }}
     needs: scrape-shards
@@ -160,6 +173,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: shard_outputs
+          pattern: p4-p5-shard-*
 
       - name: Merge P4 P5 shard results
         run: |
@@ -421,7 +435,10 @@ jobs:
           # -----------------------
           # Merge run summary as one P4/P5 total row
           # -----------------------
-          summary_rows = read_csv("run_summary_master.csv")
+          summary_path = "p4_p5/run_summary_p4_p5.csv"
+          summary_rows = read_csv(summary_path)
+          if not os.path.exists(summary_path):
+              summary_rows = [row for row in read_csv("run_summary_master.csv") if row.get("url_file") == "p4_p5_total"]
 
           previous_run_number = 0
 
@@ -481,14 +498,13 @@ jobs:
 
               summary_rows.append(p4_p5_total_summary_row)
 
-          write_csv("run_summary_master.csv", SUMMARY_FIELDS, summary_rows)
+          write_csv(summary_path, SUMMARY_FIELDS, summary_rows)
 
           print(f"Final P4/P5 output rows: {len(output_rows)}")
           print(f"Final P4/P5 known rows: {len(known_rows)}")
           print(f"Final P4/P5 diff rows: {len(diff_rows)}")
           print(f"Final P4/P5 issues rows: {len(issue_rows)}")
           print(f"Final P4/P5 URL status rows: {len(url_status_rows)}")
-          print(f"Final P4/P5 canonical rows: {len(canonical_rows)}")
           print(f"Final P4/P5 shard summary rows found: {len(new_summary_rows)}")
           print("Final P4/P5 summary rows added: 1" if new_summary_rows else "Final P4/P5 summary rows added: 0")
           PY
@@ -591,7 +607,7 @@ jobs:
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
 
-          git add -A p4_p5/documents_p4_p5_*.csv p4_p5/output_p4_p5.csv p4_p5/known_documents_p4_p5.csv p4_p5/capture_issues_p4_p5.csv p4_p5/url_status_p4_p5.csv p4_p5/document_canonical_keys_p4_p5.csv diff_p4_p5.csv run_summary_master.csv source_strategies_*.json 2>/dev/null || true
+          git add -A p4_p5/documents_p4_p5_*.csv p4_p5/output_p4_p5.csv p4_p5/known_documents_p4_p5.csv p4_p5/capture_issues_p4_p5.csv p4_p5/url_status_p4_p5.csv p4_p5/document_canonical_keys_p4_p5.csv diff_p4_p5.csv p4_p5/run_summary_p4_p5.csv source_strategies_documents_p4_p5_*.json 2>/dev/null || true
 
           git commit -m "Update P4 P5 batch data" || echo "No changes to commit"
 

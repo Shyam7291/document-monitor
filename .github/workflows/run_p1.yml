@@ -22,6 +22,9 @@ jobs:
       RETRY_SLEEP_SECONDS: "30"
       HTTP_WORKERS: "8"
       PDF_METADATA_WORKERS: "4"
+      BROWSER_WORKERS: "2"
+      BROWSER_SOURCE_SECONDS: "30"
+      PYTHONUNBUFFERED: "1"
       ENABLE_PDF_METADATA_DIFF_FILTER: "true"
       PDF_METADATA_RECENCY_DAYS: "60"
       PDF_METADATA_MAX_BYTES: "104857600"
@@ -47,7 +50,7 @@ jobs:
           playwright install chromium
 
       - name: Check Python syntax
-        run: python -m py_compile scrape.py
+        run: python -m py_compile scrape.py monitor_io.py browser_pool.py
 
       - name: Run stable scraper for P1
         run: python scrape.py
