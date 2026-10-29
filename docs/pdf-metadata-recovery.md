@@ -15,7 +15,10 @@ python recover_pdf_metadata.py consolidate --input metadata_shards --output meta
 
 The **Recover failed PDF metadata** Actions workflow performs these steps with
 six parallel jobs. It is manually triggered and does not start on routine
-scraper runs. Each job has four persistent metadata workers and a 45-second
+scraper runs. PR updates on the one-off `recover-pdf-metadata-run96` branch also
+launch recovery for the requested run #96 snapshot, carrying forward the 33
+dates recovered in local live checks. Other PRs skip the recovery job.
+Each job has four persistent metadata workers and a 45-second
 parent watchdog per document. Requests and parsers that exceed that deadline
 are terminated. Results are checkpointed after each PDF and uploaded even if a
 job fails; consolidation refuses missing or mismatched completed shards.

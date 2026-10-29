@@ -7,6 +7,13 @@ on:
         description: CSV containing PDF_MODIFIED_DATE_UNKNOWN records
         default: p4_p5/capture_issues_p4_p5.csv
         required: true
+      resume_file:
+        description: Optional prior successful-date CSV for the same recovery snapshot
+        default: ''
+        required: false
+  pull_request:
+    types: [synchronize]
+    branches: [main]
 
 permissions:
   contents: read
@@ -17,6 +24,7 @@ concurrency:
 
 jobs:
   plan:
+    if: github.event_name == 'workflow_dispatch' || github.head_ref == 'recover-pdf-metadata-run96'
     runs-on: ubuntu-latest
     env:
       ISSUE_FILE: ${{ inputs.issue_file || 'p4_p5/capture_issues_p4_p5.csv' }}
@@ -45,6 +53,8 @@ jobs:
     needs: plan
     runs-on: ubuntu-latest
     timeout-minutes: 240
+    env:
+      RESUME_FILE: ${{ github.event_name == 'pull_request' && 'metadata_recovery/run96_recovered_seed.csv' || inputs.resume_file || '' }}
     strategy:
       fail-fast: false
       max-parallel: 6
@@ -68,6 +78,7 @@ jobs:
         run: >-
           python -u recover_pdf_metadata.py run --shard ${{ matrix.shard }}
           --workers 4 --timeout 45 --max-mb 100 --output metadata_result_${{ matrix.shard }}
+          --resume "$RESUME_FILE"
       - name: Save results even if the job is interrupted
         if: always()
         uses: actions/upload-artifact@v4
