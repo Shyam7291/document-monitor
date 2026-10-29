@@ -5,6 +5,7 @@ on:
       - '*.py'
       - 'tests/**'
       - 'requirements.txt'
+      - 'requirements-metadata.txt'
       - '.github/workflows/**'
   workflow_dispatch:
 permissions:
@@ -18,9 +19,10 @@ jobs:
         with:
           python-version: '3.11'
           cache: pip
-      - run: pip install -r requirements.txt
+      - run: pip install -r requirements.txt -r requirements-metadata.txt
       - run: playwright install --with-deps chromium
-      - run: python -m py_compile scrape.py monitor_io.py browser_pool.py
+      - run: python -m py_compile scrape.py monitor_io.py browser_pool.py recover_pdf_metadata.py
       - run: python -m unittest discover -s tests -v
         env:
           RUN_BROWSER_TESTS: 'true'
+
