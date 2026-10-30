@@ -1,14 +1,14 @@
 url,last_working_date,last_working_docs_count,latest_status_code,latest_issue,url_file
-https://ir.bookingholdings.com/governance/governance-documents/default.aspx,2026-10-29 20:27:18,20,200,,documents_p1.csv
-https://www.aramco.com/en/investors/reports-and-presentations,2026-10-29 20:27:18,113,200,,documents_p1.csv
-https://www.aramco.com/en/sustainability/sustainability-report,2026-10-29 20:27:18,36,200,,documents_p1.csv
-https://www.bookingholdings.com/sustainability/,2026-10-29 20:27:18,3,200,,documents_p1.csv
+https://ir.bookingholdings.com/governance/governance-documents/default.aspx,2026-10-30 19:59:44,20,200,,documents_p1.csv
+https://www.aramco.com/en/investors/reports-and-presentations,2026-10-30 19:59:44,113,200,,documents_p1.csv
+https://www.aramco.com/en/sustainability/sustainability-report,2026-10-30 19:59:44,36,200,,documents_p1.csv
+https://www.bookingholdings.com/sustainability/,2026-10-30 19:59:44,3,200,,documents_p1.csv
 https://www.broadcom.com/company/corporate-responsibility,2026-10-28 00:44:21,1,200,SUCCESS_ZERO_DOCS,documents_p1.csv
-https://www.intuitive.com/en-us/about-us/company/cir,2026-10-29 20:27:18,11,200,,documents_p1.csv
-https://www.intuitive.com/en-us/about-us/company/legal/governance,2026-10-29 20:27:18,23,200,,documents_p1.csv
-https://www.ril.com/investors/financial-reporting/online-annual-report,2026-10-29 20:27:18,33,200,,documents_p1.csv
-https://www.td.com/ca/en/about-td/for-investors/environmental-social-governance-publications,2026-10-29 20:27:18,14,200,,documents_p1.csv
-https://www.td.com/ca/en/about-td/for-investors/policies-and-references,2026-10-29 20:27:18,24,200,,documents_p1.csv
+https://www.intuitive.com/en-us/about-us/company/cir,2026-10-30 19:59:44,11,200,,documents_p1.csv
+https://www.intuitive.com/en-us/about-us/company/legal/governance,2026-10-30 19:59:44,23,200,,documents_p1.csv
+https://www.ril.com/investors/financial-reporting/online-annual-report,2026-10-30 19:59:44,35,200,,documents_p1.csv
+https://www.td.com/ca/en/about-td/for-investors/environmental-social-governance-publications,2026-10-30 19:59:44,14,200,,documents_p1.csv
+https://www.td.com/ca/en/about-td/for-investors/policies-and-references,2026-10-30 19:59:44,24,200,,documents_p1.csv
 https://bel-india.in/investors/#annualreports,2026-10-29 20:30:39,205,200,,documents_p2.csv
 https://chandra-asri.com/en/investor/publication?category_id=9&page=1,2026-10-29 20:30:39,5,200,,documents_p2.csv
 https://chandra-asri.com/en/investor/reports?category_id=3,2026-10-29 20:30:39,10,200,,documents_p2.csv
@@ -23,6 +23,7 @@ https://investors.universalmusic.com/reports/,2026-10-29 20:30:39,51,200,,docume
 https://ir.amwater.com/sustainability/cdp/default.aspx,2026-10-29 20:30:39,9,200,,documents_p2.csv
 https://ir.amwater.com/sustainability/data-disclosures/default.aspx,2026-10-29 20:30:39,11,200,,documents_p2.csv
 https://ir.apollo.com/sustainability,2026-10-29 20:30:39,2,200,,documents_p2.csv
+https://polyus.com/en/sustainability/esg-data-and-reports/,2026-10-29 20:30:39,48,200,,documents_p2.csv
 https://sunpharma.com/policies/,2026-10-29 20:30:39,37,200,,documents_p2.csv
 https://sunpharma.com/responsibility/sustainability/,2026-10-29 20:30:39,22,200,,documents_p2.csv
 https://sustainability.quantaservices.com/,2026-10-29 20:30:39,1,200,,documents_p2.csv
@@ -82,6 +83,7 @@ https://investors.regalrexnord.com/investors/corporate-governance/integrity-and-
 https://investors.wmg.com/governance/governance-documents/default.aspx,2026-10-29 20:30:40,31,200,,documents_p3.csv
 https://ir.alinma.com/en/investor-relations/sustainability/#sustainability-reports,2026-10-29 20:30:40,14,200,,documents_p3.csv
 https://nlmk.com/en/about/governance/meeting-of-shareholders/,2026-10-28 01:01:54,2,200,BROWSER_CAPTURE_INCOMPLETE,documents_p3.csv
+https://nlmk.com/en/sustainability/,,,200,BROWSER_CAPTURE_INCOMPLETE,documents_p3.csv
 https://recindia.nic.in/sustainability-report,2026-10-29 20:30:40,13,200,,documents_p3.csv
 https://severstal.com/eng/about/corporative/meeting-of-shareholders/,2026-10-29 20:30:40,3,200,,documents_p3.csv
 https://severstal.com/eng/ir/indicators-reporting/annual-reports/,2026-10-29 20:30:40,31,200,,documents_p3.csv
@@ -146,7 +148,5 @@ https://www.sanlam.com/financial-reporting,,,404,HTTP_NOT_FOUND,documents_p3.csv
 https://www.sanlam.com/shareholder-information,,,404,HTTP_NOT_FOUND,documents_p3.csv
 https://www.sanlam.com/sustainability,,,404,HTTP_NOT_FOUND,documents_p3.csv
 https://nextpower.com/sustainability,,,429,SUCCESS_ZERO_DOCS,documents_p3.csv
-https://nlmk.com/en/sustainability/,,,200,BROWSER_CAPTURE_INCOMPLETE,documents_p3.csv
-https://polyus.com/en/sustainability/esg-data-and-reports/,2026-10-29 20:30:39,48,200,,documents_p2.csv
 https://chandra-asri.com/en/sustainability/reports-and-publications,,,REQUEST_ERROR,BROWSER_CAPTURE_INCOMPLETE,documents_p2.csv
 https://esg.eqt.com/report-resources/report-downloads/,,,REQUEST_ERROR,SUCCESS_ZERO_DOCS,documents_p2.csv
