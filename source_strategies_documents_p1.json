@@ -1,23 +1,28 @@
 {
   "https://investors.broadcom.com/financial-information/tax-information": {
     "browser_required": true,
-    "checked_at": 1793390468.1340134,
+    "checked_at": 1793474986.5327148,
     "html_fingerprint": ""
   },
   "https://www.aramco.com/en/investors/reports-and-presentations": {
     "browser_required": true,
-    "checked_at": 1793390468.608856,
+    "checked_at": 1793474986.9550774,
     "html_fingerprint": "48042f97556c3710a8215d2ccf97021c60446020c9bfb8d72206424a9d2cf3bd"
   },
   "https://www.aramco.com/en/sustainability/sustainability-report": {
     "browser_required": true,
-    "checked_at": 1793390468.4275389,
+    "checked_at": 1793474986.8030171,
     "html_fingerprint": "ed545a821f8cebf3ff9dd16600e3e2353f55dee3f7083e66173d1d73694c7e18"
+  },
+  "https://www.bookingholdings.com/sustainability/": {
+    "browser_required": true,
+    "checked_at": 1793474985.7576199,
+    "html_fingerprint": ""
   },
   "https://www.broadcom.com/company/corporate-responsibility": {
     "browser_required": true,
-    "checked_at": 1793390484.9619122,
-    "html_fingerprint": "35053f27378f389429c04de6965ca0ac4d5d7dc7af014deb5c0ec0644e16af56"
+    "checked_at": 1793474991.46014,
+    "html_fingerprint": "577a1f21f20b8c72416cdd55b2339146784ea78749e328d82041adacce08cc18"
   },
   "https://www.intuitive.com/en-us/about-us/company/legal/governance": {
     "browser_required": false,
@@ -26,7 +31,7 @@
   },
   "https://www.ril.com/investors/financial-reporting/online-annual-report": {
     "browser_required": true,
-    "checked_at": 1793390498.615432,
-    "html_fingerprint": "d4a67013363894e64c4c5dbc683ded566dee2554ee229ea6b26bf10aaaecdbea"
+    "checked_at": 1793475016.9663122,
+    "html_fingerprint": "c59b24fa5bfe6f834da3a0c76f4f7c53fbfe5775a3f48cfa0d753b5753daddc5"
   }
 }

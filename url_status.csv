@@ -1,14 +1,13 @@
 url,last_working_date,last_working_docs_count,latest_status_code,latest_issue,url_file
-https://ir.bookingholdings.com/governance/governance-documents/default.aspx,2026-10-30 19:59:44,20,200,,documents_p1.csv
-https://www.aramco.com/en/investors/reports-and-presentations,2026-10-30 19:59:44,113,200,,documents_p1.csv
-https://www.aramco.com/en/sustainability/sustainability-report,2026-10-30 19:59:44,36,200,,documents_p1.csv
-https://www.bookingholdings.com/sustainability/,2026-10-30 19:59:44,3,200,,documents_p1.csv
+https://ir.bookingholdings.com/governance/governance-documents/default.aspx,2026-10-31 19:28:20,20,200,,documents_p1.csv
+https://www.aramco.com/en/investors/reports-and-presentations,2026-10-31 19:28:20,113,200,,documents_p1.csv
+https://www.aramco.com/en/sustainability/sustainability-report,2026-10-31 19:28:20,36,200,,documents_p1.csv
 https://www.broadcom.com/company/corporate-responsibility,2026-10-28 00:44:21,1,200,SUCCESS_ZERO_DOCS,documents_p1.csv
-https://www.intuitive.com/en-us/about-us/company/cir,2026-10-30 19:59:44,11,200,,documents_p1.csv
-https://www.intuitive.com/en-us/about-us/company/legal/governance,2026-10-30 19:59:44,23,200,,documents_p1.csv
-https://www.ril.com/investors/financial-reporting/online-annual-report,2026-10-30 19:59:44,35,200,,documents_p1.csv
-https://www.td.com/ca/en/about-td/for-investors/environmental-social-governance-publications,2026-10-30 19:59:44,14,200,,documents_p1.csv
-https://www.td.com/ca/en/about-td/for-investors/policies-and-references,2026-10-30 19:59:44,24,200,,documents_p1.csv
+https://www.intuitive.com/en-us/about-us/company/cir,2026-10-31 19:28:20,11,200,,documents_p1.csv
+https://www.intuitive.com/en-us/about-us/company/legal/governance,2026-10-31 19:28:20,23,200,,documents_p1.csv
+https://www.ril.com/investors/financial-reporting/online-annual-report,2026-10-31 19:28:20,24,200,,documents_p1.csv
+https://www.td.com/ca/en/about-td/for-investors/environmental-social-governance-publications,2026-10-31 19:28:20,14,200,,documents_p1.csv
+https://www.td.com/ca/en/about-td/for-investors/policies-and-references,2026-10-31 19:28:20,24,200,,documents_p1.csv
 https://bel-india.in/investors/#annualreports,2026-10-30 20:03:13,205,200,,documents_p2.csv
 https://chandra-asri.com/en/investor/publication?category_id=9&page=1,2026-10-30 20:03:13,5,200,,documents_p2.csv
 https://chandra-asri.com/en/investor/reports?category_id=3,2026-10-30 20:03:13,10,200,,documents_p2.csv
@@ -128,6 +127,7 @@ https://www.varunbeverages.com/sustainability-reports/,2026-10-30 20:03:05,7,200
 https://www.westlake.com/sustainability,2026-10-30 20:03:05,4,200,,documents_p3.csv
 https://www.wmg.com/,2026-10-30 20:03:05,3,200,,documents_p3.csv
 https://investors.broadcom.com/financial-information/tax-information,,,403,SUCCESS_ZERO_DOCS,documents_p1.csv
+https://www.bookingholdings.com/sustainability/,2026-10-30 19:59:44,3,403,SUCCESS_ZERO_DOCS,documents_p1.csv
 https://investorcentre.sigmahealthcare.com.au/corporate-governance/governance-documents,,,403,SUCCESS_ZERO_DOCS,documents_p2.csv
 https://investorcentre.sigmahealthcare.com.au/corporate-sustainability,,,403,SUCCESS_ZERO_DOCS,documents_p2.csv
 https://investors.biontech.de/agm/agm-2026,,,403,SUCCESS_ZERO_DOCS,documents_p2.csv
