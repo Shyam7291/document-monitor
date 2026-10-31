@@ -1,0 +1,116 @@
+name: Recover failed PDF metadata
+
+on:
+  workflow_dispatch:
+    inputs:
+      issue_file:
+        description: CSV containing PDF_MODIFIED_DATE_UNKNOWN records
+        default: p4_p5/capture_issues_p4_p5.csv
+        required: true
+      resume_file:
+        description: Optional prior successful-date CSV for the same recovery snapshot
+        default: ''
+        required: false
+  pull_request:
+    types: [synchronize]
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pdf-metadata-recovery-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    if: github.event_name == 'workflow_dispatch' || github.head_ref == 'recover-pdf-metadata-run96'
+    runs-on: ubuntu-latest
+    env:
+      ISSUE_FILE: ${{ inputs.issue_file || 'p4_p5/capture_issues_p4_p5.csv' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: requirements-metadata.txt
+      - run: pip install -r requirements-metadata.txt
+      - name: Verify metadata recovery against local fixtures
+        run: python -m unittest discover -s tests -p test_metadata_recovery.py -v
+      - name: Deduplicate failed PDFs into an immutable recovery queue
+        run: python recover_pdf_metadata.py plan --issues "$ISSUE_FILE" --shards 6
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pdf-metadata-recovery-plan
+          path: .metadata_recovery_queue/
+          include-hidden-files: true
+          if-no-files-found: error
+
+  recover:
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    env:
+      RESUME_FILE: ${{ github.event_name == 'pull_request' && 'metadata_recovery/run96_recovered_seed.csv' || inputs.resume_file || '' }}
+    strategy:
+      fail-fast: false
+      max-parallel: 6
+      matrix:
+        shard: ['01', '02', '03', '04', '05', '06']
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: requirements-metadata.txt
+      - run: pip install -r requirements-metadata.txt
+      - uses: actions/download-artifact@v4
+        with:
+          name: pdf-metadata-recovery-plan
+          path: .metadata_recovery_queue
+      - name: Recover dates with bounded requests and a parent process watchdog
+        run: >-
+          python -u recover_pdf_metadata.py run --shard ${{ matrix.shard }}
+          --workers 4 --timeout 45 --max-mb 100 --output metadata_result_${{ matrix.shard }}
+          --resume "$RESUME_FILE"
+      - name: Save results even if the job is interrupted
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pdf-metadata-shard-${{ matrix.shard }}
+          path: metadata_result_${{ matrix.shard }}/
+          if-no-files-found: warn
+
+  consolidate:
+    if: always() && needs.plan.result == 'success'
+    needs: [plan, recover]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r requirements-metadata.txt
+      - uses: actions/download-artifact@v4
+        with:
+          name: pdf-metadata-recovery-plan
+          path: .metadata_recovery_queue
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: pdf-metadata-shard-*
+          path: metadata_shards
+      - name: Consolidate dates and unresolved failures without updating production CSVs
+        run: python recover_pdf_metadata.py consolidate --input metadata_shards --output metadata_recovery_results
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pdf-metadata-recovery-report
+          path: metadata_recovery_results/
+          if-no-files-found: error

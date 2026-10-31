@@ -1,0 +1,4 @@
+requests==2.32.5
+PyPDF2==3.0.1
+pypdf[crypto]==6.10.0
+PyMuPDF==1.26.6
