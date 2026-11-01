@@ -555,3 +555,4 @@ run_number,date,run_mode,url_file,total_urls_processed,total_documents_captured,
 554,2026-10-31 19:28:20,full,documents_p1.csv,11,262,0,8,3,2,0,True,output.csv,raw_links.csv,capture_issues.csv
 555,2026-10-31 19:31:40,full,documents_p3.csv,75,3302,1,90,12,12,1,True,output_p3_work.csv,raw_links.csv,capture_issues_p3_work.csv
 556,2026-10-31 19:31:42,full,documents_p2.csv,66,1788,0,117,7,8,2,True,output_p2_work.csv,raw_links.csv,capture_issues_p2_work.csv
+557,2026-11-01 19:51:00,full,documents_p1.csv,11,276,0,6,2,1,0,True,output.csv,raw_links.csv,capture_issues.csv
